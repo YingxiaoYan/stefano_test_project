@@ -1,0 +1,10 @@
+_scr
+
+*.html
+
+# Keep those on the current directory only
+_output.yml
+!/_output.yml
+styles.css
+!/styles.css
+
