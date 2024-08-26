@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+dependencies:
+  # R env
+  - r-base=4.3.3         # `box` < 4.4.0
+  - r-renv=1.0.7
+  - r-box=1.2.0
+  - r-roxygen2=7.3.2      # `box` requires this.
+  
+  # `renv` takes much longer time
+  - r-tidyverse=2.0.0
+
