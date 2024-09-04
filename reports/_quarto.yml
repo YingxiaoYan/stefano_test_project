@@ -1,0 +1,54 @@
+# NOTE
+# - USE ABSOLUTE PATHS with _quarto.yml.local, when relative ones are not working (e.g. soft link)
+
+project:
+  title: "Building on open source tools for targeted and untargeted metabolomics and exposomics"
+  execute-dir: project
+  output-dir: "../../reports"
+
+lang: en
+date: today
+date-format: full
+toc: true
+number-sections: true
+bibliography: bibliography.bib
+
+format:
+  html: 
+    css: styles.css
+    toc-depth: 3
+    code-fold: true
+    toc-location: left
+    standalone: true
+    embed-resources: true
+    page-layout: full
+
+    fig-width : 8
+    fig-height: 6
+  pdf:
+    fig-align: "center"  # Assure line breaks between figures
+
+echo: true
+output: asis
+warning: false    # No warning
+
+
+knitr:
+  opts_knit:
+    root.dir: "../../"
+  opts_chunk:
+    cache.path: "../../data/intermediate/cache/"
+    purl: false      # Most of the code are not to be extracted.
+    message: false    # All messages are ignored.
+    
+    # fig.path: "../../outputs/figures/"
+
+    R.options: 
+      knitr.kable.NA: ""         # NA is shown as "" in kable
+      
+      xfun.cache_rds.clean: false     # Keep old even after invalidated
+      
+      kable_styling_full_width: false   # No more `kable_styling(full_with = FALSE)`
+      
+      width: 100     # Text (markup) output
+

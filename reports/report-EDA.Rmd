@@ -1,0 +1,345 @@
+---
+title: "Exploratory Data Analysis - Exposome"
+---
+
+```{r}
+#| label: 'setup-import'
+#| purl: true
+
+# Load packages and project local libraries
+options(box.path = "code/")
+box::use(
+  dplyr[across, case_when, case_match, coalesce, c_across, if_else, na_if],
+  tidyselect[all_of, any_of, contains, ends_with, everything, matches, one_of, starts_with, where],
+  ggplot2[...],        # too long to write and usually specific enough
+  io = projlib/check_io_exist,
+)
+
+# Input files
+FILE <- rlang::list2(
+  in_xl = "data/raw_internal/Target_Exposomics_240827.xlsx",
+)
+# Check if the files exist
+io$chq_all_files_exist(FILE)
+```
+
+# Given data
+
+## Sheet "Original data (MS-DIAL)"
+
+```{r}
+#| label: 'read-given-xlsx-and-save-sumexp'
+#| purl: true
+#| cache: true
+
+# Parse the data into SummarizedExperiment
+parse_to_sumexp <- function(data_fr_xlsx, i_row_sample, i_col_metab) {
+  # Confirm the column names are as expected
+  stopifnot(identical(
+    colnames(data_fr_xlsx)[i_col_metab],
+    c("Alignment ID", "Average Rt(min)", "Average Mz", "Metabolite name", "Comment", "Class")
+  ))
+  id_metab <- rlang::quo(`Metabolite name`)
+  # Save metabs separately
+  metabs <- data_fr_xlsx[-i_row_sample, i_col_metab, drop = FALSE] |> 
+    # `id` = Syntactically valid ID
+    dplyr::mutate(metab_id = make.names(!!id_metab, unique = TRUE), .before = 1L) |> 
+    # SummarizedExperiment will change anyhow
+    dplyr::rename_with(~ make.names(.x))
+  
+  # Extract sample info rows
+  sample_info <- t(data_fr_xlsx[i_row_sample, -i_col_metab, drop = FALSE])
+  stopifnot(i_row_sample == 1)
+  colnames(sample_info) <- "given_id"
+  # The row names contain the sample type
+  sample_info <- tibble::as_tibble(sample_info, rownames = "type")
+  sample_info <- sample_info |> 
+    dplyr::mutate(sample_id = make.names(given_id, unique = TRUE)) |>   # Syntactically valid
+    dplyr::select(sample_id, type, given_id)
+  
+  # Values of the metabolites into a matrix
+  msdial_mat <- data_fr_xlsx[-i_row_sample, -i_col_metab, drop = FALSE]
+  stopifnot(identical(colnames(msdial_mat), sample_info$type))
+  colnames(msdial_mat) <- sample_info$sample_id     # Update the column names with sample IDs
+  msdial_mat <- lapply(msdial_mat, as.numeric) |> 
+    as.data.frame(row.names = metabs$metab_id) |> 
+    as.matrix()
+  
+  # Into SummarizedExperiment
+  SummarizedExperiment::SummarizedExperiment(
+    assays = list(msdial = msdial_mat),
+    colData = sample_info,
+    rowData = metabs,
+  )
+}
+# Read the data in the sheet "Original data (MS-DIAL)"
+msdial_data <- readxl::read_xlsx(
+  path = FILE$in_xl, 
+  sheet = "Original data (MS-DIAL)",
+  .name_repair = "minimal",     # No change of column names
+)
+I_COL_ANALYTE <- 1:6
+I_ROW_SAMPLE <- 1           # The first row has information about the samples
+
+msdial_sumexp <- parse_to_sumexp(msdial_data, I_ROW_SAMPLE, I_COL_ANALYTE)
+colnames(SummarizedExperiment::rowData(msdial_sumexp))[6] <- "std_type"    # `Comment`
+```
+
+The sheet "Original data (MS-DIAL)" contained `r nrow(msdial_data[-I_ROW_SAMPLE, ])` rows (or metabolites) and `r ncol(msdial_data)` columns.
+Among the columns, the first `r length(I_COL_ANALYTE)` columns were the analytes' information (`r knitr::combine_words(colnames(msdial_data)[I_COL_ANALYTE], before = "\x60")`),
+and the rest were the data of the samples.
+The column names were the sample IDs including standards for calibration curves and quality control samples.
+
+* Dimension of the data: `r dim(msdial_sumexp)`
+
+
+## Sheets "QStd" and "IS"
+
+```{r}
+# Read the data in the sheet "QStd"
+qstd_data <- readxl::read_xlsx(
+  path = FILE$in_xl, 
+  sheet = "QStd",
+  .name_repair = "minimal",     # No change of column names
+)
+# Confirm the file was in the correct format
+stopifnot(identical(
+  colnames(qstd_data),
+  c("Compound name", "", "Rt", "mz", "Comment")
+))
+qstd_data <- qstd_data[-2]    # No data
+colnames(qstd_data) <- c("Metabolite.name", "Rt", "Mz", "Comment_Qstd")
+tmp <- dplyr::left_join(
+  SummarizedExperiment::rowData(msdial_sumexp) |> as.data.frame(),
+  qstd_data, 
+  by = "Metabolite.name"
+)
+# Confirm "QStd" sheet contains duplicated data
+stopifnot(all(is.na(tmp$Comment_Qstd) | paste0("Q", tmp$std_type) == tmp$Comment_Qstd))
+
+# Read the data in the sheet "IS"
+is_data <- readxl::read_xlsx(
+  path = FILE$in_xl, 
+  sheet = "IS",
+  .name_repair = "minimal",     # No change of column names
+)
+# Confirm the file was in the correct format
+stopifnot(identical(
+  colnames(is_data),
+  c("Compound name", "Rt", "mz", "Comment")
+))
+colnames(is_data) <- c("Metabolite.name", "Rt", "Mz", "Comment_IS")
+is_data$Comment_IS <- "Istd"    # The values in `msdial_data` are `Istd`.
+tmp <- dplyr::left_join(
+  SummarizedExperiment::rowData(msdial_sumexp) |> as.data.frame(),
+  is_data, 
+  by = "Metabolite.name"
+)
+# Confirm "IS" sheet contains duplicated data
+stopifnot(all(is.na(tmp$Comment_IS) | tmp$std_type == tmp$Comment_IS))
+```
+
+The sheets "QStd" and "IS" contained identical data to the sheet "Original data (MS-DIAL)". 
+So the sheets are not used in the following analysis.
+
+## Samples
+
+There are `r dplyr::n_distinct(msdial_sumexp$type)` types of samples in the data.
+The number of samples for each type is as follows:
+```{r}
+msdial_sumexp$type |> 
+  table() |> 
+  knitr::kable(col.names = c("Type", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## Metabolites
+
+The data contained `r nrow(msdial_sumexp)` metabolites.
+The metabolites were classified into `r dplyr::n_distinct(SummarizedExperiment::rowData(msdial_sumexp)$std_type)` types.
+The number of metabolites for each type is as follows:
+```{r}
+SummarizedExperiment::rowData(msdial_sumexp)$std_type |> 
+  table() |> 
+  knitr::kable(col.names = c("Standard Type", "Number of metabolites")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+----------------------------
+
+# Normalization using internal standards
+
+## Internal standard metabolites
+
+```{r}
+#| label: 'internal-standards'
+#| purl: true
+
+# Extract the internal standard metabolites
+i_int_std <- SummarizedExperiment::rowData(msdial_sumexp)$std_type == "Istd"
+internal_std_se <- msdial_sumexp[i_int_std, ]
+
+# Exclude the internal standard metabolites from the data
+qstd_sumexp <- msdial_sumexp[!i_int_std, ]
+stopifnot(all(SummarizedExperiment::rowData(qstd_sumexp)$std_type == "Std"))
+
+# Sort by the average m/z
+intstd_analytes <- SummarizedExperiment::rowData(internal_std_se)
+internal_std_se <- internal_std_se[order(intstd_analytes$Average.Mz), ]
+
+
+```
+
+There are `r nrow(internal_std_se)` internal standard metabolites in the data.
+Those metabolites are `r knitr::combine_words(SummarizedExperiment::rowData(internal_std_se)$Metabolite.name, before = "\x60")`.
+
+## Normalization
+
+
+
+
+# Calibration curves
+
+```{r}
+#| label: 'divide-samples-by-type'
+#| purl: true
+
+# Divide the data by the sample type
+i_by_type <- split(1:ncol(msdial_sumexp), msdial_sumexp$type)
+msdial_by_type <- purrr::map(i_by_type, ~msdial_sumexp[, .x])
+```
+
+
+## Calibration curve samples
+
+```{r}
+#| label: 'calcurve-samples'
+#| purl: true
+
+
+# Extract concentration values from the given IDs
+msdial_by_type[["CalCurve"]]$conc <- local({
+  given_id <- msdial_by_type[["CalCurve"]]$given_id 
+  conc <- stringr::str_extract(given_id, "Cal(|Std)([0-9]+)_", group = 2)
+  dplyr::case_when(
+    stringr::str_detect(given_id, "Cal0_") ~ "0",
+    stringr::str_detect(conc, "^0[0-9]") ~ stringr::str_replace(conc, "^0", "0."),
+    TRUE ~ conc
+  ) |> 
+    as.numeric()
+})
+calcurve_se <- msdial_by_type[["CalCurve"]]
+```
+
+```{r}
+#| label: 'calcurve-samples-summary'
+# Present the number of samples in the calibration curve
+calcurve_se$conc |> 
+  table() |> 
+  knitr::kable(
+    align = c("r", "r"),
+    col.names = c("Concentration", "Number of samples")
+  )
+```
+
+## Calibration curve per metabolite
+
+### Linear scale
+
+```{r}
+#| label: 'calcurve-per-metabolite-linear'
+#| fig-width: 12
+#| fig-height: 11
+#| out-width: "100%"
+set.seed(7579)
+i_sel <- sample(1:nrow(calcurve_se), 9)
+calcurve_se <- calcurve_se[i_sel, ]
+
+# Plot calibration curves
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = msdial)) +
+  geom_point() +
+  labs(
+    x = "Concentration",
+    y = "Peak area"
+  ) +  
+  facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
+```
+
+### Log scale
+
+```{r}
+#| label: 'calcurve-per-metabolite-log'
+#| fig-width: 12
+#| fig-height: 11
+#| out-width: "100%"
+
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = msdial)) +
+  geom_point() +
+  labs(
+    x = "Concentration",
+    y = "Peak area"
+  ) +  
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
+
+```
+
+
+
+<!-- ```{r} -->
+<!-- #| results: 'asis'         # This produces multiple chunks. -->
+<!-- #| echo: false             # - knitr::knit_child, asis_output -->
+<!-- titles <- lst(           # Allow a trailing comma -->
+<!--   test1 = "Group1 vs. Group2", -->
+<!--   test2 = "Group2 vs. Group3", -->
+<!-- ) -->
+
+<!-- sub_groups <- c("A", "B") -->
+
+<!-- sapply(names(titles), \(ii) {   # ii <- names(titles)[1]   # for debug -->
+<!--   header <- rlang::chr( -->
+<!--     '\n#### {{titles[[ii]]}}', -->
+<!--   ) |>  -->
+<!--     knitr::knit_expand(text = _) -->
+
+<!--   body <- lapply(sub_groups, \(jj) { -->
+<!--     p_layout <- ggplot_build(vo[[ii]][[jj]]$examples)$layout$layout -->
+<!--     nr <- map(p_layout[c("ROW", "COL")], ~max(.x)) -->
+<!--     out_width <- sprintf("%i%%", round((nr$COL + 0.75) / 5.75 * 100)) -->
+<!--     rlang::chr( -->
+<!--       '\n##### {{jj}} condition', -->
+<!--       # Volcano plot -->
+<!--       '```{r}', -->
+<!--       "#| label: '{{ii}}-{{jj}}-volcano-plot'", -->
+<!--       '#| fig-width: 6',  -->
+<!--       '#| fig-height: 6', -->
+<!--       "#| out-width: '60%'", -->
+<!--       '#| fig-cap: ', -->
+<!--       'volcano_kable_examples${{ii}}${{jj}}$volcano', -->
+<!--       "```", -->
+<!--       # Plots to show examples -->
+<!--       "```{r}", -->
+<!--       "#| label: '{{ii}}-{{jj}}-examples'", -->
+<!--       '#| fig-width: {{nr$COL * 2 + 1.5}}', -->
+<!--       '#| fig-height: {{nr$ROW * 2 + 1}}', -->
+<!--       "#| out-width: '{{out_width}}'", -->
+<!--       'volcano_kable_examples${{ii}}${{jj}}$examples', -->
+<!--       "```", -->
+<!--     ) |>  -->
+<!--       knitr::knit_expand(text = _) -->
+<!--   }) -->
+<!--   c(header, body) -->
+<!-- }) |>  -->
+<!--   knitr::knit_child(text = _, quiet = TRUE) |>  -->
+<!--   knitr::asis_output()    # print `asis` -->
+<!-- ``` -->
+
+
+```{r}
+#| echo: false
+#| results: 'asis'
+# Avoid duplication of the bibliography when this is called as a child.
+if(! knitr::opts_knit$get("child")) cat('\n\n# References\n\n')
+```
+

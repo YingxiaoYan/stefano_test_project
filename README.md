@@ -1,5 +1,3 @@
-# A texts for an R script
-
 This directory contains the code for the program in the support project.
 This document is written in Markdown (`.md`) and is best viewed using a Markdown viewer.
 

@@ -1,6 +1,9 @@
 channels:
   - conda-forge
+  - bioconda
 dependencies:
+  - quarto=1.5.55
+
   # R env
   - r-base=4.3.3         # `box` < 4.4.0
   - r-renv=1.0.7
@@ -9,4 +12,7 @@ dependencies:
   
   # `renv` takes much longer time
   - r-tidyverse=2.0.0
+  - bioconductor-tidysummarizedexperiment
+  - r-codetools             # For `cache` in Qmd
+  - r-kableextra=1.4.0
 
