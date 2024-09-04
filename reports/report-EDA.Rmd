@@ -12,6 +12,7 @@ box::use(
   dplyr[across, case_when, case_match, coalesce, c_across, if_else, na_if],
   tidyselect[all_of, any_of, contains, ends_with, everything, matches, one_of, starts_with, where],
   ggplot2[...],        # too long to write and usually specific enough
+  tidySummarizedExperiment,        # S3 methods for tidyverse style of SummarizedExperiment
   io = projlib/check_io_exist,
 )
 
@@ -21,6 +22,8 @@ FILE <- rlang::list2(
 )
 # Check if the files exist
 io$chq_all_files_exist(FILE)
+
+set.seed(7579)
 ```
 
 # Given data
@@ -39,23 +42,22 @@ parse_to_sumexp <- function(data_fr_xlsx, i_row_sample, i_col_metab) {
     colnames(data_fr_xlsx)[i_col_metab],
     c("Alignment ID", "Average Rt(min)", "Average Mz", "Metabolite name", "Comment", "Class")
   ))
-  id_metab <- rlang::quo(`Metabolite name`)
-  # Save metabs separately
+  # extract metabolite info columns
   metabs <- data_fr_xlsx[-i_row_sample, i_col_metab, drop = FALSE] |> 
-    # `id` = Syntactically valid ID
-    dplyr::mutate(metab_id = make.names(!!id_metab, unique = TRUE), .before = 1L) |> 
-    # SummarizedExperiment will change anyhow
+    # `metab_id` = Syntactically valid ID
+    dplyr::mutate(metab_id = make.names(`Metabolite name`, unique = TRUE), .before = 1L) |> 
+    # SummarizedExperiment will make this change anyhow
     dplyr::rename_with(~ make.names(.x))
   
   # Extract sample info rows
   sample_info <- t(data_fr_xlsx[i_row_sample, -i_col_metab, drop = FALSE])
   stopifnot(i_row_sample == 1)
-  colnames(sample_info) <- "given_id"
+  colnames(sample_info) <- "given_sample_id"
   # The row names contain the sample type
   sample_info <- tibble::as_tibble(sample_info, rownames = "type")
   sample_info <- sample_info |> 
-    dplyr::mutate(sample_id = make.names(given_id, unique = TRUE)) |>   # Syntactically valid
-    dplyr::select(sample_id, type, given_id)
+    dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE)) |>   # Syntactically valid
+    dplyr::select(sample_id, type, given_sample_id)
   
   # Values of the metabolites into a matrix
   msdial_mat <- data_fr_xlsx[-i_row_sample, -i_col_metab, drop = FALSE]
@@ -165,6 +167,65 @@ SummarizedExperiment::rowData(msdial_sumexp)$std_type |>
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
+## Distribution of the values
+
+### Overall samples and metabolites
+
+#### Linear scale
+
+```{r}
+#| label: 'distribution-values-linear'
+
+# Distribution of the values
+ggplot(msdial_sumexp) +
+  geom_histogram(aes(x = msdial), bins = 30) +
+  labs(title = "Distribution of the values", x = "Values")
+```
+
+#### Logarithmic scale
+
+```{r}
+#| label: 'distribution-values-log'
+ggplot(msdial_sumexp) +
+  geom_histogram(aes(x = msdial), bins = 30) +
+  labs(title = "Distribution of the values", x = "Values") +
+  scale_x_log10()
+```
+
+### By sample type and overall metabolites
+
+```{r}
+#| label: 'distribution-values-by-type'
+#| fig-width: 10
+#| fig-height: 6
+#| out.width: '100%'
+
+ggplot(msdial_sumexp) +
+  geom_histogram(aes(x = msdial), bins = 30) +
+  labs(title = "Distribution of the values by sample type", x = "Values") +
+  scale_x_log10() +
+  facet_wrap(~ type, scales = "free_y", ncol = 4)
+```
+
+### By metabolite and overall samples
+
+Randomly selected 8 metabolites are shown in the following figure.
+
+```{r}
+#| label: 'distribution-values-by-metabolite'
+#| fig-width: 10
+#| fig-height: 6
+#| out.width: '100%'
+
+i_selected <- sample(1:nrow(msdial_sumexp), 8)
+ggplot(msdial_sumexp[i_selected, ]) +
+  geom_histogram(aes(x = msdial), bins = 30) +
+  labs(title = "Distribution of the values by metabolite", x = "Values") +
+  scale_x_log10() +
+  facet_wrap(~ Metabolite.name, scales = "free_x", ncol = 4)
+```
+
+
 ----------------------------
 
 # Normalization using internal standards
@@ -178,23 +239,57 @@ SummarizedExperiment::rowData(msdial_sumexp)$std_type |>
 # Extract the internal standard metabolites
 i_int_std <- SummarizedExperiment::rowData(msdial_sumexp)$std_type == "Istd"
 internal_std_se <- msdial_sumexp[i_int_std, ]
+# Sort by average m/z
+mz <- SummarizedExperiment::rowData(internal_std_se)$Average.Mz
+internal_std_se <- internal_std_se[order(mz), ]
 
 # Exclude the internal standard metabolites from the data
 qstd_sumexp <- msdial_sumexp[!i_int_std, ]
 stopifnot(all(SummarizedExperiment::rowData(qstd_sumexp)$std_type == "Std"))
-
-# Sort by the average m/z
-intstd_analytes <- SummarizedExperiment::rowData(internal_std_se)
-internal_std_se <- internal_std_se[order(intstd_analytes$Average.Mz), ]
-
-
 ```
 
 There are `r nrow(internal_std_se)` internal standard metabolites in the data.
-Those metabolites are `r knitr::combine_words(SummarizedExperiment::rowData(internal_std_se)$Metabolite.name, before = "\x60")`.
+Those metabolites are `r knitr::combine_words(SummarizedExperiment::rowData(internal_std_se)$Metabolite.name, before = "\x60")`, sorted by `Average m/z`.
+
+### Distribution of the values
+
+Randomly selected 8 internal standard metabolites are shown in the following figure.
+
+```{r}
+#| label: 'distribution-values-internal-standards'
+#| fig-width: 8
+#| fig-height: 13
+#| out.width: '80%'
+
+i_selected <- sample(1:nrow(internal_std_se), 8) |> 
+  sort()
+internal_std_se[i_selected, ] |> 
+  # keep the order by m/z. This invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
+  dplyr::mutate(Metabolite.name = factor(Metabolite.name, unique(Metabolite.name))) |> 
+  ggplot() +
+  geom_histogram(aes(x = msdial, fill = type), bins = 30) +
+  labs(title = "Distribution of the values of internal standard metabolites", x = "Values") +
+  scale_x_log10() +
+  facet_wrap(~ Metabolite.name, scales = "free_x", ncol = 2)
+```
 
 ## Normalization
 
+```{r}
+#| label: 'normalize'
+#| purl: true
+
+# Normalize the data using the internal standards
+internal_std_mat <- SummarizedExperiment::assays(internal_std_se)$msdial
+intstd_analytes <- SummarizedExperiment::rowData(internal_std_se)
+loess_fit <- purrr::map(1:ncol(internal_std_se), function(ii) {
+  # Fit a loess curve
+  x <- internal_std_mat[, ii]
+  loess(x ~ intstd_analytes$Average.Mz, span = 0.75)
+})
+
+
+```
 
 
 
@@ -219,10 +314,10 @@ msdial_by_type <- purrr::map(i_by_type, ~msdial_sumexp[, .x])
 
 # Extract concentration values from the given IDs
 msdial_by_type[["CalCurve"]]$conc <- local({
-  given_id <- msdial_by_type[["CalCurve"]]$given_id 
-  conc <- stringr::str_extract(given_id, "Cal(|Std)([0-9]+)_", group = 2)
+  given_sample_id <- msdial_by_type[["CalCurve"]]$given_sample_id 
+  conc <- stringr::str_extract(given_sample_id, "Cal(|Std)([0-9]+)_", group = 2)
   dplyr::case_when(
-    stringr::str_detect(given_id, "Cal0_") ~ "0",
+    stringr::str_detect(given_sample_id, "Cal0_") ~ "0",
     stringr::str_detect(conc, "^0[0-9]") ~ stringr::str_replace(conc, "^0", "0."),
     TRUE ~ conc
   ) |> 
