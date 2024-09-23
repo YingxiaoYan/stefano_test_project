@@ -1,5 +1,6 @@
 # NOTE
-# - USE ABSOLUTE PATHS with _quarto.yml.local, when relative ones are not working (e.g. soft link)
+# - USE ABSOLUTE PATHS, possibly with `_quarto.yml.local`, when relative ones are not working (due
+#   to e.g. a soft link to the `code` directory).
 
 project:
   title: "Building on open source tools for targeted and untargeted metabolomics and exposomics"
@@ -11,7 +12,7 @@ date: today
 date-format: full
 toc: true
 number-sections: true
-bibliography: bibliography.bib
+bibliography: "bibliography.bib"
 
 format:
   html: 
@@ -19,19 +20,17 @@ format:
     toc-depth: 3
     code-fold: true
     toc-location: left
-    standalone: true
     embed-resources: true
     page-layout: full
 
     fig-width : 8
     fig-height: 6
-  pdf:
-    fig-align: "center"  # Assure line breaks between figures
+    fig-align: "default"
 
-echo: true
-output: asis
-warning: false    # No warning
-
+execute:
+  echo: true
+  output: asis
+  warning: false    # No warning
 
 knitr:
   opts_knit:
@@ -44,10 +43,11 @@ knitr:
     # fig.path: "../../outputs/figures/"
 
     R.options: 
-      knitr.kable.NA: ""         # NA is shown as "" in kable
-      
       xfun.cache_rds.clean: false     # Keep old even after invalidated
       
+      knitr.kable.NA: ""         # NA is shown as "" in kable
+      # Otherwise, full width tables are shown no matter what the setting is for `kable`.
+      knitr.table.html.attr: 'data-quarto-disable-processing = "true"'
       kable_styling_full_width: false   # No more `kable_styling(full_with = FALSE)`
       
       width: 100     # Text (markup) output

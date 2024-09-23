@@ -9,8 +9,6 @@ title: "Exploratory Data Analysis - Exposome"
 # Load packages and project local libraries
 options(box.path = "code/")
 box::use(
-  dplyr[across, case_when, case_match, coalesce, c_across, if_else, na_if],
-  tidyselect[all_of, any_of, contains, ends_with, everything, matches, one_of, starts_with, where],
   ggplot2[...],        # too long to write and usually specific enough
   tidySummarizedExperiment,        # S3 methods for tidyverse style of SummarizedExperiment
   io = projlib/check_io_exist,
@@ -230,7 +228,7 @@ ggplot(msdial_sumexp[i_selected, ]) +
 
 # Normalization using internal standards
 
-## Internal standard metabolites
+## Internal standard (IS) metabolites
 
 ```{r}
 #| label: 'internal-standards'
@@ -243,23 +241,24 @@ internal_std_se <- msdial_sumexp[i_int_std, ]
 mz <- SummarizedExperiment::rowData(internal_std_se)$Average.Mz
 internal_std_se <- internal_std_se[order(mz), ]
 
-# Exclude the internal standard metabolites from the data
-qstd_sumexp <- msdial_sumexp[!i_int_std, ]
-stopifnot(all(SummarizedExperiment::rowData(qstd_sumexp)$std_type == "Std"))
+# # Exclude the internal standard metabolites from the data
+# qstd_sumexp <- msdial_sumexp[!i_int_std, ]
+# stopifnot(all(SummarizedExperiment::rowData(qstd_sumexp)$std_type == "Std"))
 ```
 
-There are `r nrow(internal_std_se)` internal standard metabolites in the data.
+There are `r nrow(internal_std_se)` internal standard (IS) metabolites in the data.
 Those metabolites are `r knitr::combine_words(SummarizedExperiment::rowData(internal_std_se)$Metabolite.name, before = "\x60")`, sorted by `Average m/z`.
 
 ### Distribution of the values
 
-Randomly selected 8 internal standard metabolites are shown in the following figure.
+Randomly selected 8 internal standard (IS) metabolites are shown in the following figure.
 
 ```{r}
 #| label: 'distribution-values-internal-standards'
 #| fig-width: 8
 #| fig-height: 13
-#| out.width: '80%'
+#| out-width: '80%'
+#| fig-cap: 'Distribution of the values of internal standard (IS) metabolites'
 
 i_selected <- sample(1:nrow(internal_std_se), 8) |> 
   sort()
@@ -279,18 +278,96 @@ internal_std_se[i_selected, ] |>
 #| label: 'normalize'
 #| purl: true
 
+# Find m/z range for which LOESS fit is performed
+mz0 <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Mz
+overall_mz_rg <- range(mz0)
+
 # Normalize the data using the internal standards
 internal_std_mat <- SummarizedExperiment::assays(internal_std_se)$msdial
-intstd_analytes <- SummarizedExperiment::rowData(internal_std_se)
-loess_fit <- purrr::map(1:ncol(internal_std_se), function(ii) {
+mz <- SummarizedExperiment::rowData(internal_std_se)$Average.Mz
+# Log-transform the data
+internal_std_mat_log <- log1p(internal_std_mat)
+# Overall mean of the internal standard metabolites
+intstd_mean_log <- rowMeans(internal_std_mat_log)
+# Subtract the mean from the data
+internal_std_mat_norm_log <- internal_std_mat_log - intstd_mean_log
+# Extend to smallest m/z with the mean of smallest 
+i_smallest_mzs <- order(mz)[1]
+avg_smallest_mzs <- colMeans(internal_std_mat_norm_log[i_smallest_mzs, , drop = FALSE])
+# Extend to largest m/z with the mean of largest 
+i_largest_mzs <- order(mz, decreasing = TRUE)[1]
+avg_largest_mzs <- colMeans(internal_std_mat_norm_log[i_largest_mzs, , drop = FALSE])
+# Add the extended values
+internal_std_mat_norm_log <- rbind(
+  avg_smallest_mzs, 
+  avg_largest_mzs,
+  internal_std_mat_norm_log
+)
+
+# LOESS fit of the internal standard metabolites along MZ
+loess_fit <- purrr::map(1:ncol(internal_std_mat_norm_log), function(ii) {
   # Fit a loess curve
-  x <- internal_std_mat[, ii]
-  loess(x ~ intstd_analytes$Average.Mz, span = 0.75)
+  y <- internal_std_mat_norm_log[, ii]
+  stopifnot(identical(
+    names(y), c("avg_smallest_mzs", "avg_largest_mzs", rownames(internal_std_se))
+  ))
+  loess(y ~ c(overall_mz_rg, mz), span = 0.3)
 })
+names(loess_fit) <- colnames(internal_std_mat_norm_log)
 
-
+# Normalize the data
+mz <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Mz
+msdial <- SummarizedExperiment::assays(msdial_sumexp)$msdial
+SummarizedExperiment::assays(msdial_sumexp)$norm <- 
+  sapply(
+    SummarizedExperiment::colData(msdial_sumexp)$sample_id,
+    function(sample_id) {
+      norm_factor <- predict(loess_fit[[sample_id]], newdata = mz)
+      expm1(log1p(msdial[, sample_id]) - norm_factor)
+    }
+  )
 ```
 
+```{r}
+#| label: 'normalize-plot'
+#| fig-width: 14
+#| fig-height: 6
+#| out.width: '100%'
+
+# Plot the normalized and original data for randomly selected 3 samples
+i_selected <- sample(1:ncol(msdial_sumexp), 3)
+# To include LOESS smooth line
+x <- seq(overall_mz_rg[1], overall_mz_rg[2], length.out = 100)
+loess_df <- lapply(setNames(i_selected, msdial_sumexp$sample_id[i_selected]), function(ii) {
+  predict(loess_fit[[ii]], newdata = x)
+}) |> 
+  as.data.frame() |> 
+  dplyr::mutate(Average.Mz = x) |>
+  tidyr::pivot_longer(-Average.Mz, names_to = "sample_id", values_to = "Value")
+
+# Log-transform the data
+msdial_log <- log1p(SummarizedExperiment::assays(msdial_sumexp)$msdial)
+# Overall mean of every metabolite
+mean_log <- rowMeans(msdial_log)
+# Deviation from the mean
+selected_se <- msdial_sumexp[, i_selected]
+SummarizedExperiment::assays(selected_se) <- SummarizedExperiment::assays(selected_se) |> 
+  lapply(function(x) sweep(log1p(x), 1, mean_log))
+
+tidySummarizedExperiment:::as_tibble.SummarizedExperiment(selected_se) |> 
+  dplyr::rename(Raw = msdial, Normalized = norm) |>
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |>
+  ggplot(aes(x = Average.Mz, y = Value)) +
+  geom_point(aes(color = Data, shape = std_type)) +
+  geom_line(data = loess_df, alpha = 0.5) +
+  labs(
+    title = "Normalized and original data",
+    x = "Average m/z", 
+    y = "log(Values + 1) - log(avg + 1)"
+  ) +
+  scale_shape_manual(values = c("Istd" = 15, "Std" = 21)) +
+  facet_wrap(~ sample_id, scales = "free_y", ncol = 3)
+```
 
 
 # Calibration curves
@@ -351,11 +428,11 @@ i_sel <- sample(1:nrow(calcurve_se), 9)
 calcurve_se <- calcurve_se[i_sel, ]
 
 # Plot calibration curves
-tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = msdial)) +
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = norm)) +
   geom_point() +
   labs(
     x = "Concentration",
-    y = "Peak area"
+    y = "Peak area (Normalized)"
   ) +  
   facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
 ```
@@ -368,67 +445,17 @@ tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc
 #| fig-height: 11
 #| out-width: "100%"
 
-tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = msdial)) +
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = norm)) +
   geom_point() +
   labs(
     x = "Concentration",
-    y = "Peak area"
+    y = "Peak area (Normalized)"
   ) +  
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
 
 ```
-
-
-
-<!-- ```{r} -->
-<!-- #| results: 'asis'         # This produces multiple chunks. -->
-<!-- #| echo: false             # - knitr::knit_child, asis_output -->
-<!-- titles <- lst(           # Allow a trailing comma -->
-<!--   test1 = "Group1 vs. Group2", -->
-<!--   test2 = "Group2 vs. Group3", -->
-<!-- ) -->
-
-<!-- sub_groups <- c("A", "B") -->
-
-<!-- sapply(names(titles), \(ii) {   # ii <- names(titles)[1]   # for debug -->
-<!--   header <- rlang::chr( -->
-<!--     '\n#### {{titles[[ii]]}}', -->
-<!--   ) |>  -->
-<!--     knitr::knit_expand(text = _) -->
-
-<!--   body <- lapply(sub_groups, \(jj) { -->
-<!--     p_layout <- ggplot_build(vo[[ii]][[jj]]$examples)$layout$layout -->
-<!--     nr <- map(p_layout[c("ROW", "COL")], ~max(.x)) -->
-<!--     out_width <- sprintf("%i%%", round((nr$COL + 0.75) / 5.75 * 100)) -->
-<!--     rlang::chr( -->
-<!--       '\n##### {{jj}} condition', -->
-<!--       # Volcano plot -->
-<!--       '```{r}', -->
-<!--       "#| label: '{{ii}}-{{jj}}-volcano-plot'", -->
-<!--       '#| fig-width: 6',  -->
-<!--       '#| fig-height: 6', -->
-<!--       "#| out-width: '60%'", -->
-<!--       '#| fig-cap: ', -->
-<!--       'volcano_kable_examples${{ii}}${{jj}}$volcano', -->
-<!--       "```", -->
-<!--       # Plots to show examples -->
-<!--       "```{r}", -->
-<!--       "#| label: '{{ii}}-{{jj}}-examples'", -->
-<!--       '#| fig-width: {{nr$COL * 2 + 1.5}}', -->
-<!--       '#| fig-height: {{nr$ROW * 2 + 1}}', -->
-<!--       "#| out-width: '{{out_width}}'", -->
-<!--       'volcano_kable_examples${{ii}}${{jj}}$examples', -->
-<!--       "```", -->
-<!--     ) |>  -->
-<!--       knitr::knit_expand(text = _) -->
-<!--   }) -->
-<!--   c(header, body) -->
-<!-- }) |>  -->
-<!--   knitr::knit_child(text = _, quiet = TRUE) |>  -->
-<!--   knitr::asis_output()    # print `asis` -->
-<!-- ``` -->
 
 
 ```{r}
