@@ -274,17 +274,28 @@ internal_std_se[i_selected, ] |>
 
 ## Normalization
 
+### LOESS along the m/z range
+
 ```{r}
-#| label: 'normalize'
+#| label: 'normalize-mz-range'
 #| purl: true
 
 # Find m/z range for which LOESS fit is performed
 mz0 <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Mz
 overall_mz_rg <- range(mz0)
 
-# Normalize the data using the internal standards
 internal_std_mat <- SummarizedExperiment::assays(internal_std_se)$msdial
 mz <- SummarizedExperiment::rowData(internal_std_se)$Average.Mz
+```
+
+The range of m/z values of overall samples is `r overall_mz_rg[1]` to `r overall_mz_rg[2]`,
+while the range of m/z values of internal standard metabolites is `r range(mz)[1]` to `r range(mz)[2]`.
+
+```{r}
+#| label: 'normalize-mz'
+#| purl: true
+
+# Normalize the data using the internal standards
 # Log-transform the data
 internal_std_mat_log <- log1p(internal_std_mat)
 # Overall mean of the internal standard metabolites
@@ -304,7 +315,7 @@ internal_std_mat_norm_log <- rbind(
   internal_std_mat_norm_log
 )
 
-# LOESS fit of the internal standard metabolites along MZ
+# LOESS fit of the internal standard metabolites along m/z
 loess_fit <- purrr::map(1:ncol(internal_std_mat_norm_log), function(ii) {
   # Fit a loess curve
   y <- internal_std_mat_norm_log[, ii]
@@ -315,10 +326,10 @@ loess_fit <- purrr::map(1:ncol(internal_std_mat_norm_log), function(ii) {
 })
 names(loess_fit) <- colnames(internal_std_mat_norm_log)
 
-# Normalize the data
+# Normalize the data by m/z
 mz <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Mz
 msdial <- SummarizedExperiment::assays(msdial_sumexp)$msdial
-SummarizedExperiment::assays(msdial_sumexp)$norm <- 
+SummarizedExperiment::assays(msdial_sumexp)$mz_norm <- 
   sapply(
     SummarizedExperiment::colData(msdial_sumexp)$sample_id,
     function(sample_id) {
@@ -329,7 +340,7 @@ SummarizedExperiment::assays(msdial_sumexp)$norm <-
 ```
 
 ```{r}
-#| label: 'normalize-plot'
+#| label: 'normalize-mz-plot'
 #| fig-width: 14
 #| fig-height: 6
 #| out.width: '100%'
@@ -355,7 +366,7 @@ SummarizedExperiment::assays(selected_se) <- SummarizedExperiment::assays(select
   lapply(function(x) sweep(log1p(x), 1, mean_log))
 
 tidySummarizedExperiment:::as_tibble.SummarizedExperiment(selected_se) |> 
-  dplyr::rename(Raw = msdial, Normalized = norm) |>
+  dplyr::rename(Raw = msdial, Normalized = mz_norm) |>
   tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |>
   ggplot(aes(x = Average.Mz, y = Value)) +
   geom_point(aes(color = Data, shape = std_type)) +
@@ -363,6 +374,114 @@ tidySummarizedExperiment:::as_tibble.SummarizedExperiment(selected_se) |>
   labs(
     title = "Normalized and original data",
     x = "Average m/z", 
+    y = "log(Values + 1) - log(avg + 1)"
+  ) +
+  scale_shape_manual(values = c("Istd" = 15, "Std" = 21)) +
+  facet_wrap(~ sample_id, scales = "free_y", ncol = 3)
+```
+
+### LOESS fit along RT
+
+```{r}
+#| label: 'normalize-rt-range'
+#| purl: true
+
+# Find the range of RT values
+rt0 <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Rt.min.
+overall_rt_rg <- range(rt0)
+
+internal_std_mat <- SummarizedExperiment::assays(internal_std_se)$msdial
+rt <- SummarizedExperiment::rowData(internal_std_se)$Average.Rt.min.
+```
+
+The range of RT values of overall samples is `r overall_rt_rg[1]` to `r overall_rt_rg[2]`,
+while the range of RT values of internal standard metabolites is `r range(rt)[1]` to `r range(rt)[2]`.
+
+```{r}
+#| label: 'normalize-rt'
+#| purl: true
+
+# Normalize the data using the internal standards
+# Log-transform the data
+internal_std_mat_log <- log1p(internal_std_mat)
+# Overall mean of the internal standard metabolites
+intstd_mean_log <- rowMeans(internal_std_mat_log)
+# Subtract the mean from the data
+internal_std_mat_norm_log <- internal_std_mat_log - intstd_mean_log
+# Extend to smallest RT with the mean of smallest 
+i_smallest_rts <- order(rt)[1]
+avg_smallest_rts <- colMeans(internal_std_mat_norm_log[i_smallest_rts, , drop = FALSE])
+# Extend to largest RT with the mean of largest 
+i_largest_rts <- order(rt, decreasing = TRUE)[1]
+avg_largest_rts <- colMeans(internal_std_mat_norm_log[i_largest_rts, , drop = FALSE])
+# Add the extended values
+internal_std_mat_norm_log <- rbind(
+  avg_smallest_rts, 
+  avg_largest_rts,
+  internal_std_mat_norm_log
+)
+
+# LOESS fit of the internal standard metabolites along RT
+loess_fit <- purrr::map(1:ncol(internal_std_mat_norm_log), function(ii) {
+  # Fit a loess curve
+  y <- internal_std_mat_norm_log[, ii]
+  stopifnot(identical(
+    names(y), c("avg_smallest_rts", "avg_largest_rts", rownames(internal_std_se))
+  ))
+  loess(y ~ c(overall_rt_rg, rt), span = 0.75)
+})
+names(loess_fit) <- colnames(internal_std_mat_norm_log)
+
+# Normalize the data by RT
+rt <- SummarizedExperiment::rowData(msdial_sumexp)$Average.Rt.min.
+msdial <- SummarizedExperiment::assays(msdial_sumexp)$msdial
+SummarizedExperiment::assays(msdial_sumexp)$rt_norm <- 
+  sapply(
+    SummarizedExperiment::colData(msdial_sumexp)$sample_id,
+    function(sample_id) {
+      norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
+      expm1(log1p(msdial[, sample_id]) - norm_factor)
+    }
+  )
+```
+
+```{r}
+#| label: 'normalize-rt-plot'
+#| fig-width: 14
+#| fig-height: 6
+#| out.width: '100%'
+
+# Plot the normalized and original data for randomly selected 3 samples
+# i_selected <- sample(1:ncol(msdial_sumexp), 3)
+# To include LOESS smooth line
+x <- seq(overall_rt_rg[1], overall_rt_rg[2], length.out = 100)
+loess_df <- lapply(setNames(i_selected, msdial_sumexp$sample_id[i_selected]), function(ii) {
+  predict(loess_fit[[ii]], newdata = x)
+}) |> 
+  as.data.frame() |> 
+  dplyr::mutate(Average.Rt.min. = x) |>
+  tidyr::pivot_longer(-Average.Rt.min., names_to = "sample_id", values_to = "Value")
+
+# Log-transform the data
+msdial_log <- log1p(SummarizedExperiment::assays(msdial_sumexp)$msdial)
+# Overall mean of every metabolite
+mean_log <- rowMeans(msdial_log)
+# Deviation from the mean
+selected_se <- msdial_sumexp[, i_selected]
+SummarizedExperiment::assays(selected_se) <- SummarizedExperiment::assays(selected_se) |> 
+  lapply(function(x) sweep(log1p(x), 1, mean_log))
+
+# Plot the normalized and original data
+selected_se |>
+  tidySummarizedExperiment:::as_tibble.SummarizedExperiment() |>
+  dplyr::rename(Raw = msdial, Normalized = rt_norm) |>
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |>
+  ggplot(aes(x = Average.Rt.min., y = Value)) +
+  geom_point(aes(color = Data, shape = std_type)) +
+  geom_line(data = loess_df, alpha = 0.5) +
+  labs(
+    title = "Normalized and original data",
+    x = "Average RT", 
     y = "log(Values + 1) - log(avg + 1)"
   ) +
   scale_shape_manual(values = c("Istd" = 15, "Std" = 21)) +
@@ -418,8 +537,10 @@ calcurve_se$conc |>
 
 ### Linear scale
 
+#### Before normalization
+
 ```{r}
-#| label: 'calcurve-per-metabolite-linear'
+#| label: 'calcurve-per-metabolite-linear-before-norm'
 #| fig-width: 12
 #| fig-height: 11
 #| out-width: "100%"
@@ -428,16 +549,43 @@ i_sel <- sample(1:nrow(calcurve_se), 9)
 calcurve_se <- calcurve_se[i_sel, ]
 
 # Plot calibration curves
-tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = norm)) +
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = msdial)) +
+  geom_point() +
+  labs(
+    x = "Concentration",
+    y = "Peak area (Raw)"
+  ) +  
+  facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
+```
+
+#### After normalization
+
+```{r}
+#| label: 'calcurve-per-metabolite-linear'
+#| fig-width: 12
+#| fig-height: 11
+#| out-width: "100%"
+# Plot calibration curves
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = rt_norm)) +
   geom_point() +
   labs(
     x = "Concentration",
     y = "Peak area (Normalized)"
   ) +  
-  facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3)
+  facet_wrap(~ Metabolite.name, scales = "free_y", ncol = 3) +
+  geom_smooth(
+    aes(weight = 1 / (conc + 1) ^ 2),
+    method = "lm",
+    se = FALSE,
+    alpha = 0.1,
+    color = "cadetblue"
+  )
 ```
 
+
 ### Log scale
+
+After normalization
 
 ```{r}
 #| label: 'calcurve-per-metabolite-log'
@@ -445,7 +593,7 @@ tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc
 #| fig-height: 11
 #| out-width: "100%"
 
-tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = norm)) +
+tidySummarizedExperiment:::ggplot.SummarizedExperiment(calcurve_se, aes(x = conc, y = rt_norm)) +
   geom_point() +
   labs(
     x = "Concentration",
