@@ -10,7 +10,8 @@ title: "Exploratory Data Analysis - Exposome"
 options(box.path = "code/")
 box::use(
   ggplot2[...],        # Too long to write and usually specific enough
-  SummarizedExperiment,          # Some methods were defined using S4 system, e.g. dim
+  # Some methods were defined using S4 system, e.g. dim, `[`
+  SummarizedExperiment[rowData, `rowData<-`, assays, `assays<-`],
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
   io = projlib/check_io_exist,
 )
@@ -41,7 +42,7 @@ parse_to_sumexp <- function(data_fr_xlsx, i_row_sample, i_col_metab) {
     colnames(data_fr_xlsx)[i_col_metab],
     c("Alignment ID", "Average Rt(min)", "Average Mz", "Metabolite name", "Comment", "Class")
   ))
-  # Uxtract metabolite info columns
+  # Extract metabolite info columns
   metabs <- data_fr_xlsx[-i_row_sample, i_col_metab, drop = FALSE] |> 
     # `metab_id` = Syntactically valid ID
     dplyr::mutate(metab_id = make.names(`Metabolite name`, unique = TRUE), .before = 1L) |> 
@@ -91,7 +92,7 @@ I_COL_ANALYTE <- 1:6
 I_ROW_SAMPLE <- 1           # The first row has information about the samples
 
 msdial_sumexp <- parse_to_sumexp(msdial_data, I_ROW_SAMPLE, I_COL_ANALYTE)
-colnames(SummarizedExperiment::rowData(msdial_sumexp))[6] <- "std_type"    # `Comment`
+colnames(rowData(msdial_sumexp))[6] <- "std_type"    # `Comment`
 ```
 
 The sheet "Original data (MS-DIAL)" contains `r nrow(msdial_data[-I_ROW_SAMPLE, ])` rows (or metabolites) and `r ncol(msdial_data)` columns.
@@ -114,10 +115,10 @@ msdial_sumexp$Class |>
 ## Metabolites
 
 The data contained `r nrow(msdial_sumexp)` metabolites.
-The metabolites were classified into `r dplyr::n_distinct(SummarizedExperiment::rowData(msdial_sumexp)$std_type)` types.
+The metabolites were classified into `r dplyr::n_distinct(rowData(msdial_sumexp)$std_type)` types.
 The number of metabolites for each type is as follows:
 ```{r}
-SummarizedExperiment::rowData(msdial_sumexp)$std_type |> 
+rowData(msdial_sumexp)$std_type |> 
   table() |> 
   knitr::kable(col.names = c("Standard Type", "Number of metabolites")) |> 
   kableExtra::kable_styling(full_width = FALSE)
@@ -131,10 +132,9 @@ SummarizedExperiment::rowData(msdial_sumexp)$std_type |>
 
 ```{r}
 #| label: 'distribution-values-linear'
-
 # Distribution of the values
 ggplot(msdial_sumexp) +
-  geom_histogram(aes(x = msdial), bins = 30) +
+  geom_histogram(aes(x = msdial), bins = 50) +
   labs(title = "Distribution of the values", x = "Values")
 ```
 
@@ -143,7 +143,7 @@ ggplot(msdial_sumexp) +
 ```{r}
 #| label: 'distribution-values-log'
 ggplot(msdial_sumexp) +
-  geom_histogram(aes(x = msdial), bins = 30) +
+  geom_histogram(aes(x = msdial), bins = 50) +
   labs(title = "Distribution of the values", x = "Values") +
   scale_x_log10()
 ```
@@ -175,7 +175,7 @@ Randomly selected 8 metabolites are shown in the following figure.
 
 # Randomly select 8 metabolites, excluding internal standards
 i_sel <- c(1:nrow(msdial_sumexp))
-i_sel <- i_sel[SummarizedExperiment::rowData(msdial_sumexp)$std_type != "Istd"]
+i_sel <- i_sel[rowData(msdial_sumexp)$std_type != "Istd"]
 i_sel <- sample(i_sel, 8)
 ggplot(msdial_sumexp[i_sel, ]) +
   geom_histogram(aes(x = msdial, fill = Class), bins = 30) +
@@ -196,15 +196,15 @@ ggplot(msdial_sumexp[i_sel, ]) +
 #| purl: true
 
 # Extract the internal standard metabolites
-i_int_std <- SummarizedExperiment::rowData(msdial_sumexp)$std_type == "Istd"
-internal_std_se <- msdial_sumexp[i_int_std, ]
+is_istd <- rowData(msdial_sumexp)$std_type == "Istd"
+internal_std_se <- msdial_sumexp[is_istd, ]
 # Sort by average retention time
-rt <- SummarizedExperiment::rowData(internal_std_se)$rt
+rt <- rowData(internal_std_se)$rt
 internal_std_se <- internal_std_se[order(rt), ]
 ```
 
 There are `r nrow(internal_std_se)` internal standard (IS) metabolites in the data.
-Those metabolites are `r knitr::combine_words(SummarizedExperiment::rowData(internal_std_se)$metab_name, before = "\x60")`, in the order of average retention time.
+Those metabolites are `r knitr::combine_words(rowData(internal_std_se)$metab_name, before = "\x60")`, in the order of average retention time.
 
 ### Distribution of the values
 
@@ -231,37 +231,40 @@ internal_std_se[i_sel, ] |>
   # Turn the x-axis title to vertical
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "free_y", ncol = 4)
+  facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
 ```
 
 ### Outliers
 
 Outliers were identified based on the values of internal standard metabolites.
-Those samples with values greater than 3 standard deviations from the mean after log-transformation were considered as outliers.
+Those samples with values greater than 3 standard deviations from the mean after log-transformation ($log(1 + x)$) were considered as outliers.
 
 ```{r}
 #| label: 'outliers-internal-standards'
 #| purl: true
 
-internal_std_mat <- SummarizedExperiment::assays(internal_std_se)$msdial
-# Log-transform the data
-istd_mat_log <- log1p(internal_std_mat)
-m_log <- rowMeans(istd_mat_log)
-sd_log <- apply(istd_mat_log, 1, sd)
-
-# Outliers
-outliers <- (istd_mat_log > mean(m_log) + 3 * sd_log) | (istd_mat_log < mean(m_log) - 3 * sd_log)
-outliers <- colSums(outliers)
-is_outlier <- outliers > 0
-outliers <- outliers[is_outlier]
+# Identify outliers
+identify_outliers <- function(x) {
+  m <- mean(x)
+  sd <- sd(x)
+  return((x > m + 3 * sd) | (x < m - 3 * sd))
+}
+n_outlier <- assays(internal_std_se)$msdial |> 
+  log1p() |>              # Log-transform the data
+  apply(1, identify_outliers) |>
+  rowSums()         # Number of outliers per sample (transposed by `apply` above)
+stopifnot(identical(names(n_outlier), colnames(internal_std_se)))
+internal_std_se$is_outlier <- n_outlier > 0
+stopifnot(identical(names(n_outlier), colnames(msdial_sumexp)))
+msdial_sumexp$is_outlier <- n_outlier > 0
 ```
 
-There are `r length(outliers)` outlying samples in the data.
+There are `r sum(n_outlier > 0)` outlying samples in the data.
 
 ```{r}
 #| label: 'outliers-table'
 #| results: 'markup'
-print(outliers)
+print(n_outlier[n_outlier > 0])
 ```
 
 After exclusion of those outliers, the distribution of the randomly selected 8 internal standard (IS) metabolites are shown below.
@@ -272,7 +275,7 @@ After exclusion of those outliers, the distribution of the randomly selected 8 i
 #| fig-height: 8
 #| out-width: '100%'
 
-internal_std_se[i_sel, !is_outlier, drop = FALSE] |> 
+internal_std_se[i_sel, ! internal_std_se$is_outlier, drop = FALSE] |> 
   # Below invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
   dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # order by m/z 
   ggplot() +
@@ -285,7 +288,7 @@ internal_std_se[i_sel, !is_outlier, drop = FALSE] |>
   # Turn the x-axis title to vertical
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "free_y", ncol = 4)
+  facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
 ```
 
 
@@ -300,57 +303,60 @@ The data will be normalized using the internal standard metabolites.
 #| purl: true
 
 # Find the range of RT values
-rt0 <- SummarizedExperiment::rowData(msdial_sumexp)$rt
-overall_rt_rg <- range(rt0)
-rt <- SummarizedExperiment::rowData(internal_std_se)$rt
+overall_rt_range <- range(rowData(msdial_sumexp)$rt)
+rt <- rowData(internal_std_se)$rt
 ```
 
-The range of RT values of overall metabolites is `r overall_rt_rg[1]` to `r overall_rt_rg[2]`,
+The range of RT values of overall metabolites is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
 while the range of internal standard metabolites is `r range(rt)[1]` to `r range(rt)[2]`.
 
 ```{r}
 #| label: 'normalize-rt'
 #| purl: true
 
+istd_log1p <- assays(internal_std_se)$msdial |> 
+  log1p()              # Log-transform the data
+
 # Normalize the data using the internal standards
 # Mean of each internal standard metabolite for overall measurement samples
 # , excluding the calibration curve and blank samples
 to_excl <- internal_std_se$Class %in% c("Blank", "CalCurve")
 # , excluding outliers
-to_excl <- to_excl | is_outlier
-istd_mean_log <- rowMeans(istd_mat_log[, !to_excl])
+to_excl <- to_excl | internal_std_se$is_outlier
+istd_m <- rowMeans(istd_log1p[, !to_excl, drop = FALSE])
 # Subtract the mean from the data
-internal_std_mat_norm_log <- istd_mat_log - istd_mean_log
+istd_dev_log1p <- istd_log1p - istd_m
+
 # Expand to smallest RT with the mean of smallest 
 i_smallest_rts <- order(rt)[1]
-avg_smallest_rts <- colMeans(internal_std_mat_norm_log[i_smallest_rts, , drop = FALSE])
+avg_smallest_rts <- colMeans(istd_dev_log1p[i_smallest_rts, , drop = FALSE])
 # Expand to largest RT with the mean of largest 
 i_largest_rts <- order(rt, decreasing = TRUE)[1]
-avg_largest_rts <- colMeans(internal_std_mat_norm_log[i_largest_rts, , drop = FALSE])
+avg_largest_rts <- colMeans(istd_dev_log1p[i_largest_rts, , drop = FALSE])
 # Add the expanded range
-internal_std_mat_norm_log <- rbind(
+istd_dev_log1p <- rbind(
   avg_smallest_rts, 
   avg_largest_rts,
-  internal_std_mat_norm_log
+  istd_dev_log1p
 )
 
 # LOESS fit of the internal standard metabolites along RT
-loess_fit <- purrr::map(1:ncol(internal_std_mat_norm_log), function(ii) {
+loess_fit <- purrr::map(1:ncol(istd_dev_log1p), function(ii) {
   # Fit a loess curve
-  y <- internal_std_mat_norm_log[, ii]
+  y <- istd_dev_log1p[, ii]
   stopifnot(identical(
     names(y), c("avg_smallest_rts", "avg_largest_rts", rownames(internal_std_se))
   ))
-  loess(y ~ c(overall_rt_rg, rt), span = 0.75)
+  loess(y ~ c(overall_rt_range, rt), span = 0.75)
 })
-names(loess_fit) <- colnames(internal_std_mat_norm_log)
+names(loess_fit) <- colnames(istd_dev_log1p)
 
 # Normalize the data by LOESS fit along RT
-rt <- SummarizedExperiment::rowData(msdial_sumexp)$rt
-msdial <- SummarizedExperiment::assays(msdial_sumexp)$msdial
-SummarizedExperiment::assays(msdial_sumexp)$rt_norm <- 
+rt <- rowData(msdial_sumexp)$rt
+msdial <- assays(msdial_sumexp)$msdial
+assays(msdial_sumexp)$rt_norm <- 
   sapply(
-    SummarizedExperiment::colData(msdial_sumexp)$sample_id,
+    msdial_sumexp$sample_id,
     function(sample_id) {
       norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
       out <- expm1(log1p(msdial[, sample_id]) - norm_factor)
@@ -360,14 +366,16 @@ SummarizedExperiment::assays(msdial_sumexp)$rt_norm <-
   )
 
 # Extract quantification standard data
-i_qstd <- SummarizedExperiment::rowData(msdial_sumexp)$std_type == "Std"
+i_qstd <- rowData(msdial_sumexp)$std_type == "Std"
 qstd_sumexp <- msdial_sumexp[i_qstd, ]
 ```
 
-For each metabolite, deviation of each sample from the the average of all samples was calculated after log-transformation.
-The data of the samples are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) metabolites along RT.
+For each metabolite, the average of all samples excluding `Blank` and `CalCurve` samples and identified [outliers](#outliers) was calculated after log-transformation.
+The deviation of each sample from the average was calculated as normalization factor.
+The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) metabolites along RT.
 The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all metabolites. 
 The normalization factors of those at the boundaries of IS are used for the boundary RT values of all metabolites.
+The normalized data are calculated by subtracting the normalization factor from the log-transformed data.
 
 Randomly selected 3 samples are shown below.
 The line in the graph represents the LOESS fit.
@@ -381,7 +389,7 @@ The line in the graph represents the LOESS fit.
 # Plot the normalized and original data for randomly selected 3 samples
 i_sel <- sample(c(1:ncol(msdial_sumexp))[!to_excl], 3)
 # To include LOESS smooth line
-x <- seq(overall_rt_rg[1], overall_rt_rg[2], length.out = 100)
+x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
 loess_df <- lapply(setNames(i_sel, msdial_sumexp$sample_id[i_sel]), function(ii) {
   predict(loess_fit[[ii]], newdata = x)
 }) |> 
@@ -390,12 +398,12 @@ loess_df <- lapply(setNames(i_sel, msdial_sumexp$sample_id[i_sel]), function(ii)
   tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
 
 # Log-transform the data
-msdial_log <- log1p(SummarizedExperiment::assays(msdial_sumexp)$msdial)
+msdial_log <- log1p(assays(msdial_sumexp)$msdial)
 # Overall mean of every metabolite
 mean_log <- rowMeans(msdial_log[, !to_excl])
 # Deviation from the mean
 selected_se <- msdial_sumexp[, i_sel]
-SummarizedExperiment::assays(selected_se) <- SummarizedExperiment::assays(selected_se) |> 
+assays(selected_se) <- assays(selected_se) |> 
   lapply(function(x) sweep(log1p(x), 1, mean_log))
 
 # Plot the normalized and original data
@@ -420,8 +428,8 @@ tibble::as_tibble(selected_se) |>
 ## Calibration curve samples
 
 The samples for the calibration curve are identified by the sample class, `CalCurve`.
-The concentration is extracted from the sample ID, which is in the format `Cal(|Std)[0-9]+_`.
-The concentration is `0` for the sample ID `Cal0_`. 
+The data of `0` concentration (sample ID `Cal0_`) has been ignored. 
+The concentration is extracted from the sample ID, which is in the format `CalStd[0-9]+_`.
 The concentration is converted to a numeric value. 
 The [outliers](#outliers) by the internal standards are removed from the calibration curve.
 
@@ -432,19 +440,21 @@ The [outliers](#outliers) by the internal standards are removed from the calibra
 # Calibration curve samples only
 calcurve_se <- qstd_sumexp[, qstd_sumexp$Class == "CalCurve"]
 # Remove the outliers by internal standards from the calibration curve
-calcurve_se <- calcurve_se[, ! calcurve_se$sample_id %in% names(outliers)]
+calcurve_se <- calcurve_se[, ! calcurve_se$is_outlier]
+# Remove the 0 concentration sample
+calcurve_se <- calcurve_se[, ! stringr::str_detect(calcurve_se$given_sample_id, "Cal0_")]
 
 # Extract concentration values from the given IDs
-calcurve_se$conc <- local({
-  given_sample_id <- calcurve_se$given_sample_id 
-  conc <- stringr::str_extract(given_sample_id, "Cal(|Std)([0-9]+)_", group = 2)
+extract_conc <- function(given_sample_id) {
+  conc <- stringr::str_extract(given_sample_id, "CalStd([0-9]+)_", group = 1)
   dplyr::case_when(
-    stringr::str_detect(given_sample_id, "Cal0_") ~ "0",
+    # Replace the leading `0` with `0.`
     stringr::str_detect(conc, "^0[0-9]") ~ stringr::str_replace(conc, "^0", "0."),
     TRUE ~ conc
   ) |> 
     as.numeric()
-})
+}
+calcurve_se$conc <- extract_conc(calcurve_se$given_sample_id)
 ```
 
 ### Sample IDs
@@ -481,7 +491,7 @@ calcurve_se$conc |>
 #| out-width: "100%"
 set.seed(7579)
 i_sel <- c(1:nrow(calcurve_se))
-i_sel <- i_sel[SummarizedExperiment::rowData(calcurve_se)$std_type != "Istd"]
+i_sel <- i_sel[rowData(calcurve_se)$std_type != "Istd"]
 i_sel <- sample(i_sel, 9)
 calcurve_to_show_df <- tibble::as_tibble(calcurve_se[i_sel, ])
 
@@ -500,7 +510,6 @@ ggplot(calcurve_to_show_df, aes(x = conc, y = msdial)) +
 The peak areas were normalized by the internal standards.
 A line is fitted to the data points per metabolite.
 Here the weight in the linear regression is inversely proportional to the squared concentration.
-The concentration has been adjusted by adding 1 to avoid division by zero.
 
 ```{r}
 #| label: 'calcurve-per-metabolite-linear'
@@ -510,10 +519,10 @@ The concentration has been adjusted by adding 1 to avoid division by zero.
 
 # Fitted line layer
 fit_layer <- geom_smooth(
-  aes(weight = 1 / (conc + 1) ^ 2),
+  aes(weight = 1 / (conc ^ 2)),
   data = calcurve_to_show_df,
   method = "lm",
-  formula = y ~ x,
+  formula = y ~ x + I(x^2),
   se = FALSE,
   color = "cadetblue"
 )
@@ -553,8 +562,7 @@ ggplot(calcurve_to_show_df, aes(x = conc, y = rt_norm)) +
 
 ## Calibration of the metabolites
 
-The calibration curve is fitted to the [normalized data](#normalization) using a linear model with the weights of $\frac{1}{(x + 1)^2}$, where $x$ is the concentration.
-The one is added to the concentration to avoid division by zero.
+The calibration curve is fitted to the [normalized data](#normalization) using a linear model with the weights of $\frac{1}{x^2}$, where $x$ is the concentration.
 
 ### All measurement samples
 
@@ -562,34 +570,34 @@ The one is added to the concentration to avoid division by zero.
 #| label: 'calibration-data'
 #| purl: true
 
+build_calcurve_model <- function(conc, value) {
+  lmfit <- lm(value ~ conc + I(conc^2), weights = 1 / (conc ^ 2))
+  beta <- coef(lmfit)
+  a <- beta[["I(conc^2)"]]
+  b <- beta[["conc"]]
+  cc <- beta[["(Intercept)"]]
+  function(x) {
+    det <- b ^ 2 - 4 * a * (cc - x)
+    ifelse(det < 0, 0, suppressWarnings((-b + sqrt(det)) / (2 * a)))
+  }
+}
 # Fit the calibration curve
-calcurves <- tibble::as_tibble(calcurve_se) |> 
-  dplyr::summarise(
-    model = list(lm(rt_norm ~ conc, weights = 1 / (conc + 1) ^ 2)),
-    .by = metab_id
-  ) |> 
-  # Extract the coefficients
-  dplyr::mutate(coef = purrr::map(model, coef), .keep = "unused") |>
-  dplyr::mutate(
-    intercept = purrr::map_dbl(coef, 1),
-    slope = purrr::map_dbl(coef, 2),
-    .keep = "unused"
-  )
+conc <- calcurve_se$conc
+rt_norm_mat <- assays(calcurve_se)$rt_norm
+calcurve_fit <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
+  build_calcurve_model(conc, rt_norm_mat[ii, ])
+})
 
 # Compute the concentration of the samples
 classes_to_incl <- unique(qstd_sumexp$Class) |> 
   setdiff(c("Blank", "CalCurve", "RTI"))      # Exclude the control samples
 measurements_se <- qstd_sumexp[, qstd_sumexp$Class %in% classes_to_incl]
-stopifnot(identical(rownames(measurements_se), calcurves$metab_id))
-SummarizedExperiment::rowData(measurements_se) <- cbind(
-  SummarizedExperiment::rowData(measurements_se),
-  tibble::column_to_rownames(calcurves, "metab_id")    # Attach the calibration curve
-)
-measurements_se <- measurements_se |> 
-  dplyr::mutate(
-    conc = (rt_norm - intercept) / slope,
-    conc = ifelse(conc < 0, 0, conc),
-  )
+assays(measurements_se)$conc <- rowData(measurements_se)$metab_id |> 
+  sapply(function(metab_id) {
+    v <- assays(measurements_se)$rt_norm[metab_id, ]
+    calcurve_fit[[metab_id]](v)
+  }) |>
+    t()          # Metabolites to rows
 ```
 
 The concentration of the sample classes, `r knitr::combine_words(classes_to_incl)`, are computed using the calibration curve.
