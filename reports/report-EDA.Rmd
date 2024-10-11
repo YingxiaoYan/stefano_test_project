@@ -11,7 +11,7 @@ options(box.path = "code/")
 box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
-  SummarizedExperiment[rowData, `rowData<-`, assays, `assays<-`],
+  SummarizedExperiment[rowData, `rowData<-`, assays, `assays<-`, assay, `assay<-`],
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
   io = projlib/check_io_exist,
 )
@@ -58,18 +58,26 @@ parse_to_sumexp <- function(data_fr_xlsx, i_row_sample, i_col_metab) {
       metab_name = "Metabolite name",
       mz = "Average Mz",
       rt = "Average Rt(min)",
-      comment = "Comment",
+      std_type = "Comment",
     )
   
   # Extract sample info rows
   sample_info <- t(data_fr_xlsx[i_row_sample, -i_col_metab, drop = FALSE])
   stopifnot(i_row_sample == 1)
-  colnames(sample_info) <- "given_sample_id"
+  colnames(sample_info) <- "sample_name"
   # The row names contain the sample class
   sample_info <- tibble::as_tibble(sample_info, rownames = "Class")
   sample_info <- sample_info |> 
-    dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE)) |>   # Syntactically valid
-    dplyr::select(sample_id, Class, given_sample_id)
+    dplyr::mutate(sample_id = make.names(sample_name, unique = TRUE)) |>   # Syntactically valid
+    dplyr::select(sample_id, Class, sample_name) |> 
+    dplyr::mutate(
+      # QC sample group
+      qc_group = dplyr::if_else(
+        stringr::str_starts(sample_name, "QC"),
+        stringr::str_replace(sample_name, "(^QC[[:alnum:]]+)_.*", "\\1"),
+        NA_character_
+      )
+    )
   
   # Values of the metabolites into a matrix
   raw_mat <- data_fr_xlsx[-i_row_sample, -i_col_metab, drop = FALSE]
@@ -96,7 +104,7 @@ I_COL_ANALYTE <- 1:6
 I_ROW_SAMPLE <- 1           # The first row has information about the samples
 
 given_data_sumexp <- parse_to_sumexp(msdial_data, I_ROW_SAMPLE, I_COL_ANALYTE)
-colnames(rowData(given_data_sumexp))[6] <- "std_type"    # `Comment`
+stopifnot(all(c("Std", "Istd") %in% unique(rowData(given_data_sumexp)$std_type)))
 ```
 
 The sheet "Original data (MS-DIAL)" contains `r nrow(msdial_data[-I_ROW_SAMPLE, ])` rows (or metabolites) and `r ncol(msdial_data)` columns.
@@ -110,20 +118,29 @@ There are `r dplyr::n_distinct(given_data_sumexp$Class)` classes of samples in t
 The number of samples for each class is as follows:
 
 ```{r}
-given_data_sumexp$Class |> 
-  table() |> 
+table(given_data_sumexp$Class) |> 
   knitr::kable(col.names = c("Class", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+Some of them are quality control samples.
+Aliquots of the samples were measured as technical replicates.
+The replicates of the samples were as below.
+
+```{r}
+table(given_data_sumexp$qc_group) |> 
+  knitr::kable(col.names = c("Sample ID", "Number of replicates")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
 ## Metabolites
 
 The data contained `r nrow(given_data_sumexp)` metabolites.
-The metabolites were classified into `r dplyr::n_distinct(rowData(given_data_sumexp)$std_type)` types.
+There were `r dplyr::n_distinct(rowData(given_data_sumexp)$std_type)` types of metabolites.
 The number of metabolites for each type is as follows:
+
 ```{r}
-rowData(given_data_sumexp)$std_type |> 
-  table() |> 
+table(rowData(given_data_sumexp)$std_type) |> 
   knitr::kable(col.names = c("Standard Type", "Number of metabolites")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
@@ -135,29 +152,28 @@ rowData(given_data_sumexp)$std_type |>
 #### Linear scale
 
 ```{r}
-#| label: 'distribution-values-linear'
-ggplot(given_data_sumexp) +
+#| label: 'distribution-values-overall-linear'
+#| fig-width: 8 
+#| out-width: '60%'
+p <- ggplot(given_data_sumexp) +
   geom_histogram(aes(x = raw), bins = 50) +
   labs(title = "Distribution of the values", x = "Values")
+print(p)
 ```
 
 #### Logarithmic scale
 
 ```{r}
-#| label: 'distribution-values-log'
-ggplot(given_data_sumexp) +
-  geom_histogram(aes(x = raw), bins = 50) +
-  labs(title = "Distribution of the values", x = "Values") +
-  scale_x_log10()
+#| label: 'distribution-values-overall-log'
+#| fig-width: 8
+#| out-width: '60%'
+p + scale_x_log10()
 ```
 
 ### By sample class and overall metabolites
 
 ```{r}
 #| label: 'distribution-values-by-class'
-#| fig-width: 10
-#| fig-height: 6
-#| out-width: '100%'
 
 ggplot(given_data_sumexp) +
   geom_histogram(aes(x = raw), bins = 30) +
@@ -171,16 +187,31 @@ ggplot(given_data_sumexp) +
 Randomly selected 8 metabolites are shown in the following figure.
 
 ```{r}
-#| label: 'distribution-values-by-metabolite'
-#| fig-width: 10
-#| fig-height: 6
-#| out-width: '100%'
+#| purl: true
+#' Randomly select `n` rows from `sumexp` with optional `subset`
+#'
+#' @param sumexp a SummarizedExperiment object
+#' @param n the number of rows to select
+#' @param subset an optional subset expression to apply to the `rowData` of `sumexp`
+#' @param in_previous_order if `TRUE`, the selected rows are sorted in the previous order
+#'
+#' @return a SummarizedExperiment object with `n` rows randomly selected from `sumexp`
+#' @export
+select_rows_randomly <- function(sumexp, n, subset, in_previous_order = FALSE) {
+  ii <- c(1:nrow(sumexp))
+  if (!missing(subset)) {      # If given, apply it to the `rowData` of `sumexp`
+    ii <- ii[eval(substitute(subset), as.data.frame(rowData(sumexp)))]
+  }
+  ii <- sample(ii, n)
+  if (in_previous_order) ii <- sort(ii)
+  sumexp[ii, ]
+}
+```
 
-# Randomly select 8 metabolites, excluding internal standards
-i_sel <- c(1:nrow(given_data_sumexp))
-i_sel <- i_sel[rowData(given_data_sumexp)$std_type != "Istd"]
-i_sel <- sample(i_sel, 8)
-ggplot(given_data_sumexp[i_sel, ]) +
+```{r}
+#| label: 'distribution-values-by-metabolite'
+select_rows_randomly(given_data_sumexp, 8, std_type != "Istd") |> 
+  ggplot() +
   geom_histogram(aes(x = raw, fill = Class), bins = 30) +
   labs(title = "Distribution of the values by metabolite", x = "Values") +
   scale_x_log10() +
@@ -215,14 +246,12 @@ Randomly selected 8 internal standard (IS) metabolites are shown in the followin
 #| label: 'distribution-values-internal-standards'
 #| fig-width: 13
 #| fig-height: 8
-#| out-width: '100%'
 
-i_sel <- sample(1:nrow(internal_std_se), 8) |> 
-  sort()   # Keep the order by m/z
-
-internal_std_se[i_sel, ] |> 
+# Keep the order by m/z
+istd_to_show_se <- select_rows_randomly(internal_std_se, 8, in_previous_order = TRUE)
+istd_to_show_se |> 
   # Below invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
-  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Order by m/z 
+  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Keep the order by m/z 
   ggplot() +
   geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
   labs(
@@ -249,6 +278,7 @@ identify_outliers <- function(x) {
   sd <- sd(x)
   return((x > m + 3 * sd) | (x < m - 3 * sd))
 }
+# Number of outliers per sample
 n_outlier <- assays(internal_std_se)$raw |> 
   log1p() |>              # Log-transform the data
   apply(1, identify_outliers) |>
@@ -276,20 +306,53 @@ After exclusion of those outliers, the distribution of the randomly selected 8 i
 #| label: 'distribution-values-internal-standards-no-outliers'
 #| fig-width: 13
 #| fig-height: 8
-#| out-width: '100%'
 
-internal_std_se[i_sel, , drop = FALSE] |> 
+internal_std_se[rownames(istd_to_show_se), ] |>
   dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Order by m/z 
   ggplot() +
   geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
   labs(
-    title = "Distribution of the values of internal standard metabolites", 
+    title = "Distribution of the values of internal standard metabolites (no outliers)", 
     y = "Values"
   ) +
   theme(legend.position = "none") +   # No legend for fill
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +    # Rotate x-axis labels
   scale_y_log10() +
   facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
+```
+
+### raw RSD%
+
+The relative standard deviation (RSD%) of the raw values of the internal standard metabolites are calculated.
+
+#### By quality control groups
+
+```{r}
+#| label: 'rsd-internal-standards-by-qc-groups'
+
+rsd_perc <- function(x) {
+  round(100 * sd(x) / mean(x), 2)
+}
+# Divide the internal standard metabolites by quality control groups
+# Calculate RSD% per internal standard metabolite and per quality control groups
+sapply(setNames(nm = unique(na.omit(internal_std_se$qc_group))), \(grp) {
+  in_grp <- ! is.na(internal_std_se$qc_group) & internal_std_se$qc_group == grp
+  se1 <- internal_std_se[, in_grp]
+  apply(assay(se1, "raw"), 1, rsd_perc)
+}) |>
+  knitr::kable(caption = "RSD% of internal standard metabolites by quality control groups") |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+#### By sample classes
+
+```{r}
+sapply(setNames(nm = unique(internal_std_se$Class)), function(cls) {
+  se1 <- internal_std_se[, internal_std_se$Class == cls]
+  apply(assay(se1, "raw"), 1, rsd_perc) 
+}) |> 
+  knitr::kable(caption = "RSD% of internal standard metabolites by sample classes") |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Normalization
@@ -336,20 +399,20 @@ assays(no_outlier_se)$closest_norm <-
 
 ```{r}
 #| label: 'evaluation-normalization-closest-istd'
-#| fig-width: 10
-#| fig-height: 6
 #| out-width: '80%'
 
 # Extract quantitative standards in QC samples
-extract_quant_qc <- function(nm, sumexp) {
-  pat <- paste0("^", nm, "_")
-  is_qc <- stringr::str_detect(colnames(sumexp), pat)
-  is_qstd <- rowData(sumexp)$std_type == "Std"
-  sumexp[is_qstd, is_qc, drop = FALSE]
+extract_quant_qc <- function(sumexp) {
+  unique(na.omit(sumexp$qc_group)) |> 
+    setNames(nm = _) |> 
+    lapply(\(grp) {
+      in_grp <- ! is.na(sumexp$qc_group) & sumexp$qc_group == grp
+      is_qstd <- rowData(sumexp)$std_type == "Std"
+      sumexp[is_qstd, in_grp]
+    })
 }
 # Quantification standard samples
-qc_se <- setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")) |> 
-  lapply(extract_quant_qc, no_outlier_se)
+qc_se <- extract_quant_qc(no_outlier_se)
 
 data_labels <- setNames(c("Raw", "Closest IS Normalized"), c("raw", "closest_norm"))
 # Calculate RSD of the quantification standard samples
@@ -433,8 +496,7 @@ loess_fit <- local({
 rt <- rowData(no_outlier_se)$rt
 raw <- assays(no_outlier_se)$raw
 assays(no_outlier_se)$loess_norm <- sapply(
-  no_outlier_se$sample_id,
-  function(sample_id) {
+  colnames(no_outlier_se), function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
     exp(log(raw[, sample_id]) - norm_factor)
   }
@@ -458,7 +520,6 @@ Randomly selected 3 samples are shown below.
 #| label: 'normalize-rt-plot'
 #| fig-width: 14
 #| fig-height: 12
-#| out-width: '100%'
 
 to_excl <- no_outlier_se$Class %in% c("Blank", "CalCurve")
 # Plot the normalized and original data for randomly selected 3 samples
@@ -466,12 +527,14 @@ i_sel <- sample(c(1:ncol(no_outlier_se))[!to_excl], 3)
 
 # To include LOESS smooth line
 x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
-loess_curve_df <- lapply(setNames(i_sel, no_outlier_se$sample_id[i_sel]), function(ii) {
+loess_curve_df <- lapply(setNames(i_sel, colnames(no_outlier_se)[i_sel]), function(ii) {
   predict(loess_fit[[ii]], newdata = x)
 }) |> 
   as.data.frame() |> 
   dplyr::mutate(rt = x) |>
   tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
+loess_curve_df$sample_name <-
+  no_outlier_se$sample_name[match(loess_curve_df$sample_id, no_outlier_se$sample_name)]
 
 # Log-transform the data
 raw_log <- log(assays(no_outlier_se)$raw)
@@ -498,7 +561,7 @@ ggplot(df_to_show, aes(x = rt, y = Value)) +
     y = "log(Values) - log(avg)"
   ) +
   scale_shape_manual(values = c("Istd" = 15, "Std" = 21)) +
-  facet_wrap(~ sample_id, scales = "free_y", ncol = 3)
+  facet_wrap(~ sample_name, scales = "free_y", ncol = 3)
 ```
 
 The line in the graph represents the LOESS fit.
@@ -511,13 +574,10 @@ The normalized data are evaluated by the changes of relative standard deviation 
 
 ```{r}
 #| label: 'rsd-eval'
-#| fig-width: 10
-#| fig-height: 6
 #| out-width: '80%'
 
 # Quantification standard samples
-qc_se <- setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")) |> 
-  lapply(extract_quant_qc, qstd_sumexp)
+qc_se <- extract_quant_qc(qstd_sumexp)
 # Calculate RSD of the quantification standard samples
 data_labels <- setNames(c("Raw", "LOESS Normalized"), c("raw", "loess_norm"))
 rsd_qstd <- calc_rsd_qstd(qc_se, data_labels)
@@ -537,8 +597,6 @@ rsd_qstd |>
 
 ```{r}
 #| label: 'norm-method-comparison'
-#| fig-width: 10
-#| fig-height: 6
 #| out-width: '80%'
 
 data_labels <- setNames(c("Raw", "Closest", "LOESS"), c("raw", "closest_norm", "loess_norm"))
@@ -556,6 +614,7 @@ ggplot(df_to_show, aes(x = Data, y = RSD, color = sign)) +
   facet_grid(~ QC)
 ```
 
+The number of metabolites with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
@@ -582,11 +641,11 @@ The concentration is converted to a numeric value.
 # Calibration curve samples only
 calcurve_se <- qstd_sumexp[, qstd_sumexp$Class == "CalCurve"]
 # Remove the 0 concentration sample
-calcurve_se <- calcurve_se[, ! stringr::str_detect(calcurve_se$given_sample_id, "Cal0_")]
+calcurve_se <- calcurve_se[, ! stringr::str_detect(calcurve_se$sample_name, "Cal0_")]
 
 # Extract concentration values from the given IDs
-extract_conc <- function(given_sample_id) {
-  conc <- stringr::str_extract(given_sample_id, "CalStd([0-9]+)_", group = 1)
+extract_conc <- function(sample_name) {
+  conc <- stringr::str_extract(sample_name, "CalStd([0-9]+)_", group = 1)
   dplyr::case_when(
     # Replace the leading `0` with `0.`
     stringr::str_detect(conc, "^0[0-9]") ~ stringr::str_replace(conc, "^0", "0."),
@@ -594,7 +653,7 @@ extract_conc <- function(given_sample_id) {
   ) |> 
     as.numeric()
 }
-calcurve_se$conc <- extract_conc(calcurve_se$given_sample_id)
+calcurve_se$conc <- extract_conc(calcurve_se$sample_name)
 ```
 
 ### Sample IDs
@@ -602,7 +661,7 @@ calcurve_se$conc <- extract_conc(calcurve_se$given_sample_id)
 ```{r}
 #| results: 'markup'
 # Present the sample IDs for the calibration curve
-print(calcurve_se$given_sample_id)
+print(calcurve_se$sample_name)
 ```
 
 ### The number of samples per concentration
@@ -620,6 +679,34 @@ calcurve_se$conc |>
 
 ## Calibration curve per metabolite
 
+```{r}
+#| purl: true
+
+set.seed(7579)
+i_sel <- c(1:nrow(calcurve_se))
+i_sel <- i_sel[rowData(calcurve_se)$std_type != "Istd"]
+i_sel <- sample(i_sel, 9)
+calcurve_to_show_df <- tibble::as_tibble(calcurve_se[i_sel, ])
+
+# Linear model fitting
+calcurve_to_show_lmfit <- calcurve_to_show_df |> 
+  tidyr::nest(.by = c(metab_id, metab_name)) |> 
+  dplyr::mutate(
+    lmfit = lapply(data, \(.x) lm(formula = raw ~ conc + I(conc^2), data = .x)),
+    rsq = sapply(lmfit, \(.x) summary(.x)$r.squared),
+  )
+
+# Fitted line layer
+fit_layer <- geom_smooth(
+  # aes(weight = 1 / (conc ^ 2)),
+  data = calcurve_to_show_df,
+  method = "lm",
+  formula = y ~ x + I(x^2),
+  se = FALSE,
+  color = "cadetblue"
+)
+```
+
 ### Linear scale
 
 #### Before normalization
@@ -628,13 +715,6 @@ calcurve_se$conc |>
 #| label: 'calcurve-per-metabolite-linear-before-norm'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-set.seed(7579)
-i_sel <- c(1:nrow(calcurve_se))
-i_sel <- i_sel[rowData(calcurve_se)$std_type != "Istd"]
-i_sel <- sample(i_sel, 9)
-calcurve_to_show_df <- tibble::as_tibble(calcurve_se[i_sel, ])
-
 # Plot calibration curves
 ggplot(calcurve_to_show_df, aes(x = conc, y = raw)) +
   geom_point() +
@@ -649,25 +729,20 @@ ggplot(calcurve_to_show_df, aes(x = conc, y = raw)) +
 
 The peak areas were normalized by the internal standards.
 A line is fitted to the data points per metabolite.
-Here the weight in the linear regression is inversely proportional to the squared concentration.
+~~Here the weight in the linear regression is inversely proportional to the squared concentration.~~
 
 ```{r}
 #| label: 'calcurve-per-metabolite-linear'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
-# Fitted line layer
-fit_layer <- geom_smooth(
-  # aes(weight = 1 / (conc ^ 2)),
-  data = calcurve_to_show_df,
-  method = "lm",
-  formula = y ~ x + I(x^2),
-  se = FALSE,
-  color = "cadetblue"
-)
 # Plot calibration curves
 ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
+  geom_text(
+    aes(x = Inf, y = -Inf, label = sprintf("R2 = %.2f", rsq)),
+    data = calcurve_to_show_lmfit,
+    hjust = 1.1,
+    vjust = -0.1,
+  ) +
   fit_layer +
   geom_point() +
   labs(
@@ -686,8 +761,6 @@ After normalization
 #| label: 'calcurve-per-metabolite-log'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
   geom_point() +
   labs(
@@ -706,8 +779,6 @@ ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
 #| label: 'calcurve-per-metabolite-linear-closest'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 # Plot calibration curves
 ggplot(calcurve_to_show_df, aes(x = conc, y = closest_norm)) +
   geom_point() +
@@ -717,8 +788,6 @@ ggplot(calcurve_to_show_df, aes(x = conc, y = closest_norm)) +
   ) +  
   facet_wrap(~ metab_name, scales = "free_y", ncol = 3)
 ```
-
-
 
 
 ## Calibration of the metabolites
@@ -732,7 +801,7 @@ The calibration curve is fitted to the [normalized data](#normalization) using a
 #| purl: true
 
 build_calcurve_model <- function(conc, value) {
-  lmfit <- lm(value ~ conc + I(conc^2), weights = 1 / (conc ^ 2))
+  lmfit <- lm(value ~ conc + I(conc^2))#, weights = 1 / (conc ^ 2))
   beta <- coef(lmfit)
   a <- beta[["I(conc^2)"]]
   b <- beta[["conc"]]
@@ -772,8 +841,6 @@ Any negative concentration is set to zero.
 #| label: 'calibration-curve-with-samples'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 measure_tbl <- tibble::as_tibble(measurements_se[i_sel, ])
 
 # Plot the calibration curve with the samples
@@ -795,8 +862,6 @@ ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
 #| label: 'calibration-curve-with-samples-log'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 # Retrieve the coefficients of the linear model for the calibration curve
 metab_ids <- unique(measure_tbl$metab_id)
 beta <- lapply(metab_ids, function(m_id) {
@@ -846,8 +911,6 @@ The data of the two classes are presented on the calibration curve.
 #| label: 'calibration-curve-with-normsample'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 to_incl <- measurements_se$Class %in% c("NormSample", "Groundwater")
 measure_tbl <- tibble::as_tibble(measurements_se[i_sel, to_incl])
 
@@ -870,8 +933,6 @@ ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
 #| label: 'calibration-curve-with-normsample-log'
 #| fig-width: 12
 #| fig-height: 11
-#| out-width: "100%"
-
 # Plot the calibration curve with the samples
 ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
   geom_point(data = calcurve_to_show_df) +
@@ -895,12 +956,8 @@ The distribution of the concentration of the samples is shown below.
 ```{r}
 #| label: 'concentration-distribution-by-sample'
 #| fig-width: 12
-#| fig-height: 6
-#| out-width: "100%"
-
-# Plot the concentration distribution by sample
 ggplot(measurements_se) +
-  geom_boxplot(aes(x = given_sample_id, y = conc, fill = Class)) +
+  geom_boxplot(aes(x = sample_name, y = conc, fill = Class)) +
   labs(
     title = "Concentration distribution by class", 
     x = "Sample ID",
@@ -914,10 +971,6 @@ ggplot(measurements_se) +
 ```{r}
 #| label: 'concentration-distribution-by-metabolite'
 #| fig-width: 12
-#| fig-height: 6
-#| out-width: "100%"
-
-# Plot the concentration distribution by metabolite
 ggplot(measurements_se) +
   geom_boxplot(aes(x = metab_name, y = conc)) +
   labs(
@@ -932,7 +985,6 @@ ggplot(measurements_se) +
 
 ```{r}
 #| label: 'write-concentration-table'
-
 # Write the concentration table
 write_concentration_tsv <- function(sumexp, file) {
   # Prepare the metabolite table
@@ -949,7 +1001,7 @@ write_concentration_tsv <- function(sumexp, file) {
     round(3) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$given_sample_id
+  colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$sample_name
   readr::write_tsv(dplyr::bind_cols(metab_columns, conc_df), file)
 }
 write_concentration_tsv(measurements_se, FILE$o)
