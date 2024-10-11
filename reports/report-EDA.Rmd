@@ -38,7 +38,6 @@ set.seed(7579)
 ```{r}
 #| label: 'read-given-xlsx-and-save-sumexp'
 #| purl: true
-#| cache: true
 
 # Parse the data into SummarizedExperiment
 parse_to_sumexp <- function(data_fr_xlsx, i_row_sample, i_col_metab) {
@@ -341,6 +340,32 @@ There were `r length(matched_metab_name)` standard metabolites matched to intern
 They are `r knitr::combine_words(matched_metab_name, before = "\x60")`.
 
 ```{r}
+#| label: 'matched-standards-table'
+
+count_zeros_per_class <- function(sumexp) {
+  zeros <- assays(sumexp)$raw == 0
+  zeros_df <- as.data.frame(t(zeros)) |> 
+    split(sumexp$Class) |> 
+    sapply(colSums)
+  rownames(zeros_df) <- rowData(sumexp)$metab_name
+  zeros_df
+}
+count_zeros_per_class(matched_std_se) |> 
+  knitr::kable(caption = "The number of 0s in quantitative standard metabolites") |> 
+  kableExtra::kable_styling(full_width = FALSE)
+
+i_groundwater <- which(matched_std_se$Class == "Groundwater")
+i_groundwater <- sample(i_groundwater, 4)
+assays(internal_std_se)$raw[, i_groundwater] |> 
+  `rownames<-`(rowData(internal_std_se)$metab_name) |>
+  knitr::kable(caption = "The values of internal standards in the selected 4 groundwater samples") |> 
+  kableExtra::kable_styling(full_width = FALSE)
+assays(matched_std_se)$raw[, i_groundwater] |> 
+  knitr::kable(caption = "The values of matched pair in the selected 4 groundwater samples") |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r}
 #| label: 'normalize-rt-range-closest-internal-standards'
 #| purl: true
 
@@ -356,27 +381,27 @@ while the range of matched internal standard metabolites is `r range(rt)[1]` to 
 #| label: 'normalize-rt-closest-internal-standards'
 #| purl: true
 
-# Compute deviation from the internal standard metabolites
-assays(matched_std_se)$deviation <- assays(matched_std_se)$raw - assays(matched_std_se)$istd
+# Compute ratio between matched pairs of the internal standard metabolites
+assays(matched_std_se)$norm_factor <- log(assays(matched_std_se)$raw) - log(assays(matched_std_se)$istd)
 
 # Normalize the data using closest internal standard metabolites
-get_deviation_of_closest_istd <- function(rt_x, matched_std_se) {
+get_norm_factor_of_closest_istd <- function(rt_x, matched_std_se) {
   # Find the closest internal standard metabolite
   closest_istd <- which.min(abs(rowData(matched_std_se)$rt - rt_x))
-  return(assays(matched_std_se)$deviation[closest_istd, ])
+  return(assays(matched_std_se)$norm_factor[closest_istd, ])
 }
 
-assays(no_outlier_se)$deviation <- rowData(no_outlier_se)$rt |> 
+assays(no_outlier_se)$norm_factor <- rowData(no_outlier_se)$rt |> 
   setNames(rownames(no_outlier_se)) |>          # To keep the names
-  sapply(get_deviation_of_closest_istd, matched_std_se) |> 
+  sapply(get_norm_factor_of_closest_istd, matched_std_se) |> 
   t()     # Rows are metabolites
 
-assays(no_outlier_se)$closest_norm <- assays(no_outlier_se)$raw - assays(no_outlier_se)$deviation
+assays(no_outlier_se)$closest_norm <- exp(log(assays(no_outlier_se)$raw) - assays(no_outlier_se)$norm_factor)
 assays(no_outlier_se)$closest_norm[assays(no_outlier_se)$closest_norm < 0] <- 0
 ```
 
 The data has been normalized using the closest internal standard metabolites.
-The difference between two matched pairs of the metabolites that were closest in retention time was used for normalization.
+The ratio between two matched pairs of the metabolites that were closest in retention time was used for normalization.
 
 #### Evaluation of normalization
 
@@ -753,7 +778,7 @@ Here the weight in the linear regression is inversely proportional to the square
 
 # Fitted line layer
 fit_layer <- geom_smooth(
-  aes(weight = 1 / (conc ^ 2)),
+  # aes(weight = 1 / (conc ^ 2)),
   data = calcurve_to_show_df,
   method = "lm",
   formula = y ~ x + I(x^2),
