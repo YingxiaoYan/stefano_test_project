@@ -136,7 +136,6 @@ rowData(given_data_sumexp)$std_type |>
 
 ```{r}
 #| label: 'distribution-values-linear'
-# Distribution of the values
 ggplot(given_data_sumexp) +
   geom_histogram(aes(x = raw), bins = 50) +
   labs(title = "Distribution of the values", x = "Values")
@@ -188,7 +187,6 @@ ggplot(given_data_sumexp[i_sel, ]) +
   facet_wrap(~ metab_name, scales = "free_x", ncol = 4)
 ```
 
-
 ----------------------------
 
 # Normalization using internal standards
@@ -196,12 +194,11 @@ ggplot(given_data_sumexp[i_sel, ]) +
 ## Internal standard (IS) metabolites
 
 ```{r}
-#| label: 'internal-standards'
 #| purl: true
 
 # Extract the internal standard metabolites
-is_istd <- rowData(given_data_sumexp)$std_type == "Istd"
-internal_std_se <- given_data_sumexp[is_istd, ]
+internal_std_se <- given_data_sumexp |> 
+  dplyr::filter(std_type == "Istd")
 # Sort by average retention time
 rt <- rowData(internal_std_se)$rt
 internal_std_se <- internal_std_se[order(rt), ]
@@ -222,18 +219,18 @@ Randomly selected 8 internal standard (IS) metabolites are shown in the followin
 
 i_sel <- sample(1:nrow(internal_std_se), 8) |> 
   sort()   # Keep the order by m/z
+
 internal_std_se[i_sel, ] |> 
   # Below invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
-  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # order by m/z 
+  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Order by m/z 
   ggplot() +
   geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
   labs(
     title = "Distribution of the values of internal standard metabolites", 
-    y = "Values"
+    y = "Peak area",
   ) +
   theme(legend.position = "none") +   # No legend for fill
-  # Turn the x-axis title to vertical
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
   scale_y_log10() +
   facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
 ```
@@ -244,7 +241,6 @@ Outliers were identified based on the values of internal standard metabolites.
 Those samples with values greater than 3 standard deviations from the mean after log-transformation ($log(1 + x)$) were considered as outliers.
 
 ```{r}
-#| label: 'outliers-internal-standards'
 #| purl: true
 
 # Identify outliers
@@ -262,7 +258,7 @@ stopifnot(identical(names(n_outlier), colnames(internal_std_se)))
 internal_std_se <- internal_std_se[, n_outlier == 0, drop = FALSE]
 stopifnot(identical(names(n_outlier), colnames(given_data_sumexp)))
 given_data_sumexp$is_outlier <- n_outlier > 0
-no_outlier_se <- given_data_sumexp[, ! given_data_sumexp$is_outlier, drop = FALSE]
+no_outlier_se <- given_data_sumexp[, n_outlier == 0, drop = FALSE]
 ```
 
 There are `r sum(n_outlier > 0)` outlying samples in the data.
@@ -283,8 +279,7 @@ After exclusion of those outliers, the distribution of the randomly selected 8 i
 #| out-width: '100%'
 
 internal_std_se[i_sel, , drop = FALSE] |> 
-  # Below invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
-  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # order by m/z 
+  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Order by m/z 
   ggplot() +
   geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
   labs(
@@ -292,217 +287,16 @@ internal_std_se[i_sel, , drop = FALSE] |>
     y = "Values"
   ) +
   theme(legend.position = "none") +   # No legend for fill
-  # Turn the x-axis title to vertical
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +    # Rotate x-axis labels
   scale_y_log10() +
   facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
 ```
-
 
 ## Normalization
 
 The data will be normalized using the internal standard metabolites.
 
-### Closest internal standard metabolites
-
 ```{r}
-#| label: 'matched-standards'
-#| purl: true
-
-# Get the data of the matched standard + internal standard metabolites
-get_matched_std_se <- function(std_se, internal_std_se) {
-  box::use(SummarizedExperiment[rowData, `rowData<-`, `assays<-`])
-  # Find the names of standard metabolites matched to internal standard metabolites
-  istd_wo_label <- rowData(internal_std_se)$metab_name |> 
-    stringr::str_replace(" ?-d[0-9]+(\\))?$", "\\1")     # Remove added labels for IS
-  # Some are not matched
-  i_match <- match(istd_wo_label, rowData(std_se)$metab_name)
-  matched_std <- istd_wo_label[!is.na(i_match)]
-  
-  i_match <- match(matched_std, rowData(std_se)$metab_name)
-  out_se <- std_se[i_match, , drop = FALSE]     # Output in SummarizedExperiment
-  
-  # Attach internal standard metabolites 
-  i_match <- match(matched_std, istd_wo_label)
-  istd_mat <- assays(internal_std_se)$raw[i_match, ]
-  rownames(istd_mat) <- rownames(out_se)    # Remove added labels for internal standards
-  assays(out_se)$istd <- istd_mat
-  # Use retention time of internal standard metabolites
-  rowData(out_se)$rt <- rowData(internal_std_se)$rt[i_match]
-  return(out_se)
-}
-# The data of the matched standard + internal standard metabolites
-matched_std_se <- get_matched_std_se(no_outlier_se, internal_std_se)
-matched_metab_name <- rowData(matched_std_se)$metab_name
-```
-
-There were `r length(matched_metab_name)` standard metabolites matched to internal standard metabolites.
-They are `r knitr::combine_words(matched_metab_name, before = "\x60")`.
-
-```{r}
-#| label: 'matched-standards-table'
-
-count_zeros_per_class <- function(sumexp) {
-  zeros <- assays(sumexp)$raw == 0
-  zeros_df <- as.data.frame(t(zeros)) |> 
-    split(sumexp$Class) |> 
-    sapply(colSums)
-  rownames(zeros_df) <- rowData(sumexp)$metab_name
-  zeros_df
-}
-count_zeros_per_class(matched_std_se) |> 
-  knitr::kable(caption = "The number of 0s in quantitative standard metabolites") |> 
-  kableExtra::kable_styling(full_width = FALSE)
-
-i_groundwater <- which(matched_std_se$Class == "Groundwater")
-i_groundwater <- sample(i_groundwater, 4)
-assays(internal_std_se)$raw[, i_groundwater] |> 
-  `rownames<-`(rowData(internal_std_se)$metab_name) |>
-  knitr::kable(caption = "The values of internal standards in the selected 4 groundwater samples") |> 
-  kableExtra::kable_styling(full_width = FALSE)
-assays(matched_std_se)$raw[, i_groundwater] |> 
-  knitr::kable(caption = "The values of matched pair in the selected 4 groundwater samples") |> 
-  kableExtra::kable_styling(full_width = FALSE)
-```
-
-```{r}
-#| label: 'normalize-rt-range-closest-internal-standards'
-#| purl: true
-
-# Find the range of RT values
-overall_rt_range <- range(rowData(no_outlier_se)$rt)
-rt <- rowData(matched_std_se)$rt
-```
-
-The range of RT values of overall metabolites is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of matched internal standard metabolites is `r range(rt)[1]` to `r range(rt)[2]`.
-
-```{r}
-#| label: 'normalize-rt-closest-internal-standards'
-#| purl: true
-
-# Compute ratio between matched pairs of the internal standard metabolites
-assays(matched_std_se)$norm_factor <- log(assays(matched_std_se)$raw) - log(assays(matched_std_se)$istd)
-
-# Normalize the data using closest internal standard metabolites
-get_norm_factor_of_closest_istd <- function(rt_x, matched_std_se) {
-  # Find the closest internal standard metabolite
-  closest_istd <- which.min(abs(rowData(matched_std_se)$rt - rt_x))
-  return(assays(matched_std_se)$norm_factor[closest_istd, ])
-}
-
-assays(no_outlier_se)$norm_factor <- rowData(no_outlier_se)$rt |> 
-  setNames(rownames(no_outlier_se)) |>          # To keep the names
-  sapply(get_norm_factor_of_closest_istd, matched_std_se) |> 
-  t()     # Rows are metabolites
-
-assays(no_outlier_se)$closest_norm <- exp(log(assays(no_outlier_se)$raw) - assays(no_outlier_se)$norm_factor)
-assays(no_outlier_se)$closest_norm[assays(no_outlier_se)$closest_norm < 0] <- 0
-```
-
-The data has been normalized using the closest internal standard metabolites.
-The ratio between two matched pairs of the metabolites that were closest in retention time was used for normalization.
-
-#### Evaluation of normalization
-
-```{r}
-#| label: 'evaluation-normalization-closest-istd'
-#| fig-width: 10
-#| fig-height: 6
-#| out-width: '80%'
-
-# Quantification standard samples
-qc_se <- lapply(setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")), \(nm) {
-  pat <- paste0("^", nm, "_")
-  is_qc <- stringr::str_detect(no_outlier_se$given_sample_id, pat)
-  is_qstd <- rowData(no_outlier_se)$std_type == "Std"
-  no_outlier_se[is_qstd, is_qc, drop = FALSE]
-})
-# Calculate RSD of the quantification standard samples
-calc_rsd_qstd <- function(qc_se, data_labels) {
-  # Calculate RSD
-  compute_rsd <- function(x) {
-    sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)
-  }
-  
-  lapply(qc_se, \(qc1) {
-    # Rows are metabolites, columns are data labels
-    sapply(setNames(nm = names(data_labels)), function(nm) {
-      apply(assays(qc1)[[nm]], 1, compute_rsd)
-    }) |> 
-      tibble::as_tibble(rownames = "metab_id")
-  }) |> 
-    # `QC` is the name of the QC samples
-    dplyr::bind_rows(.id = "QC")
-}
-data_labels <- setNames(c("Raw", "Closest IS Normalized"), c("raw", "closest_norm"))
-rsd_qstd <- calc_rsd_qstd(qc_se, data_labels)
-rsd_qstd |> 
-  dplyr::mutate(
-    sign = ifelse(raw > closest_norm, "↓", "↑"),
-    dplyr::across(all_of(names(data_labels)), \(.x) ifelse(is.na(.x), 0, .x)),
-  ) |> 
-  tidyr::pivot_longer(c(raw, closest_norm), names_to = "Data", values_to = "RSD") |> 
-  dplyr::mutate(
-    Data = factor(Data, levels = names(data_labels), labels = data_labels),
-  ) |>
-  ggplot(aes(x = Data, y = RSD, color = sign)) +
-  geom_line(aes(group = metab_id), alpha = 0.5) +
-  facet_grid(~ QC)
-```
-
-
-```{r}
-#| label: 'evaluation-normalization-closest-istd-table'
-#| results: 'markup'
-
-sapply(qc_se, \(qc1) {
-  sapply(setNames(nm = names(data_labels)), \(.x) sum(assays(qc1)[[.x]] <= 0))
-})
-```
-
-```{r}
-#| label: 'evaluation-normalization-closest-istd-replace-to-0'
-#| fig-width: 10
-#| fig-height: 6
-#| out-width: '80%'
-
-qc_se <- qc_se |> 
-  lapply(\(qc1) {
-    assays(qc1)$closest_norm[assays(qc1)$raw == 0] <- 0
-    qc1
-  })
-rsd_qstd <- calc_rsd_qstd(qc_se, data_labels)
-
-rsd_qstd |> 
-  dplyr::mutate(
-    sign = ifelse(raw > closest_norm, "↓", "↑"),
-    raw = ifelse(is.na(raw), 0, raw),
-    closest_norm = ifelse(is.na(closest_norm), 0, closest_norm),
-  ) |> 
-  tidyr::pivot_longer(c(raw, closest_norm), names_to = "Data", values_to = "RSD") |> 
-  dplyr::mutate(
-    Data = factor(Data, levels = names(data_labels), labels = data_labels),
-  ) |>
-  ggplot(aes(x = Data, y = RSD, color = sign)) +
-  geom_line(aes(group = metab_id), alpha = 0.5) +
-  facet_grid(~ QC)
-```
-
-```{r}
-#| label: 'evaluation-normalization-closest-istd-replace-to-0-table'
-#| results: 'markup'
-
-sapply(qc_se, \(qc1) {
-  sapply(setNames(nm = names(data_labels)), \(.x) sum(assays(qc1)[[.x]] <= 0))
-})
-```
-
-
-### LOESS fit along RT
-
-```{r}
-#| label: 'normalize-rt-range'
 #| purl: true
 
 # Find the range of RT values
@@ -513,53 +307,132 @@ rt <- rowData(internal_std_se)$rt
 The range of RT values of overall metabolites is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
 while the range of internal standard metabolites is `r range(rt)[1]` to `r range(rt)[2]`.
 
+### Closest internal standard metabolites
+
+The closest internal standard metabolites to each metabolite will be identified based on the retention time.
+The measured peak area of each metabolite will be divided by the peak area of the closest internal standard metabolite.
+
+```{r}
+#| label: 'normalize-rt-closest-istd'
+#| purl: true
+
+# Get the values of the closest internal standard metabolites
+get_raw_of_closest_istd <- function(rt_x, internal_std_se) {
+  # Find the closest internal standard metabolite
+  closest_istd <- which.min(abs(rowData(internal_std_se)$rt - rt_x))
+  return(assays(internal_std_se)$raw[closest_istd, ])
+}
+assays(no_outlier_se)$closest_istd_raw <- rowData(no_outlier_se)$rt |> 
+  setNames(rownames(no_outlier_se)) |>          # To keep the names
+  sapply(get_raw_of_closest_istd, internal_std_se) |> 
+  t()     # Rows are metabolites
+
+# Normalize the data using closest internal standard metabolites
+assays(no_outlier_se)$closest_norm <- 
+  assays(no_outlier_se)$raw / assays(no_outlier_se)$closest_istd_raw
+```
+
+#### Evaluation of normalization
+
+```{r}
+#| label: 'evaluation-normalization-closest-istd'
+#| fig-width: 10
+#| fig-height: 6
+#| out-width: '80%'
+
+# Extract quantitative standards in QC samples
+extract_quant_qc <- function(nm, sumexp) {
+  pat <- paste0("^", nm, "_")
+  is_qc <- stringr::str_detect(colnames(sumexp), pat)
+  is_qstd <- rowData(sumexp)$std_type == "Std"
+  sumexp[is_qstd, is_qc, drop = FALSE]
+}
+# Quantification standard samples
+qc_se <- setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")) |> 
+  lapply(extract_quant_qc, no_outlier_se)
+
+data_labels <- setNames(c("Raw", "Closest IS Normalized"), c("raw", "closest_norm"))
+# Calculate RSD of the quantification standard samples
+calc_rsd_qstd <- function(qc_se, data_labels) {
+  # Calculate RSD
+  compute_rsd <- function(x) {
+    sd(x) / mean(x)
+  }
+  
+  lapply(qc_se, \(qc1) {
+    # Rows are metabolites, columns are data labels
+    sapply(setNames(nm = names(data_labels)), function(nm) {
+      apply(assays(qc1)[[nm]], 1, compute_rsd)
+    }) |> 
+      tibble::as_tibble(rownames = "metab_id")
+  }) |> 
+    # `QC` has the name of the QC samples
+    dplyr::bind_rows(.id = "QC")
+}
+rsd_qstd <- calc_rsd_qstd(qc_se, data_labels)
+rsd_qstd |> 
+  dplyr::mutate(
+    sign = ifelse(raw > closest_norm, "↓", "↑"),
+    dplyr::across(all_of(names(data_labels)), \(.x) ifelse(is.na(.x), 0, .x)),
+  ) |> 
+  tidyr::pivot_longer(c(raw, closest_norm), names_to = "Data", values_to = "RSD") |> 
+  dplyr::mutate(Data = factor(Data, levels = names(data_labels), labels = data_labels)) |>
+  ggplot(aes(x = Data, y = RSD, color = sign)) +
+  geom_line(aes(group = metab_id), alpha = 0.5) +
+  facet_grid(~ QC)
+```
+
+### LOESS fit along RT
+
 ```{r}
 #| label: 'normalize-rt'
 #| purl: true
 
-istd_log <- assays(internal_std_se)$raw |> 
-  log()              # Log-transform the data
-
-# Normalize the data using the internal standards
-# Mean of each internal standard metabolite for overall measurement samples
-# , excluding the calibration curve and blank samples
-to_excl <- internal_std_se$Class %in% c("Blank", "CalCurve")
-# The data of the samples with measurements
-mat <- istd_log[, !to_excl, drop = FALSE]
-stopifnot(all(is.finite(mat)))
-istd_m <- rowMeans(mat)
-# Subtract the mean from the data
-istd_dev_log <- istd_log - istd_m
-
-# Expand to smallest RT with the mean of smallest 
-i_smallest_rts <- order(rt)[1]
-avg_smallest_rts <- colMeans(istd_dev_log[i_smallest_rts, , drop = FALSE])
-# Expand to largest RT with the mean of largest 
-i_largest_rts <- order(rt, decreasing = TRUE)[1]
-avg_largest_rts <- colMeans(istd_dev_log[i_largest_rts, , drop = FALSE])
-# Add the expanded range
-istd_dev_log <- rbind(
-  avg_smallest_rts, 
-  avg_largest_rts,
-  istd_dev_log
-)
-
-# LOESS fit of the internal standard metabolites along RT
-loess_fit <- purrr::map(1:ncol(istd_dev_log), function(ii) {
-  # Fit a loess curve
-  y <- istd_dev_log[, ii]
-  y[is.finite(y) == FALSE] <- NA
-  stopifnot(identical(
-    names(y), c("avg_smallest_rts", "avg_largest_rts", rownames(internal_std_se))
-  ))
-  suppressWarnings(loess(y ~ c(overall_rt_range, rt), span = 1))
+loess_fit <- local({
+  # Log-transform the data
+  istd_log <- log(assays(internal_std_se)$raw)
+  rt <- rowData(internal_std_se)$rt
+  
+  # Normalize the data using the internal standards
+  # Mean of each internal standard metabolite for overall measurement samples
+  # , excluding the calibration curve and blank samples
+  to_excl <- internal_std_se$Class %in% c("Blank", "CalCurve")
+  # The data of the samples with measurements
+  mat <- istd_log[, !to_excl, drop = FALSE]
+  stopifnot(all(is.finite(mat)))
+  istd_m <- rowMeans(mat)
+  # Subtract the mean from the data
+  fr_m_log <- istd_log - istd_m
+  
+  # Expand to smallest RT 
+  istd_smallest_rt <- fr_m_log[which.min(rt), ]
+  # Expand to largest RT 
+  istd_largest_rt <- fr_m_log[which.max(rt), ]
+  # Add the expanded range
+  fr_m_log <- rbind(
+    istd_smallest_rt, 
+    istd_largest_rt,
+    fr_m_log
+  )
+  
+  # LOESS fit of the internal standard metabolites along RT
+  loess_fit <- purrr::map(1:ncol(fr_m_log), function(ii) {
+    # Fit a loess curve
+    y <- fr_m_log[, ii]
+    y[is.finite(y) == FALSE] <- NA
+    stopifnot(identical(
+      names(y), c("istd_smallest_rt", "istd_largest_rt", rownames(internal_std_se))
+    ))
+    suppressWarnings(loess(y ~ c(overall_rt_range, rt), span = 1))
+  })
+  names(loess_fit) <- colnames(fr_m_log)
+  loess_fit
 })
-names(loess_fit) <- colnames(istd_dev_log)
 
 # Normalize the data by LOESS fit along RT
 rt <- rowData(no_outlier_se)$rt
 raw <- assays(no_outlier_se)$raw
-assays(no_outlier_se)$rt_norm <- sapply(
+assays(no_outlier_se)$loess_norm <- sapply(
   no_outlier_se$sample_id,
   function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
@@ -568,8 +441,8 @@ assays(no_outlier_se)$rt_norm <- sapply(
 )
 
 # Extract quantification standard data
-i_qstd <- rowData(no_outlier_se)$std_type == "Std"
-qstd_sumexp <- no_outlier_se[i_qstd, ]
+qstd_sumexp <- no_outlier_se |> 
+  dplyr::filter(std_type == "Std")
 ```
 
 For each metabolite, the average of all samples excluding `Blank` and `CalCurve` samples was calculated after log-transformation.
@@ -587,8 +460,10 @@ Randomly selected 3 samples are shown below.
 #| fig-height: 12
 #| out-width: '100%'
 
+to_excl <- no_outlier_se$Class %in% c("Blank", "CalCurve")
 # Plot the normalized and original data for randomly selected 3 samples
 i_sel <- sample(c(1:ncol(no_outlier_se))[!to_excl], 3)
+
 # To include LOESS smooth line
 x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
 loess_curve_df <- lapply(setNames(i_sel, no_outlier_se$sample_id[i_sel]), function(ii) {
@@ -609,11 +484,12 @@ selected_se <- no_outlier_se[, i_sel]
 assays(selected_se) <- assays(selected_se) |> 
   lapply(\(x) sweep(log(x), 1, mean_log, FUN = "-"))
 
+df_to_show <- tibble::as_tibble(selected_se) |>
+  dplyr::rename(Raw = raw, Normalized = loess_norm) |>
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value")
+
 # Plot the normalized and original data
-tibble::as_tibble(selected_se) |>
-  dplyr::rename(Raw = raw, Normalized = rt_norm) |>
-  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |>
-  ggplot(aes(x = rt, y = Value)) +
+ggplot(df_to_show, aes(x = rt, y = Value)) +
   geom_point(aes(color = Data, shape = std_type)) +
   geom_line(data = loess_curve_df, alpha = 0.5) +
   labs(
@@ -640,23 +516,18 @@ The normalized data are evaluated by the changes of relative standard deviation 
 #| out-width: '80%'
 
 # Quantification standard samples
-qc_se <- lapply(setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")), \(nm) {
-  pat <- paste0("^", nm, "_")
-  is_qc <- stringr::str_detect(qstd_sumexp$given_sample_id, pat)
-  qstd_sumexp[, is_qc, drop = FALSE]
-})
+qc_se <- setNames(nm = c("QC1", "QC2", "QCsp50ngL", "QCsp500ngL")) |> 
+  lapply(extract_quant_qc, qstd_sumexp)
 # Calculate RSD of the quantification standard samples
-data_labels <- setNames(c("Raw", "RT-LOESS Normalized"), c("raw", "rt_norm"))
+data_labels <- setNames(c("Raw", "LOESS Normalized"), c("raw", "loess_norm"))
 rsd_qstd <- calc_rsd_qstd(qc_se, data_labels)
 rsd_qstd |> 
   dplyr::mutate(
-    sign = ifelse(raw > rt_norm, "↓", "↑"),
+    sign = ifelse(raw > loess_norm, "↓", "↑"),
     dplyr::across(all_of(names(data_labels)), \(.x) ifelse(is.na(.x), 0, .x)),
   ) |> 
   tidyr::pivot_longer(dplyr::all_of(names(data_labels)), names_to = "Data", values_to = "RSD") |> 
-  dplyr::mutate(
-    Data = factor(Data, levels = names(data_labels), labels = data_labels),
-  ) |>
+  dplyr::mutate(Data = factor(Data, levels = names(data_labels), labels = data_labels)) |>
   ggplot(aes(x = Data, y = RSD, color = sign)) +
   geom_line(aes(group = metab_id), alpha = 0.5) +
   facet_grid(~ QC)
@@ -670,19 +541,29 @@ rsd_qstd |>
 #| fig-height: 6
 #| out-width: '80%'
 
-data_labels <- setNames(c("Raw", "Closest", "LOESS"), c("raw", "closest_norm", "rt_norm"))
-calc_rsd_qstd(qc_se, data_labels) |> 
+data_labels <- setNames(c("Raw", "Closest", "LOESS"), c("raw", "closest_norm", "loess_norm"))
+df_to_show <- calc_rsd_qstd(qc_se, data_labels) |> 
   dplyr::mutate(
-    sign = ifelse(closest_norm > rt_norm, "↓", "↑"),
+    sign = ifelse(loess_norm <= closest_norm, "↓ LOESS", "↓ Closest"),
     dplyr::across(all_of(names(data_labels)), \(.x) ifelse(is.na(.x), 0, .x)),
   ) |> 
   tidyr::pivot_longer(dplyr::all_of(names(data_labels)), names_to = "Data", values_to = "RSD") |> 
   dplyr::mutate(
     Data = factor(Data, levels = names(data_labels), labels = data_labels),
-  ) |>
-  ggplot(aes(x = Data, y = RSD, color = sign)) +
+  )
+ggplot(df_to_show, aes(x = Data, y = RSD, color = sign)) +
   geom_line(aes(group = metab_id), alpha = 0.5) +
   facet_grid(~ QC)
+```
+
+
+```{r}
+#| label: 'rsd-comparison-count'
+#| results: 'markup'
+# Count the number of metabolites with lower RSD
+df_to_show |> 
+  dplyr::filter(Data == "Raw") |>
+  janitor::tabyl(QC, sign)
 ```
 
 # Calibration
@@ -786,7 +667,7 @@ fit_layer <- geom_smooth(
   color = "cadetblue"
 )
 # Plot calibration curves
-ggplot(calcurve_to_show_df, aes(x = conc, y = rt_norm)) +
+ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
   fit_layer +
   geom_point() +
   labs(
@@ -807,7 +688,7 @@ After normalization
 #| fig-height: 11
 #| out-width: "100%"
 
-ggplot(calcurve_to_show_df, aes(x = conc, y = rt_norm)) +
+ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
   geom_point() +
   labs(
     x = "Concentration",
@@ -865,7 +746,7 @@ build_calcurve_model <- function(conc, value) {
 }
 # Fit the calibration curve
 conc <- calcurve_se$conc
-rt_norm_mat <- assays(calcurve_se)$rt_norm
+rt_norm_mat <- assays(calcurve_se)$loess_norm
 calcurve_fit <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
   build_calcurve_model(conc, rt_norm_mat[ii, ])
 })
@@ -876,7 +757,7 @@ classes_to_incl <- unique(qstd_sumexp$Class) |>
 measurements_se <- qstd_sumexp[, qstd_sumexp$Class %in% classes_to_incl]
 assays(measurements_se)$conc <- rowData(measurements_se)$metab_id |> 
   sapply(function(metab_id) {
-    v <- assays(measurements_se)$rt_norm[metab_id, ]
+    v <- assays(measurements_se)$loess_norm[metab_id, ]
     calcurve_fit[[metab_id]](v)
   }) |>
     t()          # Metabolites to rows
@@ -896,7 +777,7 @@ Any negative concentration is set to zero.
 measure_tbl <- tibble::as_tibble(measurements_se[i_sel, ])
 
 # Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = rt_norm)) +
+ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
   geom_point(data = calcurve_to_show_df) +
   fit_layer +
   geom_point(aes(color = Class)) +
@@ -936,12 +817,12 @@ calcurve_smooth <- tidyr::expand_grid(
   conc = exp(seq(log(rg[1]), log(rg[2]), length.out = 100))
 ) |> 
   dplyr::mutate(
-    rt_norm = a * (conc^2) + b * conc + cc,
+    loess_norm = a * (conc^2) + b * conc + cc,
   ) |> 
-  dplyr::filter(rt_norm > 0)
+  dplyr::filter(loess_norm > 0)
 
 # Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = rt_norm)) +
+ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
   geom_point(data = calcurve_to_show_df) +
   geom_line(data = calcurve_smooth, color = "cadetblue", alpha = 0.5) +
   geom_point(aes(color = Class)) +
@@ -971,7 +852,7 @@ to_incl <- measurements_se$Class %in% c("NormSample", "Groundwater")
 measure_tbl <- tibble::as_tibble(measurements_se[i_sel, to_incl])
 
 # Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = rt_norm)) +
+ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
   geom_point(data = calcurve_to_show_df) +
   fit_layer +
   geom_point(aes(color = Class)) +
@@ -992,7 +873,7 @@ ggplot(measure_tbl, aes(x = conc, y = rt_norm)) +
 #| out-width: "100%"
 
 # Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = rt_norm)) +
+ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
   geom_point(data = calcurve_to_show_df) +
   geom_line(data = calcurve_smooth, color = "cadetblue", alpha = 0.5) +
   geom_point(aes(color = Class)) +

@@ -15,4 +15,5 @@ dependencies:
   - bioconductor-tidysummarizedexperiment
   - r-codetools             # For `cache` in Qmd
   - r-kableextra=1.4.0
+  - r-janitor
 
