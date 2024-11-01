@@ -2,18 +2,20 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - quarto=1.5.55
+  - quarto=1.5.57
+  - bioconductor-tidysummarizedexperiment
 
+  # bioconductor-tidysummarizedexperiment [1.10.0|1.12.0] would require
+  # │  └─ r-base >=4.3,<4.4.0a0 , which can be installed;
+  - r-base=4.3.3
   # R env
-  - r-base=4.3.3         # `box` < 4.4.0
-  - r-renv=1.0.7
+  - r-tidyverse=2.0.0
   - r-box=1.2.0
   - r-roxygen2=7.3.2      # `box` requires this.
-  
-  # `renv` takes much longer time
-  - r-tidyverse=2.0.0
-  - bioconductor-tidysummarizedexperiment
-  - r-codetools             # For `cache` in Qmd
-  - r-kableextra=1.4.0
+
+  # Rmarkdown
+  - r-english
+  - r-kableextra
   - r-janitor
+  - r-codetools             # For `cache` in Qmd
 
