@@ -13,6 +13,7 @@ date-format: full
 toc: true
 number-sections: true
 bibliography: "bibliography.bib"
+tbl-cap-location: top
 
 format:
   html: 
