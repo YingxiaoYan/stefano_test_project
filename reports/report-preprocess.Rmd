@@ -762,18 +762,25 @@ assays(selected_se) <- assays(selected_se) |>
 
 df_to_show <- tibble::as_tibble(selected_se) |>
   dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = short_sample_id) |>
-  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value")
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
+  dplyr::mutate(
+    Type = ifelse(std_type == "", "non-target", std_type),
+    Type = factor(Type, levels = c("IS", "Quant", "non-target"))
+  ) |> 
+  dplyr::arrange(desc(Type)) # To show IS on top
 
 # Plot the normalized and original data
-ggplot(df_to_show, aes(x = rt, y = Value)) +
-  geom_point(aes(color = Data, shape = std_type)) +
+ggplot(df_to_show, aes(x = rt, y = Value)) + 
+  geom_point(aes(color = Data, shape = Type, size = Type, alpha = Type)) +
   geom_line(data = loess_curve_df, alpha = 0.5) +
   labs(
     title = "Normalized and original data",
     x = "Average RT", 
     y = "log(Values) - log(avg)"
   ) +
-  scale_shape_manual(values = c("IS" = 15, "Quant" = 21)) +
+  scale_shape_manual(values = c("IS" = 15, "Quant" = 21, "non-target" = 20)) +
+  scale_size_manual(values = c("IS" = 3, "Quant" = 3, "non-target" = 1)) +
+  scale_alpha_manual(values = c("IS" = 1, "Quant" = 1, "non-target" = 0.1)) +
   facet_wrap(~ sample_name, scales = "free_y", ncol = 3)
 ```
 
