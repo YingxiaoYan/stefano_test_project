@@ -1,7 +1,7 @@
 ---
 params:
-  input_file: "data/raw_internal/water_samples_original_ESipos_MSdial_output (not blank filtered).txt"
-  output_dir: "data/processed"
+  input_file: "data/raw_internal/MMLC_ESIpos_for_Mun-Gwan.txt"
+  table_dir: "data/processed"
 title: "Exploratory Data Analysis - Exposome"
 ---
 
@@ -26,7 +26,7 @@ FILE <- rlang::list2(
 FILE$o <- local({
   b <- basename(FILE$i) |> 
     tools::file_path_sans_ext()    # Without extension
-  file.path(params$output_dir, paste0(b, ".conc.tsv"))
+  file.path(params$table_dir, paste0(b, ".conc.tsv"))
 })
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
@@ -63,6 +63,7 @@ get_three_section_indices <- function(msdial_file) {
 #' @param indices The indices of the columns that contain sample information
 #' @return A tibble with sample information
 fetch_sample_info <- function(msdial_file, indices) {
+  if (missing(indices)) indices <- get_three_section_indices(msdial_file)[[2]]
   # Read sample information lines (first 5 lines)
   sample_lines <- read.delim(
     msdial_file, 
@@ -106,15 +107,17 @@ fetch_sample_info <- function(msdial_file, indices) {
   
   # Function to get short sample ID that can be used to identify repeated samples
   get_short_id <- function(ids, cat) {
+    ids0 <- ids
     ids <- stringr::str_remove(ids, "^[[:digit:]]+_")    # Remove optional numeric prefix
     ids <- dplyr::case_when(
-      cat == "CalCurve" ~ stringr::str_extract(ids, "^Cal_[[:digit:]-]+_"),
-      cat == "QC"       ~ stringr::str_extract(ids, "^QC[[:alnum:]]*_"),
-      cat == "Blank"    ~ stringr::str_extract(ids, "Blank[[:digit:]]*_"),
+      cat == "CalCurve" ~ stringr::str_extract(ids, "^Cal_[[:digit:]-]+"),
+      cat == "QC"       ~ stringr::str_extract(ids, "^QC[[:alnum:]]*"),
+      # cat == "Blank"    ~ stringr::str_extract(ids, "Blank[[:digit:]]*"),
       TRUE ~ ids
-    ) |> 
-      stringr::str_remove("_$")    # Remove trailing underscore
-    stopifnot("ID error in CalCurve, QC or Blank." = ! any(ids == ""))
+    )
+    if (any(tmp <- is.na(ids) | ids == "")) {
+      stop("ID error in CalCurve or QC.\n", paste(ids0[tmp], collapse = ", "), "\n")
+    }
     ids
   }
   sinfo <- sinfo |> 
@@ -128,6 +131,7 @@ fetch_sample_info <- function(msdial_file, indices) {
 #' @param indices The indices of the selected columns
 #' @return A tibble 
 fetch_data_of_columns <- function(msdial_file, indices) {
+  stopifnot(!missing(indices))
   # Count total number of columns in the file
   l1 <- readr::read_tsv(msdial_file, skip = 4L, n_max = 1L, col_names = FALSE, col_types = "c")
   coltypes <- rep("-", ncol(l1))      # Skip the rest columns
@@ -143,7 +147,7 @@ fetch_data_of_columns <- function(msdial_file, indices) {
 
 # Parse the data in the file into SummarizedExperiment
 parse_to_sumexp <- function(msdial_file) {
-  i_three_sections <- get_three_section_indices(FILE$i)
+  i_three_sections <- get_three_section_indices(msdial_file)
   sample_info <- fetch_sample_info(msdial_file, i_three_sections[[2]])
   
   # Read chemical data in the first section
