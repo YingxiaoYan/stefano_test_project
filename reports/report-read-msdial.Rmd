@@ -1,0 +1,383 @@
+---
+params:
+  input_file: "data/raw_internal/MMLC_ESIpos_for_Mun-Gwan.txt"
+title: "Read MS-DIAL output file"
+---
+
+```{r}
+#| label: 'setup-read-msdial'
+#| purl: true
+
+# Load packages and project local libraries
+options(box.path = "code/")
+box::use(
+  ggplot2[...],        # Too long to write and usually specific enough
+  # Some methods were defined using S4 system, e.g. dim, `[`
+  SummarizedExperiment[rowData, `rowData<-`, colData, `colData<-`, assays, `assays<-`],
+  tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
+  io = projlib/check_io_exist,
+)
+# Input file
+FILE <- list(i = params$input_file)
+# Check if input file exists
+io$chq_all_files_exist(FILE$i)
+set.seed(7579)
+```
+
+```{r}
+#| label: 'read-given-tsv-and-save-sumexp'
+#| purl: true
+
+#' Identify three column sections in the MS-DIAL output file
+#' 
+#' @param msdial_file Path to the MS-DIAL output file
+#' @return A list of three column indices
+get_three_section_indices <- function(msdial_file) {
+  # Read the second (`File type`) line to identify those sections
+  file_type_line <- read.delim(
+    msdial_file, header = FALSE, nrow = 5L, na.strings = c("NA", "")
+  )[2, ]
+  i_2nd <- which(! is.na(file_type_line))
+  stopifnot(file_type_line[i_2nd[1L]] == "File type")    # As expected
+  list(
+    "1st" = 1L:i_2nd[1L],
+    "2nd" = (i_2nd[1L] + 1L):max(i_2nd),
+    "3rd" = (max(i_2nd) + 1L):length(file_type_line)
+  )
+}
+
+#' Fetch sample information from the first 5 lines
+#'
+#' @param msdial_file Path to the MS-DIAL output file
+#' @param indices The indices of the columns that contain sample information
+#' @return A tibble with sample information
+fetch_sample_info <- function(msdial_file, indices) {
+  if (missing(indices)) indices <- get_three_section_indices(msdial_file)[[2]]
+  # Read sample information lines (first 5 lines)
+  sample_lines <- read.delim(
+    msdial_file, 
+    header = FALSE,
+    nrow = 5L,
+    na.strings = c("NA", "")
+  )
+  header <- sample_lines[, indices[1L] - 1L]
+  
+  # Extract sample information  
+  sinfo <- t(sample_lines[, indices, drop = FALSE])
+  colnames(sinfo) <- header          # There was no header in `sinfo` before
+  stopifnot("Deviation from the expected names for samples" = identical(
+    colnames(sinfo)[-5], c("Class", "File type", "Injection order", "Batch ID")
+  ))
+  colnames(sinfo)[5] <- "given_sample_id"
+  # Create a tibble with the sample information
+  sinfo <- tibble::as_tibble(sinfo) |> 
+    dplyr::select(
+      Class,
+      sample_type = "File type",
+      injection_order = "Injection order",
+      given_sample_id,
+    ) |> 
+    # Syntactically valid for variable name in R
+    dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE), .before = 1L) |>
+    # Control sample groups
+    dplyr::mutate(
+      proc_category = dplyr::case_when(
+        Class == "CalCurve"    ~ "CalCurve",
+        sample_type == "QC"    ~ "QC",
+        sample_type == "Blank" ~ "Blank",
+        TRUE ~ ""         # NA doesn't work with `==`
+      )
+    )
+  stopifnot(
+    "Calibration curve samples are required." = any(sinfo$proc_category == "CalCurve"),
+    "QC samples are required." = any(sinfo$proc_category == "QC"),
+    "Blank samples are required." = any(sinfo$proc_category == "Blank")
+  )
+  
+  # Function to get short sample ID that can be used to identify repeated samples
+  get_short_id <- function(ids, cat) {
+    ids0 <- ids
+    ids <- stringr::str_remove(ids, "^[[:digit:]]+_")    # Remove optional numeric prefix
+    ids <- dplyr::case_when(
+      cat == "CalCurve" ~ stringr::str_extract(ids, "^Cal_[[:digit:]-]+"),
+      cat == "QC"       ~ stringr::str_extract(ids, "^QC[[:alnum:]]*"),
+      # cat == "Blank"    ~ stringr::str_extract(ids, "Blank[[:digit:]]*"),
+      TRUE ~ ids
+    )
+    if (any(tmp <- is.na(ids) | ids == "")) {
+      stop("ID error in CalCurve or QC.\n", paste(ids0[tmp], collapse = ", "), "\n")
+    }
+    ids
+  }
+  sinfo <- sinfo |> 
+    dplyr::mutate(short_sample_id = get_short_id(given_sample_id, proc_category))
+  return(sinfo)
+}
+
+#' Fetch data of the selected columns of the MS-DIAL output file
+#'
+#' @param msdial_file Path to the MS-DIAL output file
+#' @param indices The indices of the selected columns
+#' @return A tibble 
+fetch_data_of_columns <- function(msdial_file, indices) {
+  stopifnot(!missing(indices))
+  # Count total number of columns in the file
+  l1 <- readr::read_tsv(msdial_file, skip = 4L, n_max = 1L, col_names = FALSE, col_types = "c")
+  coltypes <- rep("-", ncol(l1))      # Skip the rest columns
+  coltypes[indices] <- "c"
+  # Read lines that contain chemical data
+  readr::read_tsv(
+    msdial_file, 
+    skip = 4L,      # Data starts from the 5th line
+    col_types = paste0(coltypes, collapse = ""),
+    name_repair = "unique_quiet"
+  )
+}
+
+# Parse the data in the file into SummarizedExperiment
+parse_to_sumexp <- function(msdial_file) {
+  i_three_sections <- get_three_section_indices(msdial_file)
+  sample_info <- fetch_sample_info(msdial_file, i_three_sections[[2]])
+  
+  # Read chemical data in the first section
+  chems <- fetch_data_of_columns(msdial_file, i_three_sections[[1]]) |>
+    dplyr::select(        # SummarizedExperiment will `make.names` change anyhow
+      alignment_id = "Alignment ID",
+      chem_name = "Metabolite name",
+      mz = "Average Mz",
+      rt = "Average Rt(min)",
+      sn_ratio = "S/N average",
+      std_type = "Comment",            # Type of standard, e.g. "Quant", "IS", or NA 
+    ) |> 
+    # `chem_id` = Syntactically valid ID
+    dplyr::mutate(chem_id = make.names(chem_name, unique = TRUE), .before = 1L) |> 
+    dplyr::mutate(
+      dplyr::across(c(mz, rt, sn_ratio), as.numeric),
+      std_type = dplyr::case_when(
+        std_type == "Quant" ~ "Quant",
+        std_type == "IS"    ~ "IS",
+        TRUE ~ ""              # Ignore other variants
+      )
+    )
+  
+  # Measured values of the chemicals into a matrix
+  raw_df <- fetch_data_of_columns(msdial_file, i_three_sections[[2]])
+  stopifnot(identical(colnames(raw_df), sample_info$given_sample_id))
+  colnames(raw_df) <- sample_info$sample_id     # Update with syntactically valid names
+  raw_mat <- lapply(raw_df, as.numeric) |> 
+    as.data.frame(row.names = chems$chem_id) |> 
+    as.matrix()
+  
+  # Into SummarizedExperiment
+  SummarizedExperiment::SummarizedExperiment(
+    assays = list(raw = raw_mat),
+    colData = sample_info,
+    rowData = chems,
+  )
+}
+overall_sumexp <- parse_to_sumexp(FILE$i)  # To be updated throughout the pre-processing
+```
+
+Given file: `` `r FILE$i` `` 
+
+The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(overall_sumexp)` samples.
+
+## Samples
+
+### By class
+
+There are `r dplyr::n_distinct(overall_sumexp$Class)` classes of samples in the data.
+The number of samples for each class is as follows:
+
+```{r}
+table(overall_sumexp$Class) |> 
+  knitr::kable(col.names = c("Class", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+### Special categories for preprocessing
+
+There are `r length(table(overall_sumexp$proc_category, exclude = ""))` special sample categories for in the data.
+The data of those were used in the following processing steps.
+The number of samples for each category is as follows:
+
+```{r}
+table(overall_sumexp$proc_category, exclude = "") |> 
+  knitr::kable(col.names = c("Category", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+#### Calibration curve samples (`CalCurve`)
+
+```{r}
+#| label: 'calcurve-samples'
+#| purl: true
+# Extract calibration curve samples
+extract_calcurve_samples <- function(se) {
+  se[, se$proc_category == "CalCurve"]
+}
+# Function to find concentration values from the given IDs
+find_concentration <- function(sid) {
+  sid |> 
+    stringr::str_remove("Cal_") |> 
+    stringr::str_replace("-", ".") |>     # Replace "-" with "."
+    as.numeric()
+}
+```
+
+The samples for the calibration curve are identified by the sample class, `CalCurve`.
+The concentration is extracted from the sample ID, which is in the format `Cal_[[:digit:]-]+`, and converted to a numeric value. 
+
+##### Sample IDs
+
+```{r}
+# Present the sample IDs for the calibration curve
+df1 <- extract_calcurve_samples(overall_sumexp) |> 
+  colData() |> 
+  tibble::as_tibble() |> 
+  dplyr::mutate(conc = find_concentration(short_sample_id)) |> 
+  dplyr::arrange(conc)
+df1 |> 
+  dplyr::select(given_sample_id, conc) |>
+  knitr::kable(
+    col.names = c("Sample ID", "Concentration (ng/ml)"),
+    format.args = list(scientific = FALSE)
+  ) |> 
+  kableExtra::kable_classic(full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "160px")
+```
+
+##### The number of samples per concentration
+
+```{r}
+#| label: 'calcurve-samples-summary'
+# Present the number of samples in the calibration curve
+table(df1$conc) |> 
+  knitr::kable(
+    align = c("r", "r"),
+    col.names = c("Concentration (ng/ml)", "Number of samples")
+  ) |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+#### Quality control samples (`QC`)
+
+```{r}
+#| purl: true
+# Extract QC samples
+extract_qc_samples <- function(se) {
+  se[, se$proc_category == "QC"]
+}
+# Extract QC samples into list
+extract_qc_samples_to_list <- function(se) {
+  se <- extract_qc_samples(se)
+  qc_id <- se$short_sample_id
+  # Column-wise split
+  lapply(setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
+}
+```
+
+Some of the analyzed samples are quality controls.
+Aliquots of the samples were measured as technical replicates.
+The number of the replicates were as below.
+
+```{r}
+extract_qc_samples_to_list(overall_sumexp) |> 
+  sapply(ncol) |> 
+  knitr::kable(col.names = c("Sample ID", "Number of replicates")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## Chemicals
+
+The data contained `r nrow(overall_sumexp)` chemicals.
+Among them, `r sum(rowData(overall_sumexp)$std_type != "")` chemicals were targeted. 
+The rest were not targeted.
+
+```{r}
+#| purl: true
+# Extract chemicals that are standards
+is_targeted <- rowData(overall_sumexp)$std_type != ""
+targeted_chems_se <- overall_sumexp[is_targeted, ]
+```
+
+For those targeted chemicals, the standard type was specified.
+The number of chemicals for each type is as follows:
+
+```{r}
+table(rowData(targeted_chems_se)$std_type) |> 
+  knitr::kable(col.names = c("Standard Type", "Number of chemicals")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## Distribution of the values
+
+### Overall samples and targeted chemicals
+
+#### Linear scale
+
+```{r}
+#| label: 'distribution-values-overall-linear'
+#| fig-width: 8 
+#| out-width: '60%'
+p <- ggplot(targeted_chems_se) +
+  geom_histogram(aes(x = raw), bins = 50) +
+  labs(title = "Distribution of the values", x = "Values")
+print(p)
+```
+
+#### Logarithmic scale
+
+```{r}
+#| label: 'distribution-values-overall-log'
+#| fig-width: 8
+#| out-width: '60%'
+p + scale_x_log10()
+```
+
+### By sample class and overall targeted chemicals
+
+```{r}
+#| label: 'distribution-values-by-class'
+ggplot(targeted_chems_se) +
+  geom_histogram(aes(x = raw), bins = 30) +
+  labs(title = "Distribution of the values by sample class", x = "Values") +
+  scale_x_log10() +
+  facet_wrap(~ Class, scales = "free_y", ncol = 4)
+```
+
+### By chemical and overall samples
+
+Randomly selected 8 targeted chemicals are shown in the following figure.
+
+```{r}
+#| purl: true
+#' Randomly select `n` rows from `sumexp` with optional `subset`
+#'
+#' @param sumexp a SummarizedExperiment object
+#' @param n the number of rows to select
+#' @param subset an optional subset expression to apply to the `rowData` of `sumexp`
+#' @param keep_the_order if `TRUE`, the selected rows are sorted in the previous order
+#'
+#' @return a SummarizedExperiment object with `n` rows randomly selected from `sumexp`
+#' @export
+select_rows_randomly <- function(sumexp, n, subset, keep_the_order = FALSE) {
+  ii <- c(1:nrow(sumexp))
+  if (!missing(subset)) {      # If given, apply it to the `rowData` of `sumexp`
+    ii <- ii[eval(substitute(subset), as.data.frame(rowData(sumexp)))]
+  }
+  ii <- sample(ii, n)
+  if (keep_the_order) ii <- sort(ii)
+  sumexp[ii, ]
+}
+```
+
+```{r}
+#| label: 'distribution-values-by-chemical'
+se <- select_rows_randomly(targeted_chems_se, 8, std_type != "IS")
+ggplot(se) +
+  geom_histogram(aes(x = raw, fill = Class), bins = 30) +
+  labs(title = "Distribution of the values by chemical", x = "Values") +
+  scale_x_log10() +
+  facet_wrap(~ chem_name, scales = "free_x", ncol = 4)
+```
