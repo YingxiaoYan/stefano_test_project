@@ -9,18 +9,14 @@ title: "Read MS-DIAL output file"
 #| purl: true
 
 # Load packages and project local libraries
-options(box.path = "code/")
 box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
   SummarizedExperiment[rowData, `rowData<-`, colData, `colData<-`, assays, `assays<-`],
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
-  io = projlib/check_io_exist,
 )
 # Input file
 FILE <- list(i = params$input_file)
-# Check if input file exists
-io$chq_all_files_exist(FILE$i)
 set.seed(7579)
 ```
 
@@ -33,15 +29,15 @@ set.seed(7579)
 #' @param msdial_file Path to the MS-DIAL output file
 #' @return A list of three column indices
 get_three_section_indices <- function(msdial_file) {
-  # Read the second (`File type`) line to identify those sections
+  # Read the second (`File type`) line to identify three sections
   file_type_line <- read.delim(
     msdial_file, header = FALSE, nrow = 5L, na.strings = c("NA", "")
   )[2, ]
-  i_2nd <- which(! is.na(file_type_line))
+  i_2nd <- which(! is.na(file_type_line))    # Not NA is the 2nd column sections
   stopifnot(file_type_line[i_2nd[1L]] == "File type")    # As expected
   list(
     "1st" = 1L:i_2nd[1L],
-    "2nd" = (i_2nd[1L] + 1L):max(i_2nd),
+    "2nd" = (i_2nd[1L] + 1L):max(i_2nd),         # "+ 1L" for the title column of the rows
     "3rd" = (max(i_2nd) + 1L):length(file_type_line)
   )
 }
@@ -81,36 +77,33 @@ fetch_sample_info <- function(msdial_file, indices) {
     dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE), .before = 1L) |>
     # Control sample groups
     dplyr::mutate(
-      proc_category = dplyr::case_when(
-        Class == "CalCurve"    ~ "CalCurve",
+      proc_cat = dplyr::case_when(
+        sample_type == "Standard" & Class == "CalCurve" ~ "CalCurve",
         sample_type == "QC"    ~ "QC",
         sample_type == "Blank" ~ "Blank",
-        TRUE ~ ""         # NA doesn't work with `==`
+        TRUE ~ ""         # # NA does not behave predictably with `==`
       )
     )
   stopifnot(
-    "Calibration curve samples are required." = any(sinfo$proc_category == "CalCurve"),
-    "QC samples are required." = any(sinfo$proc_category == "QC"),
-    "Blank samples are required." = any(sinfo$proc_category == "Blank")
+    "Calibration curve samples are required." = any(sinfo$proc_cat == "CalCurve"),
+    "QC samples are required." = any(sinfo$proc_cat == "QC"),
+    "Blank samples are required." = any(sinfo$proc_cat == "Blank")
   )
   
-  # Function to get short sample ID that can be used to identify repeated samples
-  get_short_id <- function(ids, cat) {
-    ids0 <- ids
-    ids <- stringr::str_remove(ids, "^[[:digit:]]+_")    # Remove optional numeric prefix
-    ids <- dplyr::case_when(
-      cat == "CalCurve" ~ stringr::str_extract(ids, "^Cal_[[:digit:]-]+"),
-      cat == "QC"       ~ stringr::str_extract(ids, "^QC[[:alnum:]]*"),
-      # cat == "Blank"    ~ stringr::str_extract(ids, "Blank[[:digit:]]*"),
-      TRUE ~ ids
-    )
-    if (any(tmp <- is.na(ids) | ids == "")) {
-      stop("ID error in CalCurve or QC.\n", paste(ids0[tmp], collapse = ", "), "\n")
-    }
-    ids
+  # Function to find concentration values from the given IDs
+  find_concentration <- function(sid) {
+    sid |> 
+      stringr::str_extract("Cal_([[:digit:]-]+)", group = 1) |> 
+      stringr::str_replace("-", ".") |>     # Replace "-" with "."
+      as.numeric()
   }
   sinfo <- sinfo |> 
-    dplyr::mutate(short_sample_id = get_short_id(given_sample_id, proc_category))
+    dplyr::mutate(conc = ifelse(proc_cat == "CalCurve", 
+                                find_concentration(given_sample_id),
+                                NA_real_))
+  stopifnot(
+    "Error in Calibration sample IDs" = all(! is.na(sinfo$conc[sinfo$proc_cat == "CalCurve"]))
+  )
   return(sinfo)
 }
 
@@ -197,47 +190,31 @@ table(overall_sumexp$Class) |>
 
 ### Special categories for preprocessing
 
-There are `r length(table(overall_sumexp$proc_category, exclude = ""))` special sample categories for in the data.
-The data of those were used in the following processing steps.
+There are `r length(table(overall_sumexp$proc_cat, exclude = ""))` special sample categories for in the data.
+The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-table(overall_sumexp$proc_category, exclude = "") |> 
+table(overall_sumexp$proc_cat, exclude = "") |> 
   knitr::kable(col.names = c("Category", "Number of samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-#### Calibration curve samples (`CalCurve`)
+#### Calibration curve samples
 
-```{r}
-#| label: 'calcurve-samples'
-#| purl: true
-# Extract calibration curve samples
-extract_calcurve_samples <- function(se) {
-  se[, se$proc_category == "CalCurve"]
-}
-# Function to find concentration values from the given IDs
-find_concentration <- function(sid) {
-  sid |> 
-    stringr::str_remove("Cal_") |> 
-    stringr::str_replace("-", ".") |>     # Replace "-" with "."
-    as.numeric()
-}
-```
-
-The samples for the calibration curve are identified by the sample class, `CalCurve`.
-The concentration is extracted from the sample ID, which is in the format `Cal_[[:digit:]-]+`, and converted to a numeric value. 
+The samples for the calibration curve are identified by the sample type `Standard` and class `CalCurve`.
+The concentration is extracted from the provided sample ID.
+The IDs are in the format `Cal_[[:digit:]-]+` with optional numbers and/or characters before and after of it. 
+Concentration is extracted from the numeric part in the format after the replacement of `-` with `.`.
 
 ##### Sample IDs
 
 ```{r}
 # Present the sample IDs for the calibration curve
-df1 <- extract_calcurve_samples(overall_sumexp) |> 
-  colData() |> 
+df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
-  dplyr::mutate(conc = find_concentration(short_sample_id)) |> 
   dplyr::arrange(conc)
-df1 |> 
+df_show |> 
   dplyr::select(given_sample_id, conc) |>
   knitr::kable(
     col.names = c("Sample ID", "Concentration (ng/ml)"),
@@ -252,7 +229,7 @@ df1 |>
 ```{r}
 #| label: 'calcurve-samples-summary'
 # Present the number of samples in the calibration curve
-table(df1$conc) |> 
+table(df_show$conc) |> 
   knitr::kable(
     align = c("r", "r"),
     col.names = c("Concentration (ng/ml)", "Number of samples")
@@ -260,25 +237,20 @@ table(df1$conc) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
-#### Quality control samples (`QC`)
+#### Quality control samples
 
 ```{r}
 #| purl: true
-# Extract QC samples
-extract_qc_samples <- function(se) {
-  se[, se$proc_category == "QC"]
-}
 # Extract QC samples into list
 extract_qc_samples_to_list <- function(se) {
-  se <- extract_qc_samples(se)
-  qc_id <- se$short_sample_id
+  se <- se[, se$proc_cat == "QC"]
+  qc_id <- se$Class
   # Column-wise split
   lapply(setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
 }
 ```
 
-Some of the analyzed samples are quality controls.
-Aliquots of the samples were measured as technical replicates.
+Aliquots of some samples were measured as technical replicates for quality control.
 The number of the replicates were as below.
 
 ```{r}
@@ -296,7 +268,7 @@ The rest were not targeted.
 
 ```{r}
 #| purl: true
-# Extract chemicals that are standards
+# Extract standard chemicals
 is_targeted <- rowData(overall_sumexp)$std_type != ""
 targeted_chems_se <- overall_sumexp[is_targeted, ]
 ```
@@ -312,72 +284,21 @@ table(rowData(targeted_chems_se)$std_type) |>
 
 ## Distribution of the values
 
-### Overall samples and targeted chemicals
+* Overall samples and targeted chemicals
 
-#### Linear scale
+As shown below, the values are distributed in a skewed manner.
 
 ```{r}
 #| label: 'distribution-values-overall-linear'
-#| fig-width: 8 
-#| out-width: '60%'
-p <- ggplot(targeted_chems_se) +
-  geom_histogram(aes(x = raw), bins = 50) +
-  labs(title = "Distribution of the values", x = "Values")
-print(p)
-```
+#| fig-width: 16 
+#| fig-height: 6
+#| out-width: '100%'
 
-#### Logarithmic scale
-
-```{r}
-#| label: 'distribution-values-overall-log'
-#| fig-width: 8
-#| out-width: '60%'
-p + scale_x_log10()
-```
-
-### By sample class and overall targeted chemicals
-
-```{r}
-#| label: 'distribution-values-by-class'
-ggplot(targeted_chems_se) +
-  geom_histogram(aes(x = raw), bins = 30) +
-  labs(title = "Distribution of the values by sample class", x = "Values") +
-  scale_x_log10() +
-  facet_wrap(~ Class, scales = "free_y", ncol = 4)
-```
-
-### By chemical and overall samples
-
-Randomly selected 8 targeted chemicals are shown in the following figure.
-
-```{r}
-#| purl: true
-#' Randomly select `n` rows from `sumexp` with optional `subset`
-#'
-#' @param sumexp a SummarizedExperiment object
-#' @param n the number of rows to select
-#' @param subset an optional subset expression to apply to the `rowData` of `sumexp`
-#' @param keep_the_order if `TRUE`, the selected rows are sorted in the previous order
-#'
-#' @return a SummarizedExperiment object with `n` rows randomly selected from `sumexp`
-#' @export
-select_rows_randomly <- function(sumexp, n, subset, keep_the_order = FALSE) {
-  ii <- c(1:nrow(sumexp))
-  if (!missing(subset)) {      # If given, apply it to the `rowData` of `sumexp`
-    ii <- ii[eval(substitute(subset), as.data.frame(rowData(sumexp)))]
-  }
-  ii <- sample(ii, n)
-  if (keep_the_order) ii <- sort(ii)
-  sumexp[ii, ]
-}
-```
-
-```{r}
-#| label: 'distribution-values-by-chemical'
-se <- select_rows_randomly(targeted_chems_se, 8, std_type != "IS")
-ggplot(se) +
-  geom_histogram(aes(x = raw, fill = Class), bins = 30) +
-  labs(title = "Distribution of the values by chemical", x = "Values") +
-  scale_x_log10() +
-  facet_wrap(~ chem_name, scales = "free_x", ncol = 4)
+p <- ggplot(overall_sumexp) +
+    geom_histogram(aes(x = raw), bins = 50)
+gridExtra::grid.arrange(   # Two ggplots next to each other
+  p + labs(title = "Linear scale", x = "Values"),
+  p + scale_x_log10() + labs(title = "Logarithmic scale", x = "Values"),
+  ncol = 2
+)
 ```

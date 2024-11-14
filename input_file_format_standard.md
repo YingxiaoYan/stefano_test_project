@@ -7,10 +7,10 @@
 
 The input file contains the data in a table format described as below. 
 
-| Lines    |      1st      |       2nd        | 3rd section |
-| :------- | :-----------: | :--------------: | :---------: |
-| 1st-4th  |    *empty*    |   Sample info    |   *empty*   |
-| From 5th | Chemical info | Measurement data | Extra stats |
+| Lines    |      1st      |       2nd        | 3rd column section |
+| :------- | :-----------: | :--------------: | :----------------: |
+| 1st-4th  |    *empty*    |   Sample info    |      *empty*       |
+| From 5th | Chemical info | Measurement data |    Extra stats     |
 
 ## First 4 lines
 
@@ -63,10 +63,6 @@ The initial set of columns contains information about chemicals.
 ### Sample Information Columns (2nd section)
 
 * The first line of this section (or the 5th line of the file) contains sample IDs.
-* General form of **Sample ID**: 
-  * The sample type or sample ID followed by other information. Optionally a number in various lengths can be added ahead of the sample type/ID with an underline. 
-  * [number\_]\[sample type/ID\]\_[…]"
-  * In regular expression: `"([[:digit:]]+_)?[[:alnum:]-]+_.*"` 
 
 #### Calibration curve samples
 
@@ -75,21 +71,19 @@ The initial set of columns contains information about chemicals.
 
 ##### Samples to fit the curve
 
-  * Sample ID: "[numbers\_]**Cal\_[concentration]\_**[…]"; regex: `"([[:digit:]]+_)?Cal_[[:digit:]-]+_.*"` 
+  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"` 
   * Concentration Formatting: Replace decimal point in concentration numbers with a dash `"-"` , e.g. 0.01 becomes `"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"`. 
 
 ##### Zero concentration
 
   * There must be at least two samples with zero concentration.
-  * Sample ID: "[numbers\_]**Cal\_0\_**[…]"; regex: `"([[:digit:]]+_)?Cal_0_.*"` 
+  * Sample ID: "[...]**Cal\_0**\[not -\][…]"; regex: `".*Cal_0[^-]?.*"` 
 
 #### Quality Control Samples
 
-  * The samples with identical "QC sample ID" are replicates of one sample. They are supposed to have the identical measurement. For each "QC sample ID", there must be multiple loaded samples. 
-  * Class: `"QC"`
+  * The samples with identical "QC sample group" are replicates of one sample. They are supposed to have the identical measurement. For each "QC sample group", there must be multiple loaded samples. 
+  * Class: `"**(QC sample group)**"`
   * File type: `"QC"`
-  * Sample ID: "[numbers\_]**QC[QC sample ID]**\_[…]"; regex: `"([[:digit:]]+_)?QC[[:alnum:]]*_.*"`
-  * Examples: `"230613_QCsp500ngL_GWb1__PFPaQ_BEHC18_1mL_ESIpos_20"` and `"22_QC1_GWb1"`.
 
 #### Blanks
 

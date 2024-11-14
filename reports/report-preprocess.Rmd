@@ -204,7 +204,7 @@ The relative standard deviation (RSD%) of the raw values of the internal standar
 #| purl: true
 # Extract QC samples into list
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, se$proc_category == "QC"]
+  se <- se[, se$proc_cat == "QC"]
   # Column-wise split
   lapply(setNames(nm = unique(se$short_sample_id)), \(ea) se[, se$short_sample_id == ea])
 }
@@ -359,7 +359,7 @@ loess_fit <- local({
   # Normalize the data using the internal standards
   # Mean of each internal standard chemical for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- internal_std_se$proc_category %in% excluded_category_for_normalization
+  to_excl <- internal_std_se$proc_cat %in% excluded_category_for_normalization
   # The data of the samples with measurements
   mat <- istd_log[, !to_excl, drop = FALSE]
   stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
@@ -418,7 +418,7 @@ Randomly selected 3 samples are shown below.
 #| fig-width: 14
 #| fig-height: 12
 
-to_excl <- overall_sumexp$proc_category %in% excluded_category_for_normalization
+to_excl <- overall_sumexp$proc_cat %in% excluded_category_for_normalization
 # Plot the normalized and original data for randomly selected 3 samples
 i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
 
@@ -644,7 +644,7 @@ Hence the concentrations were excluded for which the peak areas after normalizat
 rowData(calcurve_se)$max_conc <- local({
   stopifnot(rownames(quant_se) == rownames(calcurve_se))
   se1 <- quant_se
-  se1 <- se1[, se1$proc_category %in% c("CalCurve", "QC") == FALSE]
+  se1 <- se1[, se1$proc_cat %in% c("CalCurve", "QC") == FALSE]
   # Find maximum peak area of the samples of the classes for measurement
   max_loess_norm <- apply(assays(se1)$loess_norm, 1, max, na.rm = TRUE)
   
@@ -929,7 +929,7 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 #| label: 'concentration-computation'
 #| purl: true
 # Compute the concentration of the samples skipping the calibration curve samples
-measurements_se <- quant_se[, ! quant_se$proc_category %in% "CalCurve"]
+measurements_se <- quant_se[, ! quant_se$proc_cat %in% "CalCurve"]
 assays(measurements_se)$conc <- rowData(measurements_se)$chem_id |> 
   sapply(function(chem_id) {
     v <- assays(measurements_se)$loess_norm[chem_id, ]
@@ -1020,7 +1020,7 @@ data_to_show_tbl |>
 ```{r}
 classes_excl_qc_blank <- local({
   df <- colData(measurements_se)
-  unique(df$Class[!df$proc_category %in% c("QC", "Blank")])
+  unique(df$Class[!df$proc_cat %in% c("QC", "Blank")])
 })
 ```
 

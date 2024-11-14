@@ -17,7 +17,7 @@ tbl-cap-location: top
 
 format:
   html: 
-    css: styles.css
+    css: "styles.css"
     toc-depth: 3
     code-fold: true
     toc-location: left
@@ -38,11 +38,10 @@ knitr:
   opts_knit:
     root.dir: "../../"
   opts_chunk:
-    cache.path: "../../data/intermediate/cache/"
     purl: false      # Most of the code are not to be extracted.
     message: false    # All messages are ignored.
     
-    # fig.path: "../../outputs/figures/"
+    # fig.path: "../outputs/figures/"
 
     R.options: 
       xfun.cache_rds.clean: false     # Keep old even after invalidated

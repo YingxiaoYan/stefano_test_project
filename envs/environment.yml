@@ -17,5 +17,10 @@ dependencies:
   - r-english
   - r-kableextra
   - r-janitor
+  - r-gridextra>=2.3
   - r-codetools             # For `cache` in Qmd
+
+  - r-shiny>=1.9.1
+  - r-shinyfiles
+  - r-quarto>=1.4.4
 
