@@ -8,6 +8,7 @@ tbl-cap-location: top
 #| purl: true
 
 # Load packages and project local libraries
+options(box.path = "code/")           # Path to project local libraries
 box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
@@ -15,7 +16,11 @@ box::use(
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
 )
 # Input file
-FILE <- list(i = "data/raw_internal/water_samples_original_ESipos_MSdial_output (not blank filtered).txt")
+box::use(projlib/io)       # Handle snakemake parameters and input/output files
+FILE <- rlang::list2(
+  i = "data/raw_internal/water_samples_original_ESipos_MSdial_output (not blank filtered).txt",
+)
+io$chq_all_files_exist(FILE)
 set.seed(7579)
 ```
 
@@ -97,11 +102,12 @@ fetch_sample_info <- function(msdial_file, indices) {
       as.numeric()
   }
   sinfo <- sinfo |> 
-    dplyr::mutate(conc = ifelse(proc_cat == "CalCurve", 
-                                find_concentration(given_sample_id),
-                                NA_real_))
+    dplyr::mutate(
+      c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_),
+      injection_order = as.integer(injection_order),
+    )
   stopifnot(
-    "Error in Calibration sample IDs" = all(! is.na(sinfo$conc[sinfo$proc_cat == "CalCurve"]))
+    "Error in Calibration sample IDs" = all(! is.na(sinfo$c_conc[sinfo$proc_cat == "CalCurve"]))
   )
   return(sinfo)
 }
@@ -212,9 +218,9 @@ Concentration is extracted from the numeric part in the format after the replace
 # Present the sample IDs for the calibration curve
 df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
-  dplyr::arrange(conc)
+  dplyr::arrange(c_conc)
 df_show |> 
-  dplyr::select(given_sample_id, conc) |>
+  dplyr::select(given_sample_id, c_conc) |>
   knitr::kable(
     col.names = c("Sample ID", "Concentration (ng/ml)"),
     format.args = list(scientific = FALSE)
@@ -228,7 +234,7 @@ df_show |>
 ```{r}
 #| label: 'calcurve-samples-summary'
 # Present the number of samples in the calibration curve
-table(df_show$conc) |> 
+table(df_show$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
     col.names = c("Concentration (ng/ml)", "Number of samples")
@@ -357,186 +363,259 @@ ggplot(se) +
 
 # Normalization using internal standards
 
-## Internal standard (IS) metabolites
-
-```{r}
-#| purl: true
-
-# Extract the internal standard metabolites
-internal_std_se <- given_data_sumexp |> 
-  dplyr::filter(std_type == "Istd")
-# Sort by average retention time
-rt <- rowData(internal_std_se)$rt
-internal_std_se <- internal_std_se[order(rt), ]
-```
-
-There are `r nrow(internal_std_se)` internal standard (IS) metabolites in the data.
-Those metabolites are `r knitr::combine_words(rowData(internal_std_se)$metab_name, before = "\x60")`, in the order of average retention time.
-
-### Distribution of the values
-
-Randomly selected 8 internal standard (IS) metabolites are shown in the following figure.
-
-```{r}
-#| label: 'distribution-values-internal-standards'
-#| fig-width: 13
-#| fig-height: 8
-
-# Keep the order by m/z
-istd_to_show_se <- select_rows_randomly(internal_std_se, 8, in_previous_order = TRUE)
-istd_to_show_se |> 
-  # Below invokes `tidySummarizedExperiment:::mutate.SummarizedExperiment`
-  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Keep the order by m/z 
-  ggplot() +
-  geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
-  labs(
-    title = "Distribution of the values of internal standard metabolites", 
-    y = "Peak area",
-  ) +
-  theme(legend.position = "none") +   # No legend for fill
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
-  scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
-```
-
-### Outliers
-
-Outliers were identified based on the values of internal standard metabolites.
-Those samples with values greater than 3 standard deviations from the mean after log-transformation ($log(1 + x)$) were considered as outliers.
-
-```{r}
-#| purl: true
-
-# Identify outliers
-identify_outliers <- function(x) {
-  m <- mean(x)
-  sd <- sd(x)
-  return((x > m + 3 * sd) | (x < m - 3 * sd))
-}
-# Number of outliers per sample
-n_outlier <- assays(internal_std_se)$raw |> 
-  log1p() |>              # Log-transform the data
-  apply(1, identify_outliers) |>
-  rowSums()         # Number of outliers per sample (transposed by `apply` above)
-# Exclude the outliers
-stopifnot(identical(names(n_outlier), colnames(internal_std_se)))
-internal_std_se <- internal_std_se[, n_outlier == 0, drop = FALSE]
-stopifnot(identical(names(n_outlier), colnames(given_data_sumexp)))
-given_data_sumexp$is_outlier <- n_outlier > 0
-no_outlier_se <- given_data_sumexp[, n_outlier == 0, drop = FALSE]
-```
-
-There are `r sum(n_outlier > 0)` outlying samples in the data.
-The data of those outliers were excluded in the following analysis. 
-
-```{r}
-#| label: 'outliers-table'
-#| results: 'markup'
-print(n_outlier[n_outlier > 0])
-```
-
-After exclusion of those outliers, the distribution of the randomly selected 8 internal standard (IS) metabolites are shown below.
-
-```{r}
-#| label: 'distribution-values-internal-standards-no-outliers'
-#| fig-width: 13
-#| fig-height: 8
-
-internal_std_se[rownames(istd_to_show_se), ] |>
-  dplyr::mutate(metab_name = forcats::fct(metab_name)) |>  # Order by m/z 
-  ggplot() +
-  geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
-  labs(
-    title = "Distribution of the values of internal standard metabolites (no outliers)", 
-    y = "Values"
-  ) +
-  theme(legend.position = "none") +   # No legend for fill
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +    # Rotate x-axis labels
-  scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "fixed", ncol = 4)
-```
-
-### raw RSD%
-
-The relative standard deviation (RSD%) of the raw values of the internal standard metabolites are calculated.
-
-#### By quality control groups
+## Internal standard (IS) chemicals
 
 ```{r}
 #| purl: true
 #' Calculate RSD%
 #'
 #' @param x A numeric vector
+#' @param digits An integer for rounding
 #' @return A numeric value of RSD%
-#' @export
-rsd_perc <- function(x) {
-  100 * sd(x) / mean(x)
+rsd_perc <- function(x, digits = 2) round(100 * sd(x) / mean(x), digits)
+
+internal_std_se <- local({
+  se <- overall_sumexp
+  # Extract the internal standard chemicals
+  se <- se[rowData(se)$std_type == "IS", ]
+  # Sort by average retention time
+  se <- se[order(rowData(se)$rt), ]
+  # Number of zeros
+  rowData(se)$num_zeros <- rowSums(assays(se)$raw == 0)
+  # RSD% of the internal standard chemicals across all samples
+  rowData(se)$rsd <- apply(assays(se)$raw, 1, rsd_perc)
+  return(se)
+})
+```
+
+There are `r nrow(internal_std_se)` internal standard (IS) chemicals in the data.
+Those chemicals are listed below, in the order of average retention time.
+
+```{r}
+#| purl: true
+# Table of internal standard chemicals
+kable_internal_std <- function(se) {
+  df <- rowData(se)[, c("chem_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
+  df$num_zeros <- ifelse(df$num_zeros == 0, "", df$num_zeros)
+  knitr::kable(
+    df, 
+    row.names = FALSE,
+    col.names = c("Chemical Name", "Avg Retention Time (min)", "m/z", "S/N Ratio", 
+                  "RSD%", "Number of zeros"),
+    align = "lrrrrr"
+  ) |> 
+    kableExtra::kable_styling(full_width = FALSE)
+}
+kable_internal_std(internal_std_se)
+```
+
+### Outliers
+
+Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) chemicals, which were supposed to be the same across all the samples. 
+For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the chemical.
+In the other way, the chemical was marked as an outlier for the sample.
+When the number of outlying IS chemicals of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
+
+```{r}
+#| purl: true
+# Identify outliers
+identify_outliers <- function(x) {
+  m <- mean(x)
+  sd <- sd(x)
+  return((x > m + 3 * sd) | (x < m - 3 * sd))
+}
+# Number of outlying internal standard chemicals per sample 
+n_out_istd <- assays(internal_std_se)$raw |> 
+  log1p() |>              # Log-transform the data
+  apply(1, identify_outliers) |>
+  rowSums()      # Transposed by `apply` above
+is_outlier <- n_out_istd > nrow(internal_std_se) * 0.2
+if (all(! is_outlier)) {
+  # Exclude the outlying samples
+  stopifnot(names(is_outlier) == colnames(internal_std_se))
+  internal_std_se <- internal_std_se[, !is_outlier]
+  stopifnot(names(is_outlier) == colnames(overall_sumexp))
+  overall_sumexp <- overall_sumexp[, !is_outlier]
 }
 ```
 
 ```{r}
-#| label: 'rsd-internal-standards-by-qc-groups'
+#| label: 'outliers-table'
 
-# Divide the internal standard metabolites by quality control groups
-# Calculate RSD% per internal standard metabolite and per quality control groups
-sapply(setNames(nm = unique(na.omit(internal_std_se$qc_group))), \(grp) {
-  in_grp <- ! is.na(internal_std_se$qc_group) & internal_std_se$qc_group == grp
-  se1 <- internal_std_se[, in_grp]
-  apply(assay(se1, "raw"), 1, \(.x) round(rsd_perc(.x), 2))
-}) |>
-  knitr::kable(caption = "RSD% of internal standard metabolites by quality control groups") |> 
+if (all(! is_outlier)) {
+  cat("No outliers were identified.\n")
+} else {
+  cat("The following samples were identified as outliers.\n\n")
+  stopifnot(names(is_outlier) == rownames(n_out_istd))
+  tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
+    dplyr::mutate(is_outlier = is_outlier) |>
+    dplyr::left_join(as.data.frame(colData(overall_sumexp)), by = "sample_id") |> 
+    dplyr::filter(is_outlier) |> 
+    dplyr::select(
+      "Sample ID" = given_sample_id,
+      Class,
+      "File type" = sample_type,
+      "Number of Outlying IS" = value
+    ) |> 
+    knitr::kable(align = "lccr") |> 
+    kableExtra::kable_classic(full_width = FALSE)
+  
+  # Update the table of internal standard chemicals
+  cat("\n\nAfter excluding the outliers,", 
+      "the table of internal standard chemicals is as follows.\n\n")
+  # Number of zeros
+  rowData(internal_std_se)$num_zeros <- rowSums(assays(internal_std_se)$raw == 0)
+  # RSD% of the internal standard chemicals across all samples
+  rowData(internal_std_se)$rsd <- apply(assays(internal_std_se)$raw, 1, rsd_perc)
+  # Updated table of internal standard chemicals
+  kable_internal_std(internal_std_se)
+}
+```
+
+### Failed internal standards
+
+Internal standard (IS) chemicals that satisfy the following conditions were considered as failed IS:
+
+* One or more samples have zero values.
+
+```{r}
+#| label: 'failed-internal-standards'
+#| purl: true
+is_failed_istd <- rowData(internal_std_se)$num_zeros > 0
+```
+
+```{r}
+#| out-width: 100%
+box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
+  chem_name <- rowData(se)$chem_name[ii]
+  se_tbl <- tibble::as_tibble(se[ii, ])
+  # Box plot
+  p1 <- ggplot(se_tbl) +
+    geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
+    labs(title = chem_name, y = "Peak area") +
+    theme(legend.position = "none") +   # No legend for fill
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
+    scale_y_log10()
+  # Scatter plot across injection order
+  p2 <- ggplot(se_tbl) +
+    geom_point(aes(x = injection_order, y = raw, color = Class)) +
+    labs(title = "",  y = "", x = "Injection order") +
+    theme(legend.position = "none") +   # No legend for fill
+    # No y-axis labels
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+    scale_y_log10()
+  # Requires patchwork package
+  p1 + p2 + patchwork::plot_layout(widths = widths)
+}
+
+if (all(! is_failed_istd)) {
+  cat("No failed internal standard chemicals were identified.\n")
+} else {
+  cat("The following internal standard chemicals were identified as failed IS,",
+      "which were removed.\n\n")
+  failed <- internal_std_se[is_failed_istd, ]
+  # Table of failed internal standard chemicals
+  print(kable_internal_std(failed))
+  # Box and scatter plots of the failed internal standard chemicals 
+  for(ii in 1:nrow(failed)) {
+    print(box_scatter_plot_of_one_chemical(failed, ii, widths = c(0.3, 0.7)))
+  }
+}
+```
+
+```{r}
+#| purl: true
+# Remove failed internal standard chemicals
+internal_std_se <- internal_std_se[!is_failed_istd, ]
+```
+
+### Distribution of the values of individual IS chemicals
+
+```{r}
+#| label: 'distribution-values-internal-standards'
+#| fig-width: 13
+#| fig-height: 4
+#| out-width: 100%
+# Internal standard chemicals to show
+se_show <- internal_std_se
+for(ii in 1:nrow(se_show)) {
+  print(box_scatter_plot_of_one_chemical(se_show, ii, widths = c(0.3, 0.7)))
+}
+```
+
+### Raw RSD%
+
+The relative standard deviation (RSD%) of the raw values of the internal standard chemicals are calculated.
+
+#### `QC` samples
+
+As these `QC` samples are technical replicates, the RSD% values of the samples are expected to be low.
+
+```{r}
+#| label: 'rsd-internal-standards-by-qc-samples'
+# Divide the internal standard chemicals by quality control sample
+# Calculate RSD% per internal standard chemical and per quality control sample
+df1 <- extract_qc_samples_to_list(internal_std_se) |> 
+  sapply(\(se) apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2)))
+stopifnot(rownames(df1) == rownames(internal_std_se))
+rownames(df1) <- rowData(internal_std_se)$chem_name
+knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality control sample") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 #### By sample classes
 
 ```{r}
-sapply(setNames(nm = unique(internal_std_se$Class)), function(cls) {
-  se1 <- internal_std_se[, internal_std_se$Class == cls]
-  apply(assay(se1, "raw"), 1, \(.x) round(rsd_perc(.x), 2))
-}) |> 
-  knitr::kable(caption = "RSD% of internal standard metabolites by sample classes") |> 
+se <- internal_std_se
+se <- se[, se$proc_cat != "QC"]
+df1 <- sapply(setNames(nm = unique(se$Class)), function(cls) {
+  se <- se[, se$Class == cls]
+  apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2))
+})
+stopifnot(rownames(df1) == rownames(se))
+rownames(df1) <- rowData(se)$chem_name
+knitr::kable(df1, caption = "RSD% of internal standard chemicals by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Normalization
 
-The data will be normalized using the internal standard metabolites.
+The data is normalized using the internal standard chemicals.
 
 ```{r}
 #| purl: true
-
 # Find the range of RT values
-overall_rt_range <- range(rowData(no_outlier_se)$rt)
+overall_rt_range <- range(rowData(overall_sumexp)$rt)
+targetted_rt_range <- range(rowData(targeted_chems_se)$rt)
 rt <- rowData(internal_std_se)$rt
 ```
 
-The range of RT values of overall metabolites is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of internal standard metabolites is `r range(rt)[1]` to `r range(rt)[2]`.
+The range of RT values of overall chemicals is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
+while the range of targeted chemicals is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and 
+the range of internal standard chemicals is `r range(rt)[1]` to `r range(rt)[2]`.
 
-### Closest internal standard metabolites
+### Closest internal standard chemicals
 
-The closest internal standard metabolites to each metabolite will be identified based on the retention time.
-The measured peak area of each metabolite will be divided by the peak area of the closest internal standard metabolite.
+The closest internal standard chemicals to each chemical will be identified based on the retention time.
+The measured peak area of each chemical will be divided by the peak area of the closest internal standard chemical.
 
 ```{r}
 #| label: 'normalize-rt-closest-istd'
 #| purl: true
-
-# Get the values of the closest internal standard metabolites
-get_raw_of_closest_istd <- function(rt_x, internal_std_se) {
-  # Find the closest internal standard metabolite
-  closest_istd <- which.min(abs(rowData(internal_std_se)$rt - rt_x))
-  return(assays(internal_std_se)$raw[closest_istd, ])
+# Get the values of the closest internal standard chemicals
+get_raw_of_closest_istd <- function(se_x, internal_std_se) {
+  rt_x <- rowData(se_x)$rt
+  rt <- rowData(internal_std_se)$rt
+  # Find the closest internal standard chemical
+  i_closest <- sapply(rt_x, \(.x) which.min(abs(rt - .x)))
+  out <- assays(internal_std_se)$raw[i_closest, ]
+  rownames(out) <- rownames(se_x)
+  out
 }
-assays(no_outlier_se)$closest_istd_raw <- rowData(no_outlier_se)$rt |> 
-  setNames(rownames(no_outlier_se)) |>          # To keep the names
-  sapply(get_raw_of_closest_istd, internal_std_se) |> 
-  t()     # Rows are metabolites
+closest_istd_raw <- get_raw_of_closest_istd(overall_sumexp, internal_std_se)
 
-# Normalize the data using closest internal standard metabolites
-assays(no_outlier_se)$closest_norm <- 
-  assays(no_outlier_se)$raw / assays(no_outlier_se)$closest_istd_raw
+# Normalize the data using closest internal standard chemicals
+assays(overall_sumexp)$closest_norm <- assays(overall_sumexp)$raw / closest_istd_raw
 ```
 
 #### Evaluation of normalization
@@ -546,26 +625,21 @@ assays(no_outlier_se)$closest_norm <-
 
 # Extract quantitative standards in QC samples
 extract_quant_qc <- function(sumexp) {
-  unique(na.omit(sumexp$qc_group)) |> 
-    setNames(nm = _) |> 
-    lapply(\(grp) {
-      in_grp <- ! is.na(sumexp$qc_group) & sumexp$qc_group == grp
-      is_qstd <- rowData(sumexp)$std_type == "Std"
-      sumexp[is_qstd, in_grp]
-    })
+  se_lst <- extract_qc_samples_to_list(sumexp)
+  lapply(se_lst, \(se) se[rowData(se)$std_type == "Quant", ])
 }
 # Calculate RSD of the quantification standard samples
 calc_rsd_qstd <- function(qc_se, assay_ids) {
   lapply(qc_se, \(qc1) {
     sapply(setNames(nm = assay_ids), function(nm) {
       apply(assays(qc1)[[nm]], 1, rsd_perc)
-    }) |>    # Rows are metabolites, columns are assay IDs
-      tibble::as_tibble(rownames = "metab_id")
+    }) |>    # Rows are chemicals, columns are assay IDs
+      tibble::as_tibble(rownames = "chem_id")
   }) |> 
     # `QC` has the name of the QC samples
     dplyr::bind_rows(.id = "QC")
 }
-# Plot the RSD% of various data sets of metabolites
+# Plot the RSD% of various data sets of chemicals
 ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
   nms <- names(assay_ids)
   ids <- unname(assay_ids)    # Duplicated by `dplyr::all_of`
@@ -578,7 +652,7 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
     dplyr::mutate(Data = factor(Data, levels = ids, labels = nms))
   ggplot(rsd_df) +
     aes(x = Data, y = `RSD%`) +
-    geom_line(aes(group = metab_id), alpha = 0.5)
+    geom_line(aes(group = chem_id), alpha = 0.5)
 }
 ```
 ```{r}
@@ -586,7 +660,7 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 #| out-width: '80%'
 
 # Quantification standard samples
-qc_se <- extract_quant_qc(no_outlier_se)
+qc_se <- extract_quant_qc(overall_sumexp)
 
 assay_ids <- setNames(c("raw", "closest_norm"), nm = c("Raw", "Closest IS Normalized"))
 rsd_qstd <- calc_rsd_qstd(qc_se, assay_ids) |> 
@@ -601,7 +675,7 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of metabolites with higher/lower RSD after normalization is counted below.
+The number of chemicals with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'evaluation-normalization-closest-istd-count'
 #| results: 'markup'
@@ -616,18 +690,20 @@ rsd_qstd |>
 #| label: 'normalize-rt'
 #| purl: true
 
+excluded_category_for_normalization <- c("Blank", "CalCurve")
+
 loess_fit <- local({
   # Log-transform the data
   istd_log <- log(assays(internal_std_se)$raw)
   rt <- rowData(internal_std_se)$rt
   
   # Normalize the data using the internal standards
-  # Mean of each internal standard metabolite for overall measurement samples
+  # Mean of each internal standard chemical for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- internal_std_se$Class %in% c("Blank", "CalCurve")
+  to_excl <- internal_std_se$proc_cat %in% excluded_category_for_normalization
   # The data of the samples with measurements
   mat <- istd_log[, !to_excl, drop = FALSE]
-  stopifnot(all(is.finite(mat)))
+  stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
   istd_m <- rowMeans(mat)
   # Subtract the mean from the data
   fr_m_log <- istd_log - istd_m
@@ -643,7 +719,7 @@ loess_fit <- local({
     fr_m_log
   )
   
-  # LOESS fit of the internal standard metabolites along RT
+  # LOESS fit of the internal standard chemicals along RT
   loess_fit <- purrr::map(1:ncol(fr_m_log), function(ii) {
     # Fit a loess curve
     y <- fr_m_log[, ii]
@@ -658,74 +734,78 @@ loess_fit <- local({
 })
 
 # Normalize the data by LOESS fit along RT
-rt <- rowData(no_outlier_se)$rt
-raw <- assays(no_outlier_se)$raw
-assays(no_outlier_se)$loess_norm <- sapply(
-  colnames(no_outlier_se), function(sample_id) {
+rt <- rowData(overall_sumexp)$rt
+raw <- assays(overall_sumexp)$raw
+assays(overall_sumexp)$loess_norm <- sapply(
+  colnames(overall_sumexp), function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
     exp(log(raw[, sample_id]) - norm_factor)
   }
 )
-
-# Extract quantification standard data
-qstd_sumexp <- no_outlier_se |> 
-  dplyr::filter(std_type == "Std")
 ```
 
-For each metabolite, the average of all samples excluding `Blank` and `CalCurve` samples was calculated after log-transformation.
+For each chemical, the average of all samples excluding 
+`r knitr::combine_words(excluded_category_for_normalization, before = "\x60")`
+samples was calculated after log-transformation.
 The deviation of each sample from the average was calculated as normalization factor.
-The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) metabolites along RT.
-The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all metabolites. 
-The normalization factors of those at the boundaries of IS are used for the boundary RT values of all metabolites.
+The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) chemicals along RT.
+The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all chemicals. 
+The normalization factors of those at the boundaries of IS are used for the boundary RT values of all chemicals.
 The normalized data are calculated by subtracting the normalization factor from the log-transformed data.
 
 Randomly selected 3 samples are shown below.
-
 ```{r}
 #| label: 'normalize-rt-plot'
 #| fig-width: 14
 #| fig-height: 12
 
-to_excl <- no_outlier_se$Class %in% c("Blank", "CalCurve")
+to_excl <- overall_sumexp$proc_cat %in% excluded_category_for_normalization
 # Plot the normalized and original data for randomly selected 3 samples
-i_sel <- sample(c(1:ncol(no_outlier_se))[!to_excl], 3)
+i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
 
 # To include LOESS smooth line
 x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
-loess_curve_df <- lapply(setNames(i_sel, colnames(no_outlier_se)[i_sel]), function(ii) {
+loess_curve_df <- lapply(setNames(i_sel, colnames(overall_sumexp)[i_sel]), function(ii) {
   predict(loess_fit[[ii]], newdata = x)
 }) |> 
   as.data.frame() |> 
   dplyr::mutate(rt = x) |>
   tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
 loess_curve_df$sample_name <-
-  no_outlier_se$sample_name[match(loess_curve_df$sample_id, no_outlier_se$sample_name)]
+  overall_sumexp$given_sample_id[match(loess_curve_df$sample_id, overall_sumexp$sample_id)]
 
 # Log-transform the data
-raw_log <- log(assays(no_outlier_se)$raw)
-# Overall mean of every metabolite
+raw_log <- log(assays(overall_sumexp)$raw)
+# Overall mean of every chemical
 mat <- raw_log[, !to_excl, drop = FALSE]
 mat[is.finite(mat) == FALSE] <- NA    # Visualization purpose only
 mean_log <- rowMeans(mat, na.rm = TRUE)
 # Deviation from the mean
-selected_se <- no_outlier_se[, i_sel]
+selected_se <- overall_sumexp[, i_sel]
 assays(selected_se) <- assays(selected_se) |> 
   lapply(\(x) sweep(log(x), 1, mean_log, FUN = "-"))
 
 df_to_show <- tibble::as_tibble(selected_se) |>
-  dplyr::rename(Raw = raw, Normalized = loess_norm) |>
-  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value")
+  dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = given_sample_id) |>
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
+  dplyr::mutate(
+    Type = ifelse(std_type == "", "non-target", std_type),
+    Type = factor(Type, levels = c("IS", "Quant", "non-target"))
+  ) |> 
+  dplyr::arrange(desc(Type)) # To show IS on top
 
 # Plot the normalized and original data
-ggplot(df_to_show, aes(x = rt, y = Value)) +
-  geom_point(aes(color = Data, shape = std_type)) +
+ggplot(df_to_show, aes(x = rt, y = Value)) + 
+  geom_point(aes(color = Data, shape = Type, size = Type, alpha = Type)) +
   geom_line(data = loess_curve_df, alpha = 0.5) +
   labs(
     title = "Normalized and original data",
     x = "Average RT", 
     y = "log(Values) - log(avg)"
   ) +
-  scale_shape_manual(values = c("Istd" = 15, "Std" = 21)) +
+  scale_shape_manual(values = c("IS" = 15, "Quant" = 21, "non-target" = 20)) +
+  scale_size_manual(values = c("IS" = 3, "Quant" = 3, "non-target" = 1)) +
+  scale_alpha_manual(values = c("IS" = 1, "Quant" = 1, "non-target" = 0.1)) +
   facet_wrap(~ sample_name, scales = "free_y", ncol = 3)
 ```
 
@@ -735,14 +815,13 @@ Those zeros were kept as zeros in the normalized data.
 
 #### Evaluation of normalization
 
-The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard samples.
-
+The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard chemicals of the QC samples.
 ```{r}
 #| label: 'rsd-eval'
 #| out-width: '80%'
 
-# Quantification standard samples
-qc_se <- extract_quant_qc(qstd_sumexp)
+# Quantification standard chemicals of QC samples
+qc_se <- extract_quant_qc(overall_sumexp)
 # Calculate RSD of the quantification standard samples
 assay_ids <- setNames(c("raw", "loess_norm"), nm = c("Raw", "LOESS Normalized"))
 rsd_qstd <- calc_rsd_qstd(qc_se, assay_ids) |> 
@@ -757,12 +836,49 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of metabolites with higher/lower RSD after normalization is counted below.
+The number of chemicals with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'rsd-count'
 #| results: 'markup'
 rsd_qstd |> 
   janitor::tabyl(QC, sign)
+```
+
+Bar charts of the values of standard chemicals are compared for raw and normalized data.
+
+```{r}
+#| fig-width: 14
+#| fig-height: 6
+#| out-width: '100%'
+
+se <- overall_sumexp
+df_show <- se[rowData(se)$std_type %in% c("Quant", "IS"), ] |> 
+  tibble::as_tibble() |> 
+  tidyr::pivot_longer(cols = c(raw, loess_norm), names_to = "Data", values_to = "Value") |> 
+  dplyr::mutate(
+    Data = factor(Data, levels = c("raw", "loess_norm"), labels = c("Raw", "LOESS Normalized"))
+  )
+df_show |> 
+  dplyr::filter(std_type == "Quant", proc_cat == "") |> 
+  ggplot() +
+  geom_col(aes(x = injection_order, y = Value, fill = Class)) +
+  labs(title = "Quantification standards", x = "Injection order") +
+  facet_wrap(~ Data, scales = "free_y")
+
+df1 <- df_show |> 
+  dplyr::filter(std_type == "IS") |> 
+  dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c(injection_order, Data))
+ggplot(df1, aes(x = injection_order)) +
+  geom_col(aes(y = Value, fill = Class)) +
+  labs(title = "Internal standards", x = "Injection order") +
+  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+  facet_wrap(~ Data, scales = "free_y")
+
+ggplot(df1, aes(x = injection_order)) +
+  geom_col(aes(y = Value, fill = chem_name)) +
+  labs(title = "Internal standards", x = "Injection order") +
+  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+  facet_wrap(~ Data, scales = "free_y")
 ```
 
 ### Comparison of the normalization methods
@@ -774,7 +890,7 @@ The RSD% of the quantification standard samples is calculated for the raw data a
 #| out-width: '80%'
 
 assay_ids <- setNames(c("raw", "closest_norm", "loess_norm"), nm = c("Raw", "Closest", "LOESS"))
-df_to_show <- extract_quant_qc(qstd_sumexp) |> 
+df_to_show <- extract_quant_qc(overall_sumexp) |> 
   calc_rsd_qstd(assay_ids) |> 
   dplyr::mutate(
     sign = ifelse(loess_norm <= closest_norm, "↓ LOESS", "↓ Closest"),
@@ -787,12 +903,12 @@ ggplot_rsdp_metab(df_to_show, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of metabolites with lower RSD after each normalization is counted below.
+The number of chemicals with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
 #| results: 'markup'
-# Count the number of metabolites with lower RSD
+# Count the number of chemicals with lower RSD
 df_to_show |> 
   janitor::tabyl(QC, sign)
 ```
@@ -816,315 +932,444 @@ df_to_show |>
     .by = QC
   ) |>  
   knitr::kable(
-    caption = "Number of metabolites with RSD% above or below 20", 
+    caption = "Number of chemicals with RSD% above or below 20", 
     col.names = c("QC", rep(names(assay_ids), 2))
   ) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
   kableExtra::add_header_above(c(" " = 1, "RSD > 20%" = 3, "RSD ≤ 20%" = 3)) 
 ```
 
-
 The RSD% values are presented in the table below.
 
 ```{r}
 #| label: 'rsd-comparison-table'
-
 df_to_show |> 
-  dplyr::left_join(as.data.frame(rowData(qstd_sumexp)), by = "metab_id") |>   # Add metabolite names
-  dplyr::select(QC, metab_name, dplyr::all_of(unname(assay_ids))) |> 
-  dplyr::rename(all_of(assay_ids), `Metabolite` = metab_name) |> 
-  # Caption at the top
+  dplyr::left_join(as.data.frame(rowData(overall_sumexp)), by = "chem_id") |>   # Add chemical names
+  dplyr::select(QC, chem_name, dplyr::all_of(unname(assay_ids))) |> 
+  dplyr::rename(all_of(assay_ids), `Chemical` = chem_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
-  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |>
-  kableExtra::scroll_box(height = "400px")
+  kableExtra::kable_classic(bootstrap_options = "striped", full_width = FALSE) |>
+  kableExtra::scroll_box(height = "300px")
 ```
 
+```{r}
+#| label: 'write-loess-normalized-data'
+#| purl: true
+
+# Write the LOESS normalized data
+write_normalized_data_tsv <- function(sumexp, in_file, out_file) {
+  # Prepare the chemical table
+  i_sec <- get_three_section_indices(in_file)
+  intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
+  stopifnot(intact_chem_cols$"Alignment ID" == rowData(sumexp)$alignment_id)
+  # Prepare the normalized data table
+  norm_df <- assays(sumexp)$loess_norm |> 
+    round(0) |>     # Reduce the number of decimals
+    tibble::as_tibble()
+  # Original sample ID
+  colnames(norm_df) <- colData(sumexp)$given_sample_id
+  readr::write_tsv(dplyr::bind_cols(intact_chem_cols, norm_df), out_file)
+}
+write_normalized_data_tsv(overall_sumexp, FILE$i, FILE$o$norm)
+```
 
 # Calibration
 
 ## Calibration curve samples
 
-The samples for the calibration curve are identified by the sample class, `CalCurve`.
-The data of `0` concentration (sample ID `Cal0_`) has been ignored. 
-The concentration is extracted from the sample ID, which is in the format `CalStd[0-9]+_`.
-The concentration is converted to a numeric value. 
+The data of the samples for the calibration curve is extracted from the quantification samples after the outlier removal and normalization.
+The samples with a concentration of `0` are separated as the zero samples.
+The data of the zeros is used to calculate lower-limits of quantification (LLOQ).
 
 ```{r}
-#| label: 'calcurve-samples'
+#| label: 'calcurve-samples-extraction'
 #| purl: true
-
+# Extract quantification standard data
+quant_se <- overall_sumexp[rowData(overall_sumexp)$std_type == "Quant", ]
 # Calibration curve samples only
-calcurve_se <- qstd_sumexp[, qstd_sumexp$Class == "CalCurve"]
-# Remove the 0 concentration sample
-calcurve_se <- calcurve_se[, ! stringr::str_detect(calcurve_se$sample_name, "Cal0_")]
-
-# Extract concentration values from the given IDs
-extract_conc <- function(sample_name) {
-  conc <- stringr::str_extract(sample_name, "CalStd([0-9]+)_", group = 1)
-  dplyr::case_when(
-    # Replace the leading `0` with `0.`
-    stringr::str_detect(conc, "^0[0-9]") ~ stringr::str_replace(conc, "^0", "0."),
-    TRUE ~ conc
-  ) |> 
-    as.numeric()
-}
-calcurve_se$conc <- extract_conc(calcurve_se$sample_name)
+calcurve_se <- quant_se[, quant_se$proc_cat == "CalCurve"]
+stopifnot("Calibration curve samples are required." = nrow(calcurve_se) > 0)
+# Calibration zero samples
+cal_0_se <- calcurve_se[, calcurve_se$c_conc == 0] 
+stopifnot("Multiple `Cal_0` samples are required." = ncol(cal_0_se) > 1)
+# Remove the 0 concentration samples
+calcurve_se <- calcurve_se[, calcurve_se$c_conc != 0]
 ```
 
-### Sample IDs
+The number of samples in the calibration curve after outlier removal is presented below.
 
 ```{r}
-#| results: 'markup'
-# Present the sample IDs for the calibration curve
-print(calcurve_se$sample_name)
-```
-
-### The number of samples per concentration
-
-```{r}
-#| label: 'calcurve-samples-summary'
+#| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-calcurve_se$conc |> 
-  table() |> 
+table(calcurve_se$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
     col.names = c("Concentration (ng/ml)", "Number of samples")
-  )
+  ) |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Concentration ranges
 
-```{r}
-#| purl: true
-classes_not_for_measurement <- c("CalCurve", "QC", "Qcspiked")
-```
-
 Quite a few concentrations of calibration curve samples of a compound may be too far from the range of the measured samples. 
-Hence the concentrations were excluded for which the peak areas after normalization were more than 10 times higher than the maximum peak area of the samples of `r knitr::combine_words(classes_not_for_measurement, before = "\x60")` classes.
+Hence the concentrations were excluded for which the peak areas after normalization were more than 10 times higher than the **maximum** peak area of the samples excluding `CalCurve` and `QC` categories.
 
 ```{r}
+#| label: 'calcurve-upper-limit-concentration-range'
 #| purl: true
 
-# Find maximum peak area of the samples of the classes for measurement
-rowData(calcurve_se)$max_loess_norm <- local({
-  stopifnot(identical(rownames(qstd_sumexp), rownames(calcurve_se)))
-  sumexp <- qstd_sumexp[, ! qstd_sumexp$Class %in% classes_not_for_measurement]
-  apply(assays(sumexp)$loess_norm, 1, max, na.rm = TRUE)
-})
-# Function to replace .x with NA if it is more than 10 times higher than .y
-replace_if_10x_higher <- function(.x, .y) {
-  ifelse(.x > 10 * .y, NA_real_, .x)
-}
-# Exclude the concentrations that are too far from the measured samples
-assays(calcurve_se)$loess_norm <- assays(calcurve_se)$loess_norm |> 
-  replace_if_10x_higher(rowData(calcurve_se)$max_loess_norm)
-rowData(calcurve_se)$max_conc <- assays(calcurve_se)$loess_norm |> 
-  apply(1, \(.x) {
-    if (all(is.na(.x))) return(NA_real_)
-    max(calcurve_se$conc[!is.na(.x)])
+rowData(calcurve_se)$max_conc <- local({
+  stopifnot(rownames(quant_se) == rownames(calcurve_se))
+  se1 <- quant_se
+  se1 <- se1[, se1$proc_cat %in% c("CalCurve", "QC") == FALSE]
+  # Find maximum peak area of the samples of the classes for measurement
+  max_loess_norm <- apply(assays(se1)$loess_norm, 1, max, na.rm = TRUE)
+  
+  cc <- calcurve_se
+  # Find the maximum concentration of the samples that are not too far (10x) from the measured
+  apply(assays(cc)$loess_norm <= 10 * max_loess_norm, 1, \(ea_row) {
+    if (all(!ea_row)) return(NA_real_)
+    max(cc$c_conc[ea_row])
   })
+})
 ```
 
-Remaining concentration range of each compound is presented below.
+When the obtained peak area of low concentration of the calibration samples is too low, the concentrations are excluded.
+The value is considered **too low** when the average of the values of one concentration is less than 10 times of the standard deviation from the mean of zero concentration samples. 
+
+```{r}
+#| label: 'calcurve-lower-limit-concentration-range'
+#| purl: true
+
+# Function: find the mean + `times` of standard deviation 
+get_mean_plus_sd <- function(mat, times) {
+  m <- apply(mat, 1, mean, na.rm = TRUE)
+  s <- apply(mat, 1, sd, na.rm = TRUE)
+  m + times * s
+}
+# Find the lower-limit of quantification using values of the zero concentration samples
+rowData(calcurve_se)$lloq <- get_mean_plus_sd(assays(cal_0_se)$loess_norm, times = 10)
+rowData(calcurve_se)$min_conc <- local({
+  cc <- calcurve_se
+  # Find the minimum concentration of the calibration samples
+  apply(assays(cc)$loess_norm > rowData(cc)$lloq, 1, \(ea_row) {
+    if (all(!ea_row)) return(NA_real_)
+    min(cc$c_conc[ea_row])
+  })
+})
+
+# Mark the chemicals that have the minimum concentration equal to or greater than the maximum concentration
+rowData(calcurve_se)$to_exclude <- as.data.frame(rowData(calcurve_se)) |> 
+  with(is.na(min_conc) | is.na(max_conc) | min_conc >= max_conc)
+```
+
+When the minimum concentration is equal to or greater than maximum concentration, the chemical is excluded from the calibration curve.
+`r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
+
+Remaining concentration range of each chemical is presented below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
 rowData(calcurve_se) |> 
   tibble::as_tibble() |> 
-  dplyr::select(metab_name, max_conc) |>
   dplyr::mutate(
-    max_conc = dplyr::case_when(
-      is.na(max_conc) ~ "All 0s, no valid",
-      TRUE ~ scales::number(max_conc)
-    )
+    min_conc = dplyr::case_when(
+      is.na(min_conc) ~ paste0("All < LLOQ (", scales::scientific(lloq, 2), ")"), 
+      is.na(max_conc) ~ "",
+      TRUE ~ scales::number(min_conc)
+    ),
+    max_conc = ifelse(is.na(max_conc), "All 0s, no valid", scales::number(max_conc)),
+    to_exclude = ifelse(to_exclude, "Excluded", "")
   ) |>
+  dplyr::select(chem_name, min_conc, max_conc, to_exclude) |>
   knitr::kable(
     caption = "Concentration range of the calibration curve samples",
-    col.names = c("Metabolite", "Maximum concentration (ng/ml)"),
-    align = c("l", "r"),
+    col.names = c("Chemical",
+                  "Minimum (ng/ml)",
+                  "Maximum concentration (ng/ml)",
+                  "Excluded?"), 
+    align = c("l", "r", "r", "r"),
   ) |> 
-  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "400px")
+  kableExtra::kable_classic(bootstrap_options = "striped", full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "350px")
 ```
 
+```{r}
+#| label: 'calcurve-exclude-data-by-concentration-range'
+#| purl: true
 
-## Calibration curve per metabolite
+# Exclude the marked chemicals
+is_marked <- rowData(calcurve_se)$to_exclude
+stopifnot(rownames(calcurve_se) == rownames(quant_se))
+calcurve_se <- calcurve_se[is_marked == FALSE, ]
+quant_se <- quant_se[is_marked == FALSE, ]
+rowData(quant_se)$lloq <- rowData(calcurve_se)$lloq    # Copy the LLOQ values
+# Exclude the values outside the concentration range
+calcurve_se <- local({
+  cc <- calcurve_se
+  # Concentration values in a matrix, rows are chemicals and columns are concentrations
+  conc_mat <- matrix(rep(cc$c_conc, each = nrow(cc)), nrow = nrow(cc))
+  to_na <- conc_mat < rowData(cc)$min_conc | conc_mat > rowData(cc)$max_conc
+  assays(cc)$loess_norm[to_na] <- NA_real_
+  cc
+})
+```
+
+## Calibration curve per chemical
+
+The calibration curve of each of randomly selected 9 chemicals is presented below.
 
 ```{r}
 #| purl: true
 
 set.seed(7579)
-i_sel <- c(1:nrow(calcurve_se))
-i_sel <- i_sel[rowData(calcurve_se)$std_type != "Istd"]
-i_sel <- sample(i_sel, 9)
-calcurve_to_show_df0 <- tibble::as_tibble(calcurve_se[i_sel, ])
-# Linear model fitting
-calcurve_to_show_lmfit <- calcurve_to_show_df0 |> 
-  tidyr::nest(.by = c(metab_id, metab_name)) |> 
-  dplyr::mutate(
-    lmfit = lapply(data, \(.x) lm(formula = raw ~ conc, data = .x)),# weight = 1 / (conc ^ 2))),
-    rsq = sapply(lmfit, \(.x) summary(.x)$r.squared),
-  )
-
-# Fitted line layer
-fit_layer <- geom_smooth(
-  # aes(weight = 1 / (conc ^ 2)),
-  data = calcurve_to_show_df0,
-  method = "lm",
-  formula = y ~ x + I(x^2),
-  se = FALSE,
-  color = "cadetblue"
-)
-
+# Randomly selected 9 chemicals to present in calibration curve plots
+i_9chem_to_show <- local({
+  ii <- c(1:nrow(calcurve_se))
+  ii <- ii[rowData(calcurve_se)$std_type != "IS"]
+  sample(ii, 9)
+})
+calcurve_to_show_df0 <- tibble::as_tibble(calcurve_se[i_9chem_to_show, ])
 calcurve_to_show_df <- calcurve_to_show_df0 |> 
-  tidyr::drop_na(loess_norm)
+  tidyr::drop_na(loess_norm)        # Drop concentrations outside the range
 ```
 
-### Linear scale
+### Unprocessed data
 
-#### Before normalization
+The peak areas of the calibration samples are presented in the linear scale.
+The presented data includes all the concentrations that were trimmed out.
 
 ```{r}
-#| label: 'calcurve-per-metabolite-linear-before-norm'
+#| label: 'calcurve-per-chemical-linear-before-norm'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
-ggplot(calcurve_to_show_df0, aes(x = conc, y = raw)) +
+ggplot(calcurve_to_show_df0, aes(x = c_conc, y = raw)) +
   geom_point() +
   labs(
     x = "Concentration (ng/ml)",
     y = "Peak area (Raw)"
   ) +  
-  facet_wrap(~ metab_name, scales = "free_y", ncol = 3)
+  facet_wrap(~ chem_name, scales = "free_y", ncol = 3)
 ```
 
-#### After normalization
+### After normalization and narrowing the concentration range
 
-The peak areas were normalized by the internal standards.
-A line is fitted to the data points per metabolite.
-~~Here the weight in the linear regression is inversely proportional to the squared concentration.~~
+The peak areas were normalized by the internal standards applying the LOESS normalization.
+The concentration range was narrowed down to the range after the trimming step described in the [previous section](#concentration-ranges).
+
+#### Linear scale
 
 ```{r}
-#| label: 'calcurve-per-metabolite-linear'
+#| label: 'calcurve-per-chemical-linear'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
-ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
-  geom_text(
-    aes(x = Inf, y = -Inf, label = sprintf("R2 = %.2f", rsq)),
-    data = calcurve_to_show_lmfit,
-    hjust = 1.1,
-    vjust = -0.1,
-  ) +
-  fit_layer +
+p <- ggplot(calcurve_to_show_df, aes(x = c_conc, y = loess_norm)) +
   geom_point() +
   labs(
     x = "Concentration (ng/ml)",
     y = "Peak area (Normalized)"
   ) +  
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+  facet_wrap(~ chem_name, scales = "free", ncol = 3)
+print(p)
 ```
 
-
-### Log scale
-
-After normalization
+#### Log scale
 
 ```{r}
-#| label: 'calcurve-per-metabolite-log'
+#| label: 'calcurve-per-chemical-log'
 #| fig-width: 12
 #| fig-height: 11
-ggplot(calcurve_to_show_df, aes(x = conc, y = loess_norm)) +
-  geom_point() +
-  labs(
-    x = "Concentration (ng/ml)",
-    y = "Peak area (Normalized)"
-  ) +  
-  scale_x_log10() +
-  scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
-
+p + scale_x_log10() + scale_y_log10()
 ```
 
-#### After normalization by closest
+### After normalization by closest IS in RT
 
 ```{r}
-#| label: 'calcurve-per-metabolite-linear-closest'
+#| label: 'calcurve-per-chemical-linear-closest'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
-ggplot(calcurve_to_show_df, aes(x = conc, y = closest_norm)) +
+ggplot(calcurve_to_show_df, aes(x = c_conc, y = closest_norm)) +
   geom_point() +
   labs(
     x = "Concentration (ng/ml)",
     y = "Peak area (Normalized)"
   ) +  
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+  facet_wrap(~ chem_name, scales = "free", ncol = 3)
 ```
 
+## Calibration of the chemicals
 
-## Calibration of the metabolites
-
-The calibration curve is fitted to the [normalized data](#normalization) using a linear model ~~with the weights of $\frac{1}{x^2}$, where $x$ is the concentration~~.
-
-### All measurement samples
+The calibration curve is fitted to the [normalized data](#normalization) using 6 different models.
+Linear models and quadratic models are fitted to the data with three different weights, $1$, $\frac{1}{x}$ and $\frac{1}{x^2}$.
+The best model is selected based on the $R^2$ value.
 
 ```{r}
 #| label: 'calibration-data'
 #| purl: true
 
-build_calcurve_model <- function(conc, value) {
-  if (all(is.na(value))) {
-    return(function(x) rep(NA, length(x)))
-  }
-  lmfit <- lm(value ~ conc + I(conc^2))#, weights = 1 / (conc ^ 2))
+quadratic_calcurve_model <- function(conc, value, weights) {
+  lmfit <- lm(value ~ conc + I(conc^2), weights = weights)
   beta <- coef(lmfit)
   a <- beta[["I(conc^2)"]]
   b <- beta[["conc"]]
   cc <- beta[["(Intercept)"]]
-  function(x) {
+  out <- function(x) {
     det <- b ^ 2 - 4 * a * (cc - x)
-    out <- suppressWarnings((-b + sqrt(det)) / (2 * a))      # det < 0
-    out[det < 0 | out < 0] <- 0
-    out
+    conc <- suppressWarnings((-b + sqrt(det)) / (2 * a))      # det < 0
+    conc[conc < 0 | conc < 0] <- 0
+    conc
   }
+  attr(out, "R2") <- summary(lmfit)$r.squared
+  out
+}
+linear_calcurve_model <- function(conc, value, weights) {
+  lmfit <- lm(value ~ conc, weights = weights)
+  beta <- coef(lmfit)
+  b1 <- beta[["conc"]]
+  b0 <- beta[["(Intercept)"]]
+  out <- function(x) {
+    (x - b0) / b1
+  }
+  attr(out, "R2") <- summary(lmfit)$r.squared
+  out
 }
 
-#build_calcurve_model <- function(conc, value) {
-#  if (all(is.na(value))) {
-#    return(function(x) rep(NA, length(x)))
-#  }
-#  lmfit <- lm(value ~ conc, weights = 1 / (conc ^ 2))
-#  beta <- coef(lmfit)
-#  b1 <- beta[["conc"]]
-#  b0 <- beta[["(Intercept)"]]
-#  function(x) {
-#    (x - b0) / b1
-#  }
-#}
+build_calcurve_model <- function(conc, value) {
+  if (all(is.na(value) | value == 0)) {
+    return(list(
+      "best_model" = function(x) x,
+      "R2s" = NA,
+      "best_model_name" = NA_character_
+    ))
+  }
+  # Weight alternatives
+  weights_alt <- rlang::list2(
+    "1" = rep(1, length(conc)),
+    "1/x" = 1 / conc,
+    "1/x2" = 1 / (conc ^ 2),
+  )
+  # Linear and quadratic models
+  lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, value, weights = w))
+  names(lmodels) <- paste("linear", names(lmodels), sep = "-")
+  qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, value, weights = w))
+  names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
+  models <- c(lmodels, qmodels)
+  R2s <- sapply(models, \(f) attr(f, "R2"))
+  list(
+    "best_model" = models[[which.max(R2s)]],        # Best model by R2
+    "R2s" = R2s,
+    "best_model_name" = names(models)[which.max(R2s)]
+  )
+}
 
 # Fit the calibration curve
-conc <- calcurve_se$conc
+to_excl <- rownames(calcurve_se)[rowData(calcurve_se)$to_exclude]
+calcurve_se <- calcurve_se[]
+c_conc <- calcurve_se$c_conc
 rt_norm_mat <- assays(calcurve_se)$loess_norm
-calcurve_fit <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-  build_calcurve_model(conc, rt_norm_mat[ii, ])
+calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
+  build_calcurve_model(c_conc, rt_norm_mat[ii, ])
 })
-
-# Compute the concentration of the samples
-classes_to_incl <- unique(qstd_sumexp$Class) |> 
-  setdiff(c("CalCurve", "RTI"))      # Exclude the control samples
-measurements_se <- qstd_sumexp[, qstd_sumexp$Class %in% classes_to_incl]
-assays(measurements_se)$conc <- rowData(measurements_se)$metab_id |> 
-  sapply(function(metab_id) {
-    v <- assays(measurements_se)$loess_norm[metab_id, ]
-    calcurve_fit[[metab_id]](v)
-  }) |>
-    t()          # Metabolites to rows
 ```
 
-The concentration of the sample classes, `r knitr::combine_words(classes_to_incl)`, are computed using the calibration curve.
-Any negative concentration is set to zero.
+The distribution of $R^2$ values by different models for the calibration curves is compared below.
+
+```{r}
+#| label: 'calibration-R2-by-mmodels'
+
+R2s <- lapply(calcurve_models, \(m) m$R2s)
+R2s <- R2s[!is.na(R2s)] |> 
+  dplyr::bind_rows(.id = "chem_id") |> 
+  tidyr::pivot_longer(cols = -chem_id, names_to = "Model", values_to = "R2")
+
+ggplot(R2s) +
+  geom_boxplot(aes(x = Model, y = R2)) +
+  labs(
+    x = "Model",
+    y = expression(R^2)
+  )
+```
+
+The count of chemicals favoring each model is shown below.
+
+```{r}
+#| label: 'present-model-count-by-chem'
+#| results: 'markup'
+table(sapply(calcurve_models, \(m) m$best_model_name))
+```
+
+```{r}
+#| label: 'concentration-computation'
+#| purl: true
+# Compute the concentration of the samples skipping the calibration curve samples
+measurements_se <- quant_se[, ! quant_se$proc_cat %in% "CalCurve"]
+rowData(measurements_se)$c_conc <- NULL
+assays(measurements_se)$conc <- rowData(measurements_se)$chem_id |> 
+  sapply(function(chem_id) {
+    v <- assays(measurements_se)$loess_norm[chem_id, ]
+    calcurve_models[[chem_id]]$best_model(v)
+  }) |>
+    t()          # Chemicals to rows
+# Negative concentrations are adjusted to zero
+assays(measurements_se)$conc[assays(measurements_se)$conc < 0] <- 0
+# Maximum/minimum concentration after trimming out of each chemical
+maxmin_conc <- rowData(calcurve_se)[c("max_conc", "min_conc")]
+stopifnot(rownames(maxmin_conc) == rownames(calcurve_se))
+rowData(measurements_se) <- cbind(rowData(measurements_se), maxmin_conc)
+```
+
+The concentration of the sample classes, `r knitr::combine_words(unique(measurements_se$Class), before = "\x60")`,
+are computed using the calibration curve.
+Any negative concentration is adjusted to zero.
+
+```{r}
+#| purl: true
+
+# Table of the samples to show in the calibration curve
+data_to_show_tbl <- tibble::as_tibble(measurements_se[i_9chem_to_show, ]) |> 
+  tidyr::drop_na(conc)
+# Table about the selected calibration curve models
+models_to_show_tbl <- purrr::imap_dfr(calcurve_models, \(m, chem_id) {
+  tibble::tibble(
+    chem_id = chem_id,
+    best_model_name = m$best_model_name,
+    R2 = max(m$R2s),
+    model_r2 = paste0(best_model_name, "\nR2=", round(R2, 2)),
+    
+    chem_name = rowData(calcurve_se)[chem_id, ]$chem_name,
+    lloq = rowData(calcurve_se)[chem_id, ]$lloq,
+  )
+}) |> 
+  dplyr::slice(i_9chem_to_show)
+
+# Plot the calibration curve for each chemical with the samples in the calibration curve
+ggplot_calcurve_samples <- function(data) {
+  ggplot(data, aes(x = conc, y = loess_norm)) +
+    geom_point(aes(x = c_conc), data = calcurve_to_show_df) +     # Remaining calibration samples
+    geom_point(aes(color = Class)) +                    # Samples to measure
+    geom_rug(color = rgb(0.5, 0, 0, alpha = 0.2)) +     # Density of points at the edges of the plot
+    labs(
+      x = "Concentration (ng/ml)",
+      y = "Peak area (Normalized)"
+    ) +  
+    facet_wrap(~ chem_name, scales = "free", ncol = 3) +
+    geom_rect(         # Shade the region below the LLOQ
+      aes(xmin = 0, xmax = Inf, ymin = 0, ymax = lloq),
+      data = models_to_show_tbl,
+      fill = "grey10",
+      alpha = 0.5,
+      inherit.aes = FALSE
+    )
+}
+```
+
+### All measurement samples
+
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
 #### Linear scale
 
@@ -1132,19 +1377,8 @@ Any negative concentration is set to zero.
 #| label: 'calibration-curve-with-samples'
 #| fig-width: 12
 #| fig-height: 11
-measure_tbl <- tibble::as_tibble(measurements_se[i_sel, ])
-
-# Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
-  geom_point(data = calcurve_to_show_df) +
-  fit_layer +
-  geom_point(aes(color = Class)) +
-  geom_rug(color = rgb(0.5, 0, 0, alpha = 0.2)) +   # Density of points
-  labs(
-    x = "Concentration (ng/ml)",
-    y = "Peak area (Normalized)"
-  ) +  
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+data_to_show_tbl |> 
+  ggplot_calcurve_samples()
 ```
 
 #### Log scale
@@ -1153,48 +1387,25 @@ ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
 #| label: 'calibration-curve-with-samples-log'
 #| fig-width: 12
 #| fig-height: 11
-# Retrieve the coefficients of the linear model for the calibration curve
-metab_ids <- unique(measure_tbl$metab_id)
-# beta <- lapply(metab_ids, function(m_id) {
-#   eval(quote(c(cc, b, a)), environment(calcurve_fit[[m_id]]))
-# }) |> 
-#   do.call(what = rbind) |> 
-#   as.data.frame() |>
-#   setNames(c("cc", "b", "a")) |> 
-#   dplyr::mutate(
-#     metab_id = metab_ids, 
-#     metab_name = measure_tbl$metab_name[match(metab_id, measure_tbl$metab_id)]
-#   )
-# 
-# # All combination of metabolites and concentrations across all range
-# rg <- range(calcurve_to_show_df$conc, na.rm = TRUE)
-# calcurve_smooth <- tidyr::expand_grid(
-#   beta,
-#   conc = exp(seq(log(rg[1]), log(rg[2]), length.out = 100))
-# ) |> 
-#   dplyr::mutate(
-#     loess_norm = a * (conc^2) + b * conc + cc,
-#   ) |> 
-#   dplyr::filter(loess_norm > 0)
-
-# Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
-  geom_point(data = calcurve_to_show_df) +
-  # geom_line(data = calcurve_smooth, color = "cadetblue", alpha = 0.5) +
-  geom_point(aes(color = Class)) +
-  geom_rug(color = rgb(0.5, 0, 0, alpha = 0.2)) +   # Density of points
-  labs(
-    x = "Concentration (ng/ml)",
-    y = "Peak area (Normalized)"
-  ) +  
+data_to_show_tbl |> 
+  ggplot_calcurve_samples() +
   scale_x_log10() +
-  scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+  scale_y_log10()
 ```
 
-### `NormSample` and `Groundwater` samples
+### All except `QC` and `Blank` samples
 
-The data of the two classes are presented on the calibration curve.
+```{r}
+classes_excl_qc_blank <- local({
+  df <- colData(measurements_se)
+  unique(df$Class[!df$proc_cat %in% c("QC", "Blank")])
+})
+```
+
+The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.
+
+The best model name is displayed at the bottom right corner of each plot.
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
 #### Linear scale
 
@@ -1202,20 +1413,19 @@ The data of the two classes are presented on the calibration curve.
 #| label: 'calibration-curve-with-normsample'
 #| fig-width: 12
 #| fig-height: 11
-to_incl <- measurements_se$Class %in% c("NormSample", "Groundwater")
-measure_tbl <- tibble::as_tibble(measurements_se[i_sel, to_incl])
+geom_best_model_name <- geom_text(         # Display the best model name
+  aes(x = Inf, y = 0, label = model_r2),
+  data = models_to_show_tbl,
+  hjust = 1.1,
+  vjust = 0,
+  size = 4,
+  color = "cadetblue"
+)
 
-# Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
-  geom_point(data = calcurve_to_show_df) +
-  fit_layer +
-  geom_point(aes(color = Class)) +
-  geom_rug(color = rgb(0.5, 0, 0, alpha = 0.2)) +   # Density of points
-  labs(
-    x = "Concentration (ng/ml)",
-    y = "Peak area (Normalized)"
-  ) +  
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+data_to_show_tbl |> 
+  dplyr::filter(Class %in% classes_excl_qc_blank) |> 
+  ggplot_calcurve_samples() +
+  geom_best_model_name
 ```
 
 #### Log scale
@@ -1224,19 +1434,12 @@ ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
 #| label: 'calibration-curve-with-normsample-log'
 #| fig-width: 12
 #| fig-height: 11
-# Plot the calibration curve with the samples
-ggplot(measure_tbl, aes(x = conc, y = loess_norm)) +
-  geom_point(data = calcurve_to_show_df) +
-  # geom_line(data = calcurve_smooth, color = "cadetblue", alpha = 0.5) +
-  geom_point(aes(color = Class)) +
-  geom_rug(color = rgb(0.5, 0, 0, alpha = 0.2)) +   # Density of points
-  labs(
-    x = "Concentration (ng/ml)",
-    y = "Peak area (Normalized)"
-  ) +  
+data_to_show_tbl |> 
+  dplyr::filter(Class %in% classes_excl_qc_blank) |> 
+  ggplot_calcurve_samples() +
+  geom_best_model_name +
   scale_x_log10() +
-  scale_y_log10() +
-  facet_wrap(~ metab_name, scales = "free", ncol = 3)
+  scale_y_log10()
 ```
 
 # Concentration
@@ -1247,10 +1450,11 @@ The distribution of the concentration of the samples is shown below.
 ```{r}
 #| label: 'concentration-distribution-by-sample'
 #| fig-width: 12
+#| fig-height: 10
 ggplot(measurements_se) +
-  geom_boxplot(aes(x = sample_name, y = conc, fill = Class)) +
+  geom_boxplot(aes(x = given_sample_id, y = conc, fill = Class)) +
   labs(
-    title = "Concentration distribution by class", 
+    title = "Concentration distribution by sample", 
     x = "Sample ID",
     y = "Concentration (ng/ml)",
   ) +
@@ -1260,14 +1464,14 @@ ggplot(measurements_se) +
 ```
 
 ```{r}
-#| label: 'concentration-distribution-by-metabolite'
+#| label: 'concentration-distribution-by-chemical'
 #| fig-width: 12
 #| fig-height: 20
 ggplot(measurements_se) +
-  geom_boxplot(aes(x = metab_name, y = conc)) +
+  geom_boxplot(aes(x = chem_name, y = conc)) +
   labs(
-    title = "Concentration distribution by metabolite", 
-    x = "Metabolite",
+    title = "Concentration distribution by chemical", 
+    x = "Chemical",
     y = "Concentration (ng/ml)",
   ) +
   # Turn the x-axis title to vertical
@@ -1280,12 +1484,12 @@ ggplot(measurements_se) +
 #| label: 'write-concentration-table'
 # Write the concentration table
 write_concentration_tsv <- function(sumexp, file) {
-  # Prepare the metabolite table
-  metab_columns <- SummarizedExperiment::rowData(sumexp) |> 
+  # Prepare the chemical table
+  chem_columns <- SummarizedExperiment::rowData(sumexp) |> 
     tibble::as_tibble() |> 
     dplyr::select(
       `Alignment ID` = alignment_id,
-      `Metabolite name` = metab_name,
+      `Chemical name` = chem_name,
       `Average Mz` = mz,
       `Average Rt(min)` = rt,
     )
@@ -1294,10 +1498,10 @@ write_concentration_tsv <- function(sumexp, file) {
     round(3) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$sample_name
-  readr::write_tsv(dplyr::bind_cols(metab_columns, conc_df), file)
+  colnames(conc_df) <- colData(sumexp)$given_sample_id
+  readr::write_tsv(dplyr::bind_cols(chem_columns, conc_df), file)
 }
-write_concentration_tsv(measurements_se, FILE$o)
+write_concentration_tsv(measurements_se, FILE$o$conc)
 ```
 
 

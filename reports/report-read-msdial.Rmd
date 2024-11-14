@@ -98,11 +98,12 @@ fetch_sample_info <- function(msdial_file, indices) {
       as.numeric()
   }
   sinfo <- sinfo |> 
-    dplyr::mutate(conc = ifelse(proc_cat == "CalCurve", 
-                                find_concentration(given_sample_id),
-                                NA_real_))
+    dplyr::mutate(
+      c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_),
+      injection_order = as.integer(injection_order),
+    )
   stopifnot(
-    "Error in Calibration sample IDs" = all(! is.na(sinfo$conc[sinfo$proc_cat == "CalCurve"]))
+    "Error in Calibration sample IDs" = all(! is.na(sinfo$c_conc[sinfo$proc_cat == "CalCurve"]))
   )
   return(sinfo)
 }
@@ -213,9 +214,9 @@ Concentration is extracted from the numeric part in the format after the replace
 # Present the sample IDs for the calibration curve
 df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
-  dplyr::arrange(conc)
+  dplyr::arrange(c_conc)
 df_show |> 
-  dplyr::select(given_sample_id, conc) |>
+  dplyr::select(given_sample_id, c_conc) |>
   knitr::kable(
     col.names = c("Sample ID", "Concentration (ng/ml)"),
     format.args = list(scientific = FALSE)
@@ -229,7 +230,7 @@ df_show |>
 ```{r}
 #| label: 'calcurve-samples-summary'
 # Present the number of samples in the calibration curve
-table(df_show$conc) |> 
+table(df_show$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
     col.names = c("Concentration (ng/ml)", "Number of samples")

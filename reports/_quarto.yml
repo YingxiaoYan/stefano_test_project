@@ -19,6 +19,7 @@ format:
   html: 
     css: "styles.css"
     toc-depth: 3
+    echo: true
     code-fold: true
     toc-location: left
     embed-resources: true
@@ -28,9 +29,12 @@ format:
     fig-height: 6
     out-width: "100%"
     fig-align: "default"
+  
+  pdf:
+    echo: false 
+    fig-align: center  # Assure line breaks between figures
 
 execute:
-  echo: true
   output: asis
   warning: false    # No warning
 
