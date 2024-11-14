@@ -639,7 +639,7 @@ df_to_show |>
   dplyr::select(QC, chem_name, dplyr::all_of(unname(assay_ids))) |> 
   dplyr::rename(all_of(assay_ids), `Chemical` = chem_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
-  kableExtra::kable_classic(bootstrap_options = "striped", full_width = FALSE) |>
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |>
   kableExtra::scroll_box(height = "300px")
 ```
 
@@ -782,7 +782,7 @@ rowData(calcurve_se) |>
                   "Excluded?"), 
     align = c("l", "r", "r", "r"),
   ) |> 
-  kableExtra::kable_classic(bootstrap_options = "striped", full_width = FALSE) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
   kableExtra::scroll_box(height = "350px")
 ```
 
