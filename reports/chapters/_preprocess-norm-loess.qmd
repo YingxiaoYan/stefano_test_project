@@ -1,0 +1,209 @@
+
+
+For each chemical, the average of all samples excluding 
+`r knitr::combine_words(excluded_category_for_normalization, before = "\x60")`
+samples was calculated after log-transformation.
+The deviation of each sample from the average was calculated as normalization factor.
+The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) chemicals along RT.
+The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all chemicals. 
+The normalization factors of those at the boundaries of IS are used for the boundary RT values of all chemicals.
+The normalized data are calculated by subtracting the normalization factor from the log-transformed data.
+
+Randomly selected 3 samples are shown below.
+```{r}
+#| label: 'normalize-rt-plot'
+#| fig-width: 14
+#| fig-height: 12
+
+to_excl <- overall_sumexp$proc_cat %in% excluded_category_for_normalization
+# Plot the normalized and original data for randomly selected 3 samples
+i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
+
+# To include LOESS smooth line
+x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
+loess_curve_df <- lapply(setNames(i_sel, colnames(overall_sumexp)[i_sel]), function(ii) {
+  predict(loess_fit[[ii]], newdata = x)
+}) |> 
+  as.data.frame() |> 
+  dplyr::mutate(rt = x) |>
+  tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
+loess_curve_df$sample_name <-
+  overall_sumexp$given_sample_id[match(loess_curve_df$sample_id, overall_sumexp$sample_id)]
+
+# Log-transform the data
+raw_log <- log(assays(overall_sumexp)$raw)
+# Overall mean of every chemical
+mat <- raw_log[, !to_excl, drop = FALSE]
+mat[is.finite(mat) == FALSE] <- NA    # Visualization purpose only
+mean_log <- rowMeans(mat, na.rm = TRUE)
+# Deviation from the mean
+selected_se <- overall_sumexp[, i_sel]
+assays(selected_se) <- assays(selected_se) |> 
+  lapply(\(x) sweep(log(x), 1, mean_log, FUN = "-"))
+
+df_to_show <- tibble::as_tibble(selected_se) |>
+  dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = given_sample_id) |>
+  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
+  dplyr::mutate(
+    Type = ifelse(std_type == "", "non-target", std_type),
+    Type = factor(Type, levels = c("IS", "Quant", "non-target"))
+  ) |> 
+  dplyr::arrange(desc(Type)) # To show IS on top
+
+# Plot the normalized and original data
+ggplot(df_to_show, aes(x = rt, y = Value)) + 
+  geom_point(aes(color = Data, shape = Type, size = Type, alpha = Type)) +
+  geom_line(data = loess_curve_df, alpha = 0.5) +
+  labs(
+    title = "Normalized and original data",
+    x = "Average RT", 
+    y = "log(Values) - log(avg)"
+  ) +
+  scale_shape_manual(values = c("IS" = 15, "Quant" = 21, "non-target" = 20)) +
+  scale_size_manual(values = c("IS" = 3, "Quant" = 3, "non-target" = 1)) +
+  scale_alpha_manual(values = c("IS" = 1, "Quant" = 1, "non-target" = 0.1)) +
+  facet_wrap(~ sample_name, scales = "free_y", ncol = 3)
+```
+
+The line in the graph represents the LOESS fit.
+The points at the bottom boundary are the **0**s, which were not normalized by this process.
+Those zeros were kept as zeros in the normalized data.
+
+#### Evaluation of normalization
+
+The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard chemicals of the QC samples.
+```{r}
+#| label: 'rsd-eval'
+#| out-width: '80%'
+
+# Quantification standard chemicals of QC samples
+qc_se <- proc$extract_quant_qc(overall_sumexp)
+# Calculate RSD of the quantification standard samples
+assay_ids <- setNames(c("raw", "loess_norm"), nm = c("Raw", "LOESS Normalized"))
+rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |> 
+  dplyr::mutate(
+    sign = ifelse(raw > loess_norm, "↓", "↑"),
+    sign = ifelse(is.na(sign), "All 0s", sign),
+    sign = factor(sign, levels = c("↓", "↑", "All 0s"))
+  ) 
+ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+  aes(color = sign) +
+  scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
+  facet_grid(~ QC)
+```
+
+The number of chemicals with higher/lower RSD after normalization is counted below.
+```{r}
+#| label: 'rsd-count'
+#| results: 'markup'
+rsd_qstd |> 
+  janitor::tabyl(QC, sign)
+```
+
+Bar charts of the values of standard chemicals are compared for raw and normalized data.
+
+```{r}
+#| fig-width: 14
+#| fig-height: 6
+#| out-width: '100%'
+
+se <- overall_sumexp
+df_show <- se[rowData(se)$std_type %in% c("Quant", "IS"), ] |> 
+  tibble::as_tibble() |> 
+  tidyr::pivot_longer(cols = c(raw, loess_norm), names_to = "Data", values_to = "Value") |> 
+  dplyr::mutate(
+    Data = factor(Data, levels = c("raw", "loess_norm"), labels = c("Raw", "LOESS Normalized"))
+  )
+df_show |> 
+  dplyr::filter(std_type == "Quant", proc_cat == "") |> 
+  ggplot() +
+  geom_col(aes(x = injection_order, y = Value, fill = Class)) +
+  labs(title = "Quantification standards", x = "Injection order") +
+  facet_wrap(~ Data, scales = "free_y")
+
+df1 <- df_show |> 
+  dplyr::filter(std_type == "IS") |> 
+  dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c(injection_order, Data))
+ggplot(df1, aes(x = injection_order)) +
+  geom_col(aes(y = Value, fill = Class)) +
+  labs(title = "Internal standards", x = "Injection order") +
+  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+  facet_wrap(~ Data, scales = "free_y")
+
+ggplot(df1, aes(x = injection_order)) +
+  geom_col(aes(y = Value, fill = chem_name)) +
+  labs(title = "Internal standards", x = "Injection order") +
+  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+  facet_wrap(~ Data, scales = "free_y")
+```
+
+### Comparison of the normalization methods
+
+The RSD% of the quantification standard samples is calculated for the raw data and the normalized data.
+
+```{r}
+#| label: 'norm-method-comparison'
+#| out-width: '80%'
+
+assay_ids <- setNames(c("raw", "closest_norm", "loess_norm"), nm = c("Raw", "Closest", "LOESS"))
+df_to_show <- proc$extract_quant_qc(overall_sumexp) |> 
+  proc$calc_rsd_qstd(assay_ids) |> 
+  dplyr::mutate(
+    sign = ifelse(loess_norm <= closest_norm, "↓ LOESS", "↓ Closest"),
+    sign = ifelse(is.na(sign), "All 0s", sign),
+    sign = factor(sign, levels = c("↓ LOESS", "↓ Closest", "All 0s"))
+  ) 
+ggplot_rsdp_metab(df_to_show, assay_ids) +
+  aes(color = sign) +
+  scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
+  facet_grid(~ QC)
+```
+
+The number of chemicals with lower RSD after each normalization is counted below.
+
+```{r}
+#| label: 'rsd-comparison-count'
+#| results: 'markup'
+# Count the number of chemicals with lower RSD
+df_to_show |> 
+  janitor::tabyl(QC, sign)
+```
+
+The number of compounds above or below 20 RSD% is counted below.
+
+```{r}
+#| label: 'rsd-comparison-count-20'
+df_to_show |> 
+  dplyr::summarize(
+    dplyr::across(
+      dplyr::all_of(unname(assay_ids)), 
+      ~ sum(.x > 20, na.rm = TRUE), 
+      .names = "{.col}_gt_20"
+    ),
+    dplyr::across(
+      dplyr::all_of(unname(assay_ids)), 
+      ~ sum(.x <= 20, na.rm = TRUE), 
+      .names = "{.col}_eq_lt_20"
+    ),
+    .by = QC
+  ) |>  
+  knitr::kable(
+    caption = "Number of chemicals with RSD% above or below 20", 
+    col.names = c("QC", rep(names(assay_ids), 2))
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
+  kableExtra::add_header_above(c(" " = 1, "RSD > 20%" = 3, "RSD ≤ 20%" = 3)) 
+```
+
+The RSD% values are presented in the table below.
+
+```{r}
+#| label: 'rsd-comparison-table'
+df_to_show |> 
+  dplyr::left_join(as.data.frame(rowData(overall_sumexp)), by = "chem_id") |>   # Add chemical names
+  dplyr::select(QC, chem_name, dplyr::all_of(unname(assay_ids))) |> 
+  dplyr::rename(all_of(assay_ids), `Chemical` = chem_name) |> 
+  knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |>
+  kableExtra::scroll_box(height = "300px")
+```

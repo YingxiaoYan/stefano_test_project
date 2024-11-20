@@ -19,21 +19,23 @@ ui <- fluidPage(
   titlePanel("Read MS-Dial output files"),
   sidebarLayout(
     sidebarPanel(
-      # Select a file
-      shinyFiles::shinyFilesButton(
-        id = "file", 
-        label = "Select a file", 
-        title = "Please select a file:",
-        multiple = FALSE
-      )
-      #   
-      # fileInput(
-      #   "file",
-      #   "Select a file",
-      #   accept = c("text/tsv", "text/tab-separated-values,text/plain", ".tsv", ".txt"),
-      #   placeholder = "No file selected"
-      # ), 
-      # downloadButton("report", "Generate report")
+      fileInput(
+        inputId = "file1",
+        label = "Select a file",
+        accept = c(
+          "text/tsv",
+          "text/tab-separated-values,text/plain",
+          ".tsv",
+          ".txt"
+        )
+      ), 
+      # # Select a file
+      # shinyFiles::shinyFilesButton(
+      #   id = "file", 
+      #   label = "Select a file", 
+      #   title = "Please select a file:",
+      #   multiple = FALSE
+      # )
     ),
     mainPanel(
       textOutput("report")
@@ -44,33 +46,36 @@ ui <- fluidPage(
 # Define server logic 
 server <- function(input, output, session) {
   roots <- c(data = "../data/")
-  observe({
-    # Select a file
-    shinyFiles::shinyFileChoose(
-      input,
-      "file",
-      session = session,
-      filetypes = c("", "tsv", "txt"),
-      roots = roots
-    )
-    
-    if (!is.null(input$file)) {
-      file_selected <- shinyFiles::parseFilePaths(roots, input$file)
-      output$report <- renderText({
-        out_file <- file_selected$name |> 
-          tools::file_path_sans_ext() |>
-          paste0(".html")
-        p <- quarto::quarto_render(
-          input = "reports/report-read-msdial.Rmd",
-          output_format = "html",
-          output_file = basename(out_file),
-          execute_params = rlang::list2(
-            input_file = file_selected$name,
-          )
-        )
-        "Done"
-      })
-    }
+  
+  # input_file <- reactive({
+  #   # Select a file
+  #   shinyFiles::shinyFileChoose(
+  #     input,
+  #     "file",
+  #     session = session,
+  #     filetypes = c("", "tsv", "txt"),
+  #     roots = roots
+  #   )
+  # })
+  
+  # if (!is.null(input_file)) {
+  # file_selected <- shinyFiles::parseFilePaths(roots, input_file)
+  output$report <- renderText({
+    out_file <- input$file1 |> 
+      tools::file_path_sans_ext() |>
+      paste0(".html")
+    # p <- quarto::quarto_render(
+    #   input = "reports/report-read-msdial.Rmd",
+    #   output_format = "html",
+    #   output_file = basename(out_file),
+    #   execute_params = rlang::list2(
+    #     input_file = file_selected$name,
+    #   )
+    # )
+    out_file
+    #   "Done"
+  })
+  # }
 #  # Render the report
 #  output$report <- shiny::downloadHandler(
 #    filename = function() {
@@ -96,7 +101,6 @@ server <- function(input, output, session) {
 #      p
 #    }
 #  )
-  })
 }
 
 # Run the application 

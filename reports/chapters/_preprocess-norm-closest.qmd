@@ -1,0 +1,33 @@
+
+The closest internal standard chemicals to each chemical will be identified based on the retention time.
+The measured peak area of each chemical will be divided by the peak area of the closest internal standard chemical.
+
+#### Evaluation of normalization
+
+```{r}
+#| label: 'evaluation-normalization-closest-istd'
+#| out-width: '80%'
+
+# Quantification standard samples
+qc_se <- proc$extract_quant_qc(overall_sumexp)
+
+assay_ids <- setNames(c("raw", "closest_norm"), nm = c("Raw", "Closest IS Normalized"))
+rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |> 
+  dplyr::mutate(
+    sign = ifelse(raw > closest_norm, "↓", "↑"),
+    sign = ifelse(is.na(sign), "All 0s", sign),
+    sign = factor(sign, levels = c("↓", "↑", "All 0s"))
+  ) 
+ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+  aes(color = sign) +
+  scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
+  facet_grid(~ QC)
+```
+
+The number of chemicals with higher/lower RSD after normalization is counted below.
+```{r}
+#| label: 'evaluation-normalization-closest-istd-count'
+#| results: 'markup'
+rsd_qstd |> 
+  janitor::tabyl(QC, sign)
+```

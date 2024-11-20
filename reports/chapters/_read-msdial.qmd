@@ -1,0 +1,117 @@
+---
+title: "Read MS-DIAL output file"
+---
+
+Given file: `` `r S4Vectors::metadata(overall_sumexp)$file_name` `` 
+
+The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(overall_sumexp)` samples.
+
+## Samples
+
+### By class
+
+There are `r dplyr::n_distinct(overall_sumexp$Class)` classes of samples in the data.
+The number of samples for each class is as follows:
+
+```{r}
+table(overall_sumexp$Class) |> 
+  knitr::kable(col.names = c("Class", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+### Special categories for preprocessing
+
+There are `r length(table(overall_sumexp$proc_cat, exclude = ""))` special sample categories for in the data.
+The data of those are important in the following processing steps.
+The number of samples for each category is as follows:
+
+```{r}
+table(overall_sumexp$proc_cat, exclude = "") |> 
+  knitr::kable(col.names = c("Category", "Number of samples")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+#### Calibration curve samples
+
+The samples for the calibration curve are identified by the sample type `Standard` and class `CalCurve`.
+The concentration is extracted from the provided sample ID.
+The IDs are in the format `Cal_[[:digit:]-]+` with optional numbers and/or characters before and after of it. 
+Concentration is extracted from the numeric part in the format after the replacement of `-` with `.`.
+
+##### Sample IDs
+
+```{r}
+# Present the sample IDs for the calibration curve
+df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
+  tibble::as_tibble() |> 
+  dplyr::arrange(c_conc)
+df_show |> 
+  dplyr::select(given_sample_id, c_conc) |>
+  knitr::kable(
+    col.names = c("Sample ID", "Concentration (ng/ml)"),
+    format.args = list(scientific = FALSE)
+  ) |> 
+  kableExtra::kable_classic(full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "160px")
+```
+
+##### The number of samples per concentration
+
+```{r}
+#| label: 'calcurve-samples-summary'
+# Present the number of samples in the calibration curve
+table(df_show$c_conc) |> 
+  knitr::kable(
+    align = c("r", "r"),
+    col.names = c("Concentration (ng/ml)", "Number of samples")
+  ) |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+#### Quality control samples
+
+Aliquots of some samples were measured as technical replicates for quality control.
+The number of the replicates were as below.
+
+```{r}
+msdial$extract_qc_samples_to_list(overall_sumexp) |> 
+  sapply(ncol) |> 
+  knitr::kable(col.names = c("Sample ID", "Number of replicates")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## Chemicals
+
+The data contained `r nrow(overall_sumexp)` chemicals.
+Among them, `r sum(rowData(overall_sumexp)$std_type != "")` chemicals were targeted. 
+The rest were not targeted.
+
+For those targeted chemicals, the standard type was specified.
+The number of chemicals for each type is as follows:
+
+```{r}
+table(rowData(targeted_chems_se)$std_type) |> 
+  knitr::kable(col.names = c("Standard Type", "Number of chemicals")) |> 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## Distribution of the values
+
+* Overall samples and targeted chemicals
+
+As shown below, the values are distributed in a skewed manner.
+
+```{r}
+#| label: 'distribution-values-overall-linear'
+#| fig-width: 16 
+#| fig-height: 6
+#| out-width: '100%'
+
+p <- ggplot(overall_sumexp) +
+    geom_histogram(aes(x = raw), bins = 50)
+gridExtra::grid.arrange(   # Two ggplots next to each other
+  p + labs(title = "Linear scale", x = "Values"),
+  p + scale_x_log10() + labs(title = "Logarithmic scale", x = "Values"),
+  ncol = 2
+)
+```
