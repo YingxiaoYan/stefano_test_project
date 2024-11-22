@@ -19,7 +19,7 @@ format:
   html: 
     css: "styles.css"
     toc-depth: 3
-    echo: true
+    echo: false
     code-fold: true
     toc-location: left
     embed-resources: true

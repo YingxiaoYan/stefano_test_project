@@ -74,9 +74,9 @@ Aliquots of some samples were measured as technical replicates for quality contr
 The number of the replicates were as below.
 
 ```{r}
-msdial$extract_qc_samples_to_list(overall_sumexp) |> 
+proc$extract_qc_samples_to_list(overall_sumexp) |> 
   sapply(ncol) |> 
-  knitr::kable(col.names = c("Sample ID", "Number of replicates")) |> 
+  knitr::kable(col.names = c("Class", "Number of replicates")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 

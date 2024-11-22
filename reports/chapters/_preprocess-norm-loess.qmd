@@ -86,7 +86,7 @@ rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |>
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))
   ) 
-ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+show$ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)
@@ -119,22 +119,54 @@ df_show |>
   ggplot() +
   geom_col(aes(x = injection_order, y = Value, fill = Class)) +
   labs(title = "Quantification standards", x = "Injection order") +
-  facet_wrap(~ Data, scales = "free_y")
+  facet_wrap(~ Data, scales = "free_y") + 
+  scale_y_log10()
 
 df1 <- df_show |> 
   dplyr::filter(std_type == "IS") |> 
   dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c(injection_order, Data))
-ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = Class)) +
-  labs(title = "Internal standards", x = "Injection order") +
-  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-  facet_wrap(~ Data, scales = "free_y")
 
-ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = chem_name)) +
-  labs(title = "Internal standards", x = "Injection order") +
-  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-  facet_wrap(~ Data, scales = "free_y")
+plotly::ggplotly(
+  ggplot(df1, aes(x = injection_order)) +
+    geom_col(aes(y = Value, fill = Class)) +
+    labs(title = "Internal standards", x = "Injection order") +
+    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+    facet_wrap(~ Data, scales = "free_y")
+)
+plotly::ggplotly(
+  ggplot(df1, aes(x = injection_order)) +
+    geom_col(aes(y = Value, fill = chem_name)) +
+    labs(
+      title = "Internal standards", 
+      x = "Injection order",
+      fill = "Chemical name"
+    ) +
+    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+    facet_wrap(~ Data, scales = "free_y")
+)
+```
+
+Principal component analysis (PCA) is performed to evaluate the normalization.
+```{r}
+#| label: 'pca'
+#| fig-width: 14
+#| fig-height: 6
+#| out-width: '100%'
+
+# PCA
+se <- overall_sumexp
+se <- se[SummarizedExperiment::rowData(se)$std_type == "IS", ]
+assay_ids <- setNames(nm = c("raw", "loess_norm"))
+pca_res <- lapply(assay_ids, \(.x) {
+  mat <- SummarizedExperiment::assay(se, .x)
+  stats::prcomp(t(mat), scale. = TRUE)
+})
+se_df <- SummarizedExperiment::colData(se)
+# Plot
+p1 <- ggplot2::autoplot(pca_res$raw, data = se_df, colour = "Class")
+p2 <- ggplot2::autoplot(pca_res$loess_norm, data = se_df, colour = "Class")
+# Requires patchwork package
+p1 + p2 + patchwork::plot_layout(ncol = 2)
 ```
 
 ### Comparison of the normalization methods
@@ -153,7 +185,7 @@ df_to_show <- proc$extract_quant_qc(overall_sumexp) |>
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓ LOESS", "↓ Closest", "All 0s"))
   ) 
-ggplot_rsdp_metab(df_to_show, assay_ids) +
+show$ggplot_rsdp_metab(df_to_show, assay_ids) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)

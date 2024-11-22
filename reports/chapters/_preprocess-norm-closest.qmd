@@ -18,7 +18,7 @@ rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |>
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))
   ) 
-ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+show$ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)

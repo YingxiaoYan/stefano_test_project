@@ -137,15 +137,14 @@ read_parsed_msdial_data <- function(params, r_script = "code/scripts/read-msdial
   return(sumexp)
 }
 
-
-#' Write the LOESS normalized data
+#' Export data with the chemical table to a tab-separated file
 #'
 #' @param sumexp A SummarizedExperiment object
-#' @param assay The name of the assay to be written
+#' @param assay_id The name of the data in `sumexp` (or assay) to be exported
 #' @param in_file Path to the MS-DIAL output file that was used to create `sumexp`
 #' @param out_file Path to the output tab-separated file
 #' @export
-write_normalized_data_tsv <- function(sumexp, assay, in_file, out_file) {
+export_data_with_chem_table_tsv <- function(sumexp, assay_id, in_file, out_file) {
   # Prepare the chemical table
   i_sec <- get_three_section_indices(in_file)
   intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
@@ -153,7 +152,7 @@ write_normalized_data_tsv <- function(sumexp, assay, in_file, out_file) {
     intact_chem_cols$"Alignment ID" == SummarizedExperiment::rowData(sumexp)$alignment_id
   )
   # Prepare the data table
-  df_x <- SummarizedExperiment::assay(sumexp, assay) |> 
+  df_x <- SummarizedExperiment::assay(sumexp, assay_id) |> 
     round(0) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
@@ -162,30 +161,27 @@ write_normalized_data_tsv <- function(sumexp, assay, in_file, out_file) {
   readr::write_tsv(df_x, file = out_file)
 }
 
-#' Extract QC samples into list
+#' Export the concentration table
 #'
-#' @param se A SummarizedExperiment object
-#'
-#' @return A list of SummarizedExperiment objects divided by QC Classes
+#' @param sumexp A SummarizedExperiment object to be exported
+#' @param file Path to the output tab-separated file
 #' @export
-extract_qc_samples_to_list <- function(se) {
-  se <- se[, se$proc_cat == "QC"]
-  qc_id <- se$Class
-  # Column-wise split
-  lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
+export_concentration_tsv <- function(sumexp, file) {
+  # Prepare the chemical table
+  chem_columns <- SummarizedExperiment::rowData(sumexp) |> 
+    tibble::as_tibble() |> 
+    dplyr::select(
+      `Alignment ID` = alignment_id,
+      `Chemical name` = chem_name,
+      `Average Mz` = mz,
+      `Average Rt(min)` = rt,
+    )
+  # Prepare the concentration table
+  conc_df <- SummarizedExperiment::assay(sumexp, "conc") |> 
+    round(3) |>     # Reduce the number of decimals
+    tibble::as_tibble()
+  # Original sample ID
+  colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$given_sample_id
+  conc_df <- dplyr::bind_cols(chem_columns, conc_df)
+  readr::write_tsv(conc_df, file)
 }
-
-#' Get the internal standard chemicals from a SummarizedExperiment object
-#'
-#' @param se A SummarizedExperiment object
-#'
-#' @return A SummarizedExperiment object with the internal standard chemicals
-#' @export
-get_internal_std_se <- function(se) {
-  # Extract the internal standard chemicals
-  se <- se[SummarizedExperiment::rowData(se)$std_type == "IS", ]
-  # Sort by average retention time
-  se <- se[order(SummarizedExperiment::rowData(se)$rt), ]
-  return(se)
-}
-

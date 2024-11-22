@@ -12,6 +12,7 @@ options(
 )
 box::use(
   projlib/msdial,     # Handle MS-Dial files and data
+  projlib/proc,       # Preprocessing functions
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
   SummarizedExperiment[rowData, `rowData<-`, colData, `colData<-`, assays, `assays<-`],

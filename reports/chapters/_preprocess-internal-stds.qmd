@@ -130,7 +130,7 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 #| label: 'rsd-internal-standards-by-qc-samples'
 # Divide the internal standard chemicals by quality control sample
 # Calculate RSD% per internal standard chemical and per quality control sample
-df1 <- msdial$extract_qc_samples_to_list(internal_std_se) |> 
+df1 <- proc$extract_qc_samples_to_list(internal_std_se) |> 
   sapply(\(se) apply(assays(se)$raw, 1, \(.x) round(proc$rsd_perc(.x), 2)))
 stopifnot(rownames(df1) == rownames(internal_std_se))
 rownames(df1) <- rowData(internal_std_se)$chem_name

@@ -1,0 +1,60 @@
+## Calibration curve samples
+
+The data of the samples for the calibration curve is extracted from the quantification samples after the outlier removal and normalization.
+The samples with a concentration of `0` are separated as the zero samples.
+The data of the zeros is used to calculate lower-limits of quantification (LLOQ) and lower-limits of detection (LLOD).
+
+The number of samples in the calibration curve after outlier removal is presented below.
+
+```{r}
+#| label: 'calcurve-samples-summary-calibration'
+# Present the number of samples in the calibration curve
+table(calcurve_se$c_conc) |> 
+  knitr::kable(
+    align = c("r", "r"),
+    col.names = c("Concentration (ng/ml)", "Number of samples")
+  ) |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+## Concentration ranges
+
+The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using the zero concentration samples.
+The LLOD has been determined as the lowest concentration, for which the average signal of calibration samples were larger than 3 times of the mean of zero concentration samples. 
+Likewise, the LLOQ has been determined with 10 times of the mean of zero concentration samples.
+When the values of calibration samples for the LLOQ concentration had high variability, relative standard deviation (RSD) > 20%, the LLOQ has been chosen as the lowest higher concentration that satisfies RSD < 20%.
+All concentrations below the LLOQ are excluded from the calibration curve.
+
+Quite a few concentrations of calibration curve samples of a chemical may be too far from the range of the measured samples. 
+When there are enough (≥ 5) number of concentration points, the maximum concentration of the calibration curve is adjusted. 
+The concentrations were excluded for which the peak areas after normalization were more than 10 times higher than the **maximum** peak area of the samples excluding `CalCurve` and `QC` categories.
+
+When the LLOQ is so high that the number of concentration points left is smaller than 3, the chemical is excluded from the calibration curve.
+`r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
+
+Concentration range of each chemical is presented below.
+
+```{r}
+#| label: 'calcurve-conc-range-table'
+
+rowData(calcurve_se) |> 
+  tibble::as_tibble() |> 
+  dplyr::mutate(
+    llod = scales::number(llod),
+    lloq = ifelse(is.na(lloq), "All < LLOQ or RSD% > 20%", scales::number(lloq)),
+    max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)),
+    to_exclude = ifelse(to_exclude, "Excluded", "")
+  ) |>
+  dplyr::select(chem_name, llod, lloq, max_c_conc, to_exclude) |>
+  knitr::kable(
+    caption = "Concentration range of the calibration curve samples",
+    col.names = c("Chemical",
+                  "LLOD (ng/ml)",
+                  "LLOQ (ng/ml)",
+                  "Maximum concentration (ng/ml)",
+                  "Excluded?"), 
+    align = "lrrrr",
+  ) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "350px")
+```

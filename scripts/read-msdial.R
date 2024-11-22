@@ -87,11 +87,11 @@ sample_info <- sample_info |>
     c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_),
     injection_order = as.integer(injection_order),
   )
+calcurve_conc <- sample_info$c_conc[sample_info$proc_cat == "CalCurve"]
 stopifnot(
-  "Error in Calibration sample IDs" =
-    all(!is.na(sample_info$c_conc[sample_info$proc_cat == "CalCurve"])), 
-  "Multiple curve samples per concentration are required." = 
-    all(table(sample_info$c_conc[sample_info$proc_cat == "CalCurve"]) > 1)
+  "Error in Calibration sample IDs" = all(!is.na(calcurve_conc)), 
+  "`Cal_0` samples are required." = any(calcurve_conc == 0),
+  "Multiple curve samples per concentration are required." = all(table(calcurve_conc) > 1)
 )
 
 # Into SummarizedExperiment
