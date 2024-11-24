@@ -96,7 +96,8 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| label: 'calibration-curve-with-samples'
 #| fig-width: 12
 #| fig-height: 11
-show$ggplot_calcurve_samples(to_show_se, calcurve_se, calcurve_models, DATA_ID)
+show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
+  labs(y = names(DATA_ID))
 ```
 
 #### Log scale
@@ -105,7 +106,7 @@ show$ggplot_calcurve_samples(to_show_se, calcurve_se, calcurve_models, DATA_ID)
 #| label: 'calibration-curve-with-samples-log'
 #| fig-width: 12
 #| fig-height: 11
-show$ggplot_calcurve_samples(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
+show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
   scale_x_log10() +
   scale_y_log10()
 ```
@@ -151,7 +152,7 @@ geom_best_model_name <- geom_text(         # Display the best model name
 )
 
 to_show_se[, to_show_se$Class %in% classes_excl_qc_blank] |> 
-  show$ggplot_calcurve_samples(calcurve_se, calcurve_models, DATA_ID) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
   geom_best_model_name
 ```
 
@@ -162,7 +163,7 @@ to_show_se[, to_show_se$Class %in% classes_excl_qc_blank] |>
 #| fig-width: 12
 #| fig-height: 11
 to_show_se[, to_show_se$Class %in% classes_excl_qc_blank] |> 
-  show$ggplot_calcurve_samples(calcurve_se, calcurve_models, DATA_ID) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
   geom_best_model_name +
   scale_x_log10() +
   scale_y_log10()

@@ -4,13 +4,16 @@
 
 # Read `params.yml` to get input file
 params <- yaml::read_yaml("params.yml")
-stopifnot(!is.null(params$input_file))
+stopifnot(    # Required parameters
+  !is.null(params$input_file),
+  !is.null(params$concentration_unit)
+)
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
   projlib/msdial,   # Handle MS-Dial files
-  projlib/io,       # Handle snakemake parameters and input/output files
+  projlib/io,       # Check input/output files
 )
 # Input/Output files
 FILE <- list(i = params$input_file)
@@ -39,23 +42,28 @@ chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
   dplyr::mutate(chem_id = make.names(chem_name, unique = TRUE), .before = 1L) |> 
   dplyr::mutate(
     dplyr::across(c(mz, rt, sn_ratio), as.numeric),
-    std_type = dplyr::case_when(
-      std_type == "Quant" ~ "Quant",
-      std_type == "IS"    ~ "IS",
-      TRUE ~ ""              # Ignore other variants
-    )
+    # Ignore other variants
+    std_type = ifelse(std_type %in% c("Quant", "IS"), std_type, ""),
+  ) |> 
+  expss::apply_labels(
+    alignment_id = "Alignment ID",
+    chem_name = "Chemical Name",
+    mz = "Average M/Z",
+    rt = "Average Retention Time (min)",
+    sn_ratio = "Average S/N Ratio",
+    std_type = "Standard Type"
   )
 
 # Measured values of the chemicals into a matrix
 raw_df <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[2]])
-stopifnot(identical(colnames(raw_df), sample_info$given_sample_id))
+stopifnot(colnames(raw_df) == sample_info$given_sample_id)
 colnames(raw_df) <- sample_info$sample_id     # Update with syntactically valid names
 raw_mat <- lapply(raw_df, as.numeric) |> 
   as.data.frame(row.names = chems$chem_id) |> 
   as.matrix()
 
 cat("From the given file:", FILE$i, "\n",
-    "Number of samples:", nrow(raw_mat), "\n",
+    "Number of samples:", ncol(raw_mat), "\n",
     "Number of chemicals:", nrow(raw_mat), "\n")
 
 # Special control sample categories ------------------------------------------------------
@@ -68,7 +76,8 @@ sample_info <- sample_info |>
       sample_type == "QC"    ~ "QC",
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
-    )
+    ) |> 
+      expss::set_var_lab("Category for Processing")
   )
 stopifnot(
   "Calibration curve samples are required." = any(sample_info$proc_cat == "CalCurve"),
@@ -84,7 +93,8 @@ find_concentration <- function(sid) {
 }
 sample_info <- sample_info |> 
   dplyr::mutate(
-    c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_),
+    c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_) |> 
+      expss::set_var_lab("Concentration"),
     injection_order = as.integer(injection_order),
   )
 calcurve_conc <- sample_info$c_conc[sample_info$proc_cat == "CalCurve"]
@@ -101,7 +111,8 @@ sumexp <- SummarizedExperiment::SummarizedExperiment(
   rowData = chems,
   metadata = rlang::list2(
     file_name = basename(FILE$i),
-    file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE)
+    file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),
+    concentration_unit = params$concentration_unit,
   )
 )
 

@@ -1,3 +1,6 @@
+
+# Read MS-DIAL Files ---------------------------------------------------------------------
+
 #' Identify three column sections in the MS-DIAL output file
 #' 
 #' @param msdial_file Path to the MS-DIAL output file
@@ -57,6 +60,15 @@ fetch_sample_info <- function(msdial_file, indices) {
     ) |> 
     # Syntactically valid for variable name in R
     dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE), .before = 1L)
+  # For plot and table
+  sinfo <- expss::apply_labels(
+    sinfo, 
+    Class = "Class",
+    sample_type = "Sample Type",
+    injection_order = "Injection Order",
+    given_sample_id = "Sample ID",
+    sample_id = "Syntactically Valid Sample ID"
+  )
   return(sinfo)
 }
 
@@ -81,7 +93,6 @@ fetch_data_of_columns <- function(msdial_file, indices) {
     name_repair = "unique_quiet"
   )
 }
-
 
 #' Get the file name of the parsed data
 #'
@@ -137,6 +148,18 @@ read_parsed_msdial_data <- function(params, r_script = "code/scripts/read-msdial
   return(sumexp)
 }
 
+
+# Export Data ----------------------------------------------------------------------------
+
+#' Find the number of decimal places for rounding
+.find_rounding_decimal_places <- function(x) {
+  x <- abs(x)
+  x[x == 0] <- NA
+  logx <- log10(x)
+  m <- stats::median(logx, na.rm = TRUE)
+  max(0, -floor(m) + 4)
+}
+
 #' Export data with the chemical table to a tab-separated file
 #'
 #' @param sumexp A SummarizedExperiment object
@@ -152,8 +175,9 @@ export_data_with_chem_table_tsv <- function(sumexp, assay_id, in_file, out_file)
     intact_chem_cols$"Alignment ID" == SummarizedExperiment::rowData(sumexp)$alignment_id
   )
   # Prepare the data table
-  df_x <- SummarizedExperiment::assay(sumexp, assay_id) |> 
-    round(0) |>     # Reduce the number of decimals
+  mat_x <- SummarizedExperiment::assay(sumexp, assay_id)
+  df_x <- mat_x |>  
+    round(.find_rounding_decimal_places(mat_x)) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
   colnames(df_x) <- SummarizedExperiment::colData(sumexp)$given_sample_id
@@ -177,8 +201,9 @@ export_concentration_tsv <- function(sumexp, file) {
       `Average Rt(min)` = rt,
     )
   # Prepare the concentration table
-  conc_df <- SummarizedExperiment::assay(sumexp, "conc") |> 
-    round(3) |>     # Reduce the number of decimals
+  conc_mat <- SummarizedExperiment::assay(sumexp, "conc")
+  conc_df <- conc_mat |>
+    round(.find_rounding_decimal_places(conc_mat)) |>    # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
   colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$given_sample_id

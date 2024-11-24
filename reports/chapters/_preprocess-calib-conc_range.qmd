@@ -12,49 +12,56 @@ The number of samples in the calibration curve after outlier removal is presente
 table(calcurve_se$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
-    col.names = c("Concentration (ng/ml)", "Number of samples")
+    col.names = c("Concentration (ng/ml)", "Number of Samples")
   ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Concentration ranges
 
-The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using the zero concentration samples.
-The LLOD has been determined as the lowest concentration, for which the average signal of calibration samples were larger than 3 times of the mean of zero concentration samples. 
-Likewise, the LLOQ has been determined with 10 times of the mean of zero concentration samples.
-When the values of calibration samples for the LLOQ concentration had high variability, relative standard deviation (RSD) > 20%, the LLOQ has been chosen as the lowest higher concentration that satisfies RSD < 20%.
-All concentrations below the LLOQ are excluded from the calibration curve.
+The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using zero concentration samples.
+The LLOD is defined as the lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration samples. 
+Similarly, the LLOQ is set at ten times the mean of the zero concentration samples.
+If the calibration samples at the LLOQ concentration exhibit high variability (relative standard deviation, RSD, > 20%), the LLOQ is adjusted to the lowest higher concentration that satisfies RSD ≤ 20%.
+Concentrations below this LLOQ are excluded from the calibration curve.
 
-Quite a few concentrations of calibration curve samples of a chemical may be too far from the range of the measured samples. 
-When there are enough (≥ 5) number of concentration points, the maximum concentration of the calibration curve is adjusted. 
-The concentrations were excluded for which the peak areas after normalization were more than 10 times higher than the **maximum** peak area of the samples excluding `CalCurve` and `QC` categories.
+Quite a few concentrations in the calibration curve samples of a chemical can be too far from the range observed in the samples for measurement. 
+When there are sufficient data points (≥ 5 concentrations), the maximum concentration of the calibration curve is accordingly adjusted. 
+Concentrations that produce peak areas after normalization exceeding ten times the **highest** peak area of non-`CalCurve` and non-`QC` sample categories are excluded.
 
-When the LLOQ is so high that the number of concentration points left is smaller than 3, the chemical is excluded from the calibration curve.
-`r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
+If the LLOQ is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve.
+As a result, `r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals have been removed from the calibration curve.
 
-Concentration range of each chemical is presented below.
+The concentration range for each chemical is detailed below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
-rowData(calcurve_se) |> 
+show_df <- rowData(calcurve_se) |> 
   tibble::as_tibble() |> 
   dplyr::mutate(
-    llod = scales::number(llod),
-    lloq = ifelse(is.na(lloq), "All < LLOQ or RSD% > 20%", scales::number(lloq)),
-    max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)),
-    to_exclude = ifelse(to_exclude, "Excluded", "")
+    Note = dplyr::case_when(
+      to_exclude ~ "Excluded", 
+      llod == lloq ~ "LLOD = LLOQ",
+      TRUE ~ ""
+    ),
+    LLOD = scales::number(llod),
+    LLOQ = ifelse(is.na(lloq), "All < LLOQ or RSD% > 20%", scales::number(lloq)),
+    max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)) |> 
+      expss::set_var_lab(expss::var_lab(max_c_conc))
   ) |>
-  dplyr::select(chem_name, llod, lloq, max_c_conc, to_exclude) |>
+  dplyr::select(chem_name, LLOD, LLOQ, max_c_conc, Note)
+
+expss::use_labels(show_df, {
   knitr::kable(
+    ..data,
     caption = "Concentration range of the calibration curve samples",
-    col.names = c("Chemical",
-                  "LLOD (ng/ml)",
-                  "LLOQ (ng/ml)",
-                  "Maximum concentration (ng/ml)",
-                  "Excluded?"), 
     align = "lrrrr",
   ) |> 
-  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "350px")
+    kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
+    kableExtra::scroll_box(height = "350px") |> 
+    # Color the rows that are marked in Note
+    kableExtra::row_spec(which(Note == "LLOD = LLOQ"), background = "lightblue") |> 
+    kableExtra::row_spec(which(Note == "Excluded"), background = "lightcoral")
+})
 ```

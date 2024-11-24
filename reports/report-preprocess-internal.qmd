@@ -6,7 +6,7 @@ title: "Exploratory Data Analysis - Exposome"
 #| label: 'setup-read-msdial'
 #| purl: true
 # The preprocessed data used for calibration
-DATA_ID <- "loess_norm"
+DATA_ID <- setNames("loess_norm", nm = "Peak area (Normalized)")
 
 # Load packages and project local libraries
 options(
@@ -14,8 +14,11 @@ options(
   box.warn.legacy = FALSE       # No warnings for source inside a module
 )
 box::use(
-  projlib/msdial,     # Handle MS-Dial files and data
+  projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
+  projlib/show,       # Functions to present data
+  patchwork,           # Combine ggplot objects. `+`
+  expss,               # labelled class
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
   # Some methods were defined using S4 system, e.g. dim, `[`
@@ -62,10 +65,6 @@ FILE <- list(
       )
     )
   })
-)
-box::use(
-  projlib/show,         # Functions to present data
-  patchwork,            # Combine ggplot objects. `+`
 )
 ```
 
@@ -157,6 +156,11 @@ assays(overall_sumexp)$loess_norm <- sapply(
 
 {{< include chapters/_preprocess-norm-loess.qmd >}}
 
+### Comparison of the normalization methods
+
+{{< include chapters/_preprocess-norm-comparison.qmd >}}
+
+
 ```{r}
 #| label: 'export-normalized-data'
 for(assy_id in c("loess_norm", "closest_norm")) {
@@ -188,17 +192,20 @@ calcurve_se <- calcurve_se[, calcurve_se$c_conc != 0]
 # Find the lower-limit of quantification using values of the zero concentration samples
 lloq_signal <- rowData(calcurve_se)$lloq_signal <- 
   proc$identify_llox_signal(cal_0_se, DATA_ID, times = 10)
-lloq <- rowData(calcurve_se)$lloq <- proc$identify_lloq(calcurve_se, lloq_signal, DATA_ID)
+lloq <- rowData(calcurve_se)$lloq <- proc$identify_lloq(calcurve_se, lloq_signal, DATA_ID) |> 
+  expss::set_var_lab("LLOQ")
 # Find the lower-limit of detection using values of the zero concentration samples
 llod_signal <- rowData(calcurve_se)$llod_signal <- 
   proc$identify_llox_signal(cal_0_se, DATA_ID, times = 3)
-llod <- rowData(calcurve_se)$llod <- proc$identify_llod(calcurve_se, llod_signal, DATA_ID)
+llod <- rowData(calcurve_se)$llod <- proc$identify_llod(calcurve_se, llod_signal, DATA_ID) |> 
+  expss::set_var_lab("LLOD")
 # Calibration curve concentration upper limit
 max_c_conc <- proc$identify_max_conc(calcurve_se, quant_se, DATA_ID, times = 10)
 concs <- sort(unique(colData(calcurve_se)$c_conc))
 rowData(calcurve_se)$max_c_conc <- proc$make_sure_to_have_enough_calcurve(
   concs, lloq, max_c_conc, min_n = 3, enough_n = 5
-)
+) |> 
+  expss::set_var_lab("Maximum Concentration")
 # Mark the chemicals to exclude due to LLOQ and maximum concentration
 rowData(calcurve_se)$to_exclude <- as.list(rowData(calcurve_se)) |> 
   with(is.na(lloq) | is.na(llod) | (max_c_conc == -9) | is.na(max_c_conc))
@@ -235,7 +242,8 @@ calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
 measurements_se <- quant_se[, ! quant_se$proc_cat %in% "CalCurve"]
 colData(measurements_se)$c_conc <- NULL
 assays(measurements_se)$conc <- 
-  proc$compute_concentration(measurements_se, calcurve_se, calcurve_models, DATA_ID)
+  proc$compute_concentration(measurements_se, calcurve_se, calcurve_models, DATA_ID) |> 
+  expss::set_var_lab("Concentration")
 # Maximum/minimum concentration after trimming out of each chemical
 maxmin_conc <- rowData(calcurve_se)[c("max_c_conc", "lloq", "llod")]
 stopifnot(rownames(maxmin_conc) == rownames(calcurve_se))

@@ -189,7 +189,7 @@ The number of samples for each class is as follows:
 
 ```{r}
 table(overall_sumexp$Class) |> 
-  knitr::kable(col.names = c("Class", "Number of samples")) |> 
+  knitr::kable(col.names = c("Class", "Number of Samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
@@ -201,7 +201,7 @@ The number of samples for each category is as follows:
 
 ```{r}
 table(overall_sumexp$proc_cat, exclude = "") |> 
-  knitr::kable(col.names = c("Category", "Number of samples")) |> 
+  knitr::kable(col.names = c("Category", "Number of Samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
@@ -237,7 +237,7 @@ df_show |>
 table(df_show$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
-    col.names = c("Concentration (ng/ml)", "Number of samples")
+    col.names = c("Concentration (ng/ml)", "Number of Samples")
   ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
@@ -261,7 +261,7 @@ The number of the replicates were as below.
 ```{r}
 extract_qc_samples_to_list(overall_sumexp) |> 
   sapply(ncol) |> 
-  knitr::kable(col.names = c("Sample ID", "Number of replicates")) |> 
+  knitr::kable(col.names = c("Sample ID", "Number of Replicates")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
@@ -283,7 +283,7 @@ The number of chemicals for each type is as follows:
 
 ```{r}
 table(rowData(targeted_chems_se)$std_type) |> 
-  knitr::kable(col.names = c("Standard Type", "Number of chemicals")) |> 
+  knitr::kable(col.names = c("Standard Type", "Number of Chemicals")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
@@ -1004,7 +1004,7 @@ The number of samples in the calibration curve after outlier removal is presente
 table(calcurve_se$c_conc) |> 
   knitr::kable(
     align = c("r", "r"),
-    col.names = c("Concentration (ng/ml)", "Number of samples")
+    col.names = c("Concentration (ng/ml)", "Number of Samples")
   ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
@@ -1347,7 +1347,7 @@ models_to_show_tbl <- purrr::imap_dfr(calcurve_models, \(m, chem_id) {
   dplyr::slice(i_9chem_to_show)
 
 # Plot the calibration curve for each chemical with the samples in the calibration curve
-ggplot_calcurve_samples <- function(data) {
+ggplot_calcurve_samples_facet <- function(data) {
   ggplot(data, aes(x = conc, y = loess_norm)) +
     geom_point(aes(x = c_conc), data = calcurve_to_show_df) +     # Remaining calibration samples
     geom_point(aes(color = Class)) +                    # Samples to measure
@@ -1378,7 +1378,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-width: 12
 #| fig-height: 11
 data_to_show_tbl |> 
-  ggplot_calcurve_samples()
+  ggplot_calcurve_samples_facet()
 ```
 
 #### Log scale
@@ -1388,7 +1388,7 @@ data_to_show_tbl |>
 #| fig-width: 12
 #| fig-height: 11
 data_to_show_tbl |> 
-  ggplot_calcurve_samples() +
+  ggplot_calcurve_samples_facet() +
   scale_x_log10() +
   scale_y_log10()
 ```
@@ -1424,7 +1424,7 @@ geom_best_model_name <- geom_text(         # Display the best model name
 
 data_to_show_tbl |> 
   dplyr::filter(Class %in% classes_excl_qc_blank) |> 
-  ggplot_calcurve_samples() +
+  ggplot_calcurve_samples_facet() +
   geom_best_model_name
 ```
 
@@ -1436,7 +1436,7 @@ data_to_show_tbl |>
 #| fig-height: 11
 data_to_show_tbl |> 
   dplyr::filter(Class %in% classes_excl_qc_blank) |> 
-  ggplot_calcurve_samples() +
+  ggplot_calcurve_samples_facet() +
   geom_best_model_name +
   scale_x_log10() +
   scale_y_log10()

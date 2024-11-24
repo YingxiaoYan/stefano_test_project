@@ -14,9 +14,7 @@ There are `r dplyr::n_distinct(overall_sumexp$Class)` classes of samples in the 
 The number of samples for each class is as follows:
 
 ```{r}
-table(overall_sumexp$Class) |> 
-  knitr::kable(col.names = c("Class", "Number of samples")) |> 
-  kableExtra::kable_styling(full_width = FALSE)
+show$kable_number_of(overall_sumexp$Class)
 ```
 
 ### Special categories for preprocessing
@@ -26,9 +24,7 @@ The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-table(overall_sumexp$proc_cat, exclude = "") |> 
-  knitr::kable(col.names = c("Category", "Number of samples")) |> 
-  kableExtra::kable_styling(full_width = FALSE)
+show$kable_number_of(overall_sumexp$proc_cat, exclude = "")
 ```
 
 #### Calibration curve samples
@@ -45,14 +41,13 @@ Concentration is extracted from the numeric part in the format after the replace
 df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
   dplyr::arrange(c_conc)
-df_show |> 
-  dplyr::select(given_sample_id, c_conc) |>
-  knitr::kable(
-    col.names = c("Sample ID", "Concentration (ng/ml)"),
-    format.args = list(scientific = FALSE)
-  ) |> 
-  kableExtra::kable_classic(full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "160px")
+expss::use_labels(df_show, {
+  ..data |> 
+    dplyr::select(given_sample_id, c_conc) |>
+    knitr::kable(format.args = list(scientific = FALSE)) |> 
+    kableExtra::kable_classic(full_width = FALSE) |> 
+    kableExtra::scroll_box(height = "160px")
+})
 ```
 
 ##### The number of samples per concentration
@@ -60,11 +55,9 @@ df_show |>
 ```{r}
 #| label: 'calcurve-samples-summary'
 # Present the number of samples in the calibration curve
-table(df_show$c_conc) |> 
-  knitr::kable(
-    align = c("r", "r"),
-    col.names = c("Concentration (ng/ml)", "Number of samples")
-  ) |> 
+v <- df_show$c_conc
+table(v) |> 
+  knitr::kable(col.names = c(expss::var_lab(v), "Number of Samples"), align = "rr") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
@@ -76,7 +69,7 @@ The number of the replicates were as below.
 ```{r}
 proc$extract_qc_samples_to_list(overall_sumexp) |> 
   sapply(ncol) |> 
-  knitr::kable(col.names = c("Class", "Number of replicates")) |> 
+  knitr::kable(col.names = c("Class", "Number of Replicates")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
@@ -90,9 +83,7 @@ For those targeted chemicals, the standard type was specified.
 The number of chemicals for each type is as follows:
 
 ```{r}
-table(rowData(targeted_chems_se)$std_type) |> 
-  knitr::kable(col.names = c("Standard Type", "Number of chemicals")) |> 
-  kableExtra::kable_styling(full_width = FALSE)
+show$kable_number_of(rowData(overall_sumexp)$std_type, what = "Chemicals", exclude = "")
 ```
 
 ## Distribution of the values
