@@ -6,13 +6,16 @@ Those chemicals are listed below, in the order of average retention time.
 #| purl: true
 # Table of internal standard chemicals
 kable_internal_std <- function(se) {
-  df <- rowData(se)[, c("chem_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
-  df$num_zeros <- ifelse(df$num_zeros == 0, "", df$num_zeros)
+  df <- SumExp::row_df(se) |> 
+    dplyr::select(chem_name, rt, mz, sn_ratio, rsd, num_zeros) |> 
+    dplyr::mutate(
+      num_zeros = ifelse(num_zeros == 0, "", num_zeros) |> 
+        labelled::copy_labels_from(num_zeros)
+    )
   knitr::kable(
     df, 
     row.names = FALSE,
-    col.names = c("Chemical Name", "Avg Retention Time (min)", "m/z", "S/N Ratio", 
-                  "RSD%", "Number of zeros"),
+    col.names = labelled::get_variable_labels(df),
     align = "lrrrrr"
   ) |> 
     kableExtra::kable_styling(full_width = FALSE)
@@ -34,19 +37,22 @@ if (all(! is_outlier)) {
   cat("No outliers were identified.\n")
 } else {
   cat("The following samples were identified as outliers.\n\n")
-  stopifnot(names(is_outlier) == rownames(n_out_istd))
-  tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
-    dplyr::mutate(is_outlier = is_outlier) |>
-    # Retrieve the given_sample_id
-    dplyr::left_join(as.data.frame(colData(internal_std_se0)), by = "sample_id") |> 
-    dplyr::filter(is_outlier) |> 
-    dplyr::select(
-      "Sample ID" = given_sample_id,
-      Class,
-      "File type" = sample_type,
-      "Number of Outlying IS" = value
-    ) |> 
-    knitr::kable(align = "lccr") |> 
+  stopifnot(identical(names(is_outlier), names(n_out_istd)))
+  tb <- tibble::as_tibble(SumExp::col_df(internal_std_se0), rownames = "sample_id")
+  show_tb <- tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
+    labelled::set_variable_labels(
+      "value" = "Number of Outlying IS",
+      "sample_id" = "Sample ID"
+    ) |>
+    # Retrieve the sample_name
+    dplyr::left_join(tb, by = "sample_id") |> 
+    dplyr::filter(value > 0) |> 
+    dplyr::select(sample_name, Class, sample_type, value)
+  knitr::kable(
+    show_tb,
+    col.names = labelled::get_variable_labels(show_tb),
+    align = "lccr"
+  ) |> 
     kableExtra::kable_classic(full_width = FALSE)
 }
 ```
@@ -60,8 +66,8 @@ Internal standard (IS) chemicals that satisfy the following conditions were cons
 ```{r}
 #| out-width: 100%
 box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
-  chem_name <- rowData(se)$chem_name[ii]
-  se_tbl <- tibble::as_tibble(se[ii, ])
+  chem_name <- SumExp::row_df(se)$chem_name[ii]
+  se_tbl <- SumExp::as_tibble(se[ii, ])
   # Box plot
   p1 <- ggplot(se_tbl) +
     geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
@@ -131,9 +137,9 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 # Divide the internal standard chemicals by quality control sample
 # Calculate RSD% per internal standard chemical and per quality control sample
 df1 <- proc$extract_qc_samples_to_list(internal_std_se) |> 
-  sapply(\(se) apply(assays(se)$raw, 1, \(.x) round(proc$rsd_perc(.x), 2)))
-stopifnot(rownames(df1) == rownames(internal_std_se))
-rownames(df1) <- rowData(internal_std_se)$chem_name
+  sapply(\(se) apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2)))
+stopifnot(identical(rownames(df1), rownames(internal_std_se)))
+rownames(df1) <- SumExp::row_df(internal_std_se)$chem_name
 knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality control sample") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
@@ -142,13 +148,13 @@ knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality cont
 
 ```{r}
 se <- internal_std_se
-se <- se[, se$proc_cat != "QC"]
-df1 <- sapply(setNames(nm = unique(se$Class)), function(cls) {
-  se <- se[, se$Class == cls]
-  apply(assays(se)$raw, 1, \(.x) round(proc$rsd_perc(.x), 2))
+se <- se[, SumExp::col_df(se)$proc_cat != "QC"]
+df1 <- sapply(setNames(nm = unique(SumExp::col_df(se)$Class)), function(cls) {
+  se <- se[, SumExp::col_df(se)$Class == cls]
+  apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2))
 })
-stopifnot(rownames(df1) == rownames(se))
-rownames(df1) <- rowData(se)$chem_name
+stopifnot(identical(rownames(df1), rownames(se)))
+rownames(df1) <- SumExp::row_df(se)$chem_name
 knitr::kable(df1, caption = "RSD% of internal standard chemicals by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```

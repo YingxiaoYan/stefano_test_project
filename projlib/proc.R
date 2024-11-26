@@ -1,44 +1,27 @@
 #' Extract QC samples into list
 #'
-#' @param se A SummarizedExperiment object
+#' @param se A SumExp object
 #'
-#' @return A list of SummarizedExperiment objects divided by QC Classes
+#' @return A list of SumExp objects divided by QC Classes
 #' @export
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, se$proc_cat == "QC"]
-  qc_id <- se$Class
+  se <- se[, SumExp::col_df(se)$proc_cat == "QC"]
+  qc_id <- SumExp::col_df(se)$Class
   # Column-wise split
   lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
 }
 
 #' Extract quantitative standards in QC samples
 #'
-#' @param sumexp A SummarizedExperiment object
-#' @return A list of SummarizedExperiment objects with quantitative standards in QC samples
+#' @param sumexp A SumExp object
+#' @return A list of SumExp objects with quantitative standards in QC samples
 #' @export
 extract_quant_qc <- function(sumexp) {
   se_lst <- extract_qc_samples_to_list(sumexp)
   lapply(se_lst, \(se) {
-    se[SummarizedExperiment::rowData(se)$std_type == "Quant", ]
+    se[SumExp::row_df(se)$std_type == "Quant", ]
   })
 }
-
-#' Get the internal standard chemicals from a SummarizedExperiment object
-#'
-#' @param se A SummarizedExperiment object
-#'
-#' @return A SummarizedExperiment object with the internal standard chemicals
-#' @export
-get_internal_std_se <- function(se) {
-  # Extract the internal standard chemicals
-  se <- se[SummarizedExperiment::rowData(se)$std_type == "IS", ]
-  # Sort by average retention time
-  se <- se[order(SummarizedExperiment::rowData(se)$rt), ]
-  return(se)
-}
-
-
-
 
 #' Calculate RSD%
 #'
@@ -50,34 +33,53 @@ rsd_perc <- function(x, na.rm = FALSE) {
   100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
 }
 
+
+# Clean ----------------------------------------------------------------------------------
+
+#' Get the internal standard chemicals from a SumExp object
+#'
+#' @param se A SumExp object
+#'
+#' @return A SumExp object with the internal standard chemicals
+#' @export
+get_internal_std_se <- function(se) {
+  # Extract the internal standard chemicals
+  se <- se[SumExp::row_df(se)$std_type == "IS", ]
+  # Sort by average retention time
+  se <- se[order(SumExp::row_df(se)$rt), ]
+  return(se)
+}
+
 #' Count zeros per chemical
 #'
-#' @param se A SummarizedExperiment object 
+#' @param se A SumExp object 
 #' @param assay_id The name of an assay 
 #' @return A numeric vector of the number of zeros per chemical
 #' @export
 count_zeros_per_chemical <- function(se, assay_id = "raw") {
-  rowSums(SummarizedExperiment::assay(se, assay_id) == 0)
+  rowSums(SumExp::assay(se, assay_id) == 0)
 }
 
 #' RSD% across all samples
 #'
-#' @param se A SummarizedExperiment object 
+#' @param se A SumExp object 
 #' @param assay_id The name of an assay
 #' @return A numeric vector of RSD% across all samples
 #' @export
 compute_rsd_per_chemical <- function(se, assay_id = "raw") {
-  apply(SummarizedExperiment::assay(se, assay_id), 1, rsd_perc)
+  apply(SumExp::assay(se, assay_id), 1, rsd_perc)
 }
 
-#' Add the number of zeros and RSD% to the rowData of a SummarizedExperiment object
+#' Add the number of zeros and RSD% to the row_df of a SumExp object
 #'
 #' @inheritParams count_zeros_per_chemical
-#' @return A SummarizedExperiment object with `num_zeros` and `rsd` added to the rowData
+#' @return A SumExp object with `num_zeros` and `rsd` added to the row_df
 #' @export
 add_num_zeros_rsd <- function(se, assay_id = "raw") {
-  SummarizedExperiment::rowData(se)$num_zeros <- count_zeros_per_chemical(se, assay_id)
-  SummarizedExperiment::rowData(se)$rsd <- compute_rsd_per_chemical(se, assay_id)
+  SumExp::row_df(se)$num_zeros <- count_zeros_per_chemical(se, assay_id) |> 
+    labelled::set_label_attribute("Number of zeros per chemical")
+  SumExp::row_df(se)$rsd <- compute_rsd_per_chemical(se, assay_id) |> 
+    labelled::set_label_attribute("RSD% across all samples")
   return(se)
 }
 
@@ -96,13 +98,13 @@ identify_outliers <- function(x, times = 3) {
 
 #' Count outlying internal standard chemicals per sample 
 #'
-#' @param se A SummarizedExperiment object
+#' @param se A SumExp object
 #' @param assay_id The name of an assay
 #' @param times A numeric value for the threshold. mean +/- times * sd
 #' @return A numeric vector of the number of outlying internal standard chemicals per sample
 #' @export
 count_outliers_per_sample <- function(se, assay_id = "raw", times = 3) {
-  x <- SummarizedExperiment::assay(se, assay_id)
+  x <- SumExp::assay(se, assay_id)
   x <- log1p(x)              # Log-transform the data
   outlying <- apply(x, 1, identify_outliers, times = times)
   return(rowSums(outlying))     # Transposed by `apply` above
@@ -112,25 +114,27 @@ count_outliers_per_sample <- function(se, assay_id = "raw", times = 3) {
 
 #' Get the values of the closest internal standard chemicals
 #'
-#' @param se A SummarizedExperiment object
-#' @param istd_se A SummarizedExperiment object of internal standard chemicals
+#' @param se A SumExp object
+#' @param istd_se A SumExp object of internal standard chemicals
 #' @param assay_id The name of an assay 
 #' @param rt The name of the retention time column 
 #' @return A numeric matrix of the values of the closest internal standard chemicals
 #' @export
 get_raw_of_closest_istd <- function(se, istd_se, assay_id = "raw", rt = "rt") {
-  rt_x <- SummarizedExperiment::rowData(se)[[rt]]
-  rt_istd <- SummarizedExperiment::rowData(istd_se)[[rt]]
+  rt_x <- SumExp::row_df(se)[[rt]]
+  rt_istd <- SumExp::row_df(istd_se)[[rt]]
   # Find the closest internal standard chemical
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
-  out <- SummarizedExperiment::assay(istd_se, assay_id)[i_closest, ]
+  out <- SumExp::assay(istd_se, assay_id)[i_closest, ]
   rownames(out) <- rownames(se)
   return(out)
 }
 
+# Normalization --------------------------------------------------------------------------
+
 #' Get the LOESS fit model
 #'
-#' @param istd_se A SummarizedExperiment object of internal standard chemicals
+#' @param istd_se A SumExp object of internal standard chemicals
 #' @param excl_cat A character vector of the categories to exclude
 #' @param overall_rt_range A numeric vector of the overall retention time range, to which the model is expanded
 #' @param span A numeric value for the span of the LOESS fit
@@ -141,13 +145,13 @@ get_raw_of_closest_istd <- function(se, istd_se, assay_id = "raw", rt = "rt") {
 #' @export
 get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, assay_id = "raw", rt = "rt") {
   # Log-transform the data
-  istd_log <- log(SummarizedExperiment::assay(istd_se, assay_id))
-  rt_istd <- SummarizedExperiment::rowData(istd_se)[[rt]]
+  istd_log <- log(SumExp::assay(istd_se, assay_id))
+  rt_istd <- SumExp::row_df(istd_se)[[rt]]
   
   # Normalize the data using the internal standards
   # Mean of each internal standard chemical for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- istd_se$proc_cat %in% excl_cat
+  to_excl <- SumExp::col_df(istd_se)$proc_cat %in% excl_cat
   # The data of the samples with measurements
   mat <- istd_log[, !to_excl, drop = FALSE]
   stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
@@ -177,20 +181,19 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, assay_id = 
     suppressWarnings(stats::loess(y ~ c(overall_rt_range, rt_istd), span = span))
   })
   names(loess_fit) <- colnames(fr_m_log)
-  return(loess_fit)
+  loess_fit
 }
-
 
 #' Calculate RSD of the quantification standard samples
 #'
-#' @param qc_se A list of SummarizedExperiment objects with quantitative standards in QC samples
+#' @param qc_se A list of SumExp objects with quantitative standards in QC samples
 #' @param assay_ids A character vector of the assay IDs
 #' @return A tibble with RSD% of the quantification standard samples
 #' @export
 calc_rsd_qstd <- function(qc_se, assay_ids) {
   lapply(qc_se, \(qc1) {
     sapply(stats::setNames(nm = assay_ids), function(nm) {
-      apply(SummarizedExperiment::assay(qc1, nm), 1, rsd_perc)
+      apply(SumExp::assay(qc1, nm), 1, rsd_perc)
     }) |>    # Rows are chemicals, columns are assay IDs
       tibble::as_tibble(rownames = "chem_id")
   }) |> 
@@ -198,10 +201,13 @@ calc_rsd_qstd <- function(qc_se, assay_ids) {
     dplyr::bind_rows(.id = "QC")
 }
 
+
+# Calibration ----------------------------------------------------------------------------
+
 #' Identify the maximum concentration of the calibration samples
 #'
-#' @param cc_se A SummarizedExperiment object of the calibration samples
-#' @param q_se A SummarizedExperiment object of the samples for measurement
+#' @param cc_se A SumExp object of the calibration samples
+#' @param q_se A SumExp object of the samples for measurement
 #' @param assay_id The name of an assay
 #' @param times A numeric value to multiply the maximum peak area of the samples for
 #'   measurement to get a margin for the maximum concentration
@@ -210,16 +216,18 @@ calc_rsd_qstd <- function(qc_se, assay_ids) {
 #'   If all values of `q_se` are zero for a chemical, the maximum concentration is zero.
 #' @export
 identify_max_conc <- function(cc_se, q_se, assay_id, times) {
-  stopifnot("Not identical chemicals" = rownames(q_se) == rownames(cc_se))
-  q_se <- q_se[, ! q_se$proc_cat %in% c("CalCurve", "QC")]
+  stopifnot("Not identical chemicals" = identical(rownames(q_se), rownames(cc_se)))
+  q_se <- q_se[, ! SumExp::col_df(q_se)$proc_cat %in% c("CalCurve", "QC")]
   # Find maximum peak area of the samples of the classes for measurement
-  max_in_q_se <- apply(SummarizedExperiment::assay(q_se, assay_id), 1, max, na.rm = TRUE)
+  max_in_q_se <- apply(SumExp::assay(q_se, assay_id), 1, max, na.rm = TRUE)
   # Find the maximum concentration of the calibration samples that are not too far (`times`x)
-  in_range <- SummarizedExperiment::assay(cc_se, assay_id) <= times * max_in_q_se
+  in_range <- SumExp::assay(cc_se, assay_id) <= times * max_in_q_se
   
   in_range <- cbind(in_range, all_0 = max_in_q_se == 0, no_valid = TRUE)
-  concs <- c(cc_se$c_conc, 0, -9)        # Add 0 and -9 to the end for all_0 and no_valid
-  apply(in_range, 1, \(ea_chem) max(concs[ea_chem]))
+  # Add 0 and -9 to the end for all_0 and no_valid
+  concs <- c(SumExp::col_df(cc_se)$c_conc, 0, -9)
+  apply(in_range, 1, \(ea_chem) max(concs[ea_chem])) |> 
+    labelled::set_label_attribute("Maximum Concentration")
 }
 
 #' Make sure to have enough calibration curve samples
@@ -233,7 +241,7 @@ identify_max_conc <- function(cc_se, q_se, assay_id, times) {
 #' @return A numeric vector of the maximum concentration of the calibration samples
 #' @export
 make_sure_to_have_enough_calcurve <- function(concs, lloq, max_c_conc, min_n = 3, enough_n = 5) {
-  stopifnot(sort(concs) == concs)   # Already sorted 
+  stopifnot(identical(sort(concs), concs))   # Already sorted 
   # Find the index of the LLOQ
   i_lloq <- match(lloq, concs)
   # Find the index of the maximum concentration
@@ -246,19 +254,20 @@ make_sure_to_have_enough_calcurve <- function(concs, lloq, max_c_conc, min_n = 3
   i_max <- ifelse(i_max >= i_lloq + min_n - 1, i_max, NA_real_)
   out <- concs[i_max]
   names(out) <- names(max_c_conc)
-  return(out)
+  out <- labelled::copy_labels(max_c_conc, out)
+  out
 }
 
 #' Get a list of an assay data of calibration curves by concentration
 #'
-#' @param cc_se A SummarizedExperiment object of the calibration samples
+#' @param cc_se A SumExp object of the calibration samples
 #' @param assay_id The name of an assay
 #'
 #' @return A list of matrices of the assay data of calibration curves split by concentration
 #' @export
 get_list_of_calcurve_by_conc <- function(cc_se, assay_id) {
-  mat <- SummarizedExperiment::assay(cc_se, assay_id)
-  conc <- SummarizedExperiment::colData(cc_se)$c_conc
+  mat <- SumExp::assay(cc_se, assay_id)
+  conc <- SumExp::col_df(cc_se)$c_conc
   # Split the columns by the concentration
   sorted_conc <- stats::setNames(nm = sort(unique(conc)))
   lapply(sorted_conc, \(ea_c) mat[, conc == ea_c])
@@ -266,7 +275,7 @@ get_list_of_calcurve_by_conc <- function(cc_se, assay_id) {
 #' Get the minimum value that satisfies the condition
 get_min_value_satisfy_cond <- function(cond, values, shift = 0) {
   values <- as.numeric(values)
-  stopifnot(sort(values) == values)   # Already sorted 
+  stopifnot(identical(sort(values), values))   # Already sorted 
   if (all(!cond)) return(NA_real_)
   ii <- min(which(cond))
   values[ii + shift]
@@ -274,7 +283,7 @@ get_min_value_satisfy_cond <- function(cond, values, shift = 0) {
 
 #' Identify the LLO(Q/D) in signal
 #'
-#' @param cc_0_se A SummarizedExperiment object of the calibration samples with 0 concentration
+#' @param cc_0_se A SumExp object of the calibration samples with 0 concentration
 #' @param assay_id The name of an assay
 #' @param times A numeric value to multiply the mean of the samples with 0 concentration
 #' @param na.rm A logical value to remove NA values
@@ -282,14 +291,14 @@ get_min_value_satisfy_cond <- function(cond, values, shift = 0) {
 #' @return A numeric vector of the LLO(Q/D) in signal
 #' @export
 identify_llox_signal <- function(cc_0_se, assay_id, times, na.rm = FALSE) {
-  mat <- SummarizedExperiment::assay(cc_0_se, assay_id)
+  mat <- SumExp::assay(cc_0_se, assay_id)
   m <- rowMeans(mat, na.rm = na.rm)
   m * times 
 }
 
 #' Identify the lower limit of detection (LLOD)
 #'
-#' @param cc_se A SummarizedExperiment object of the calibration samples
+#' @param cc_se A SumExp object of the calibration samples
 #' @param llod_signal A numeric vector of the LLOD in signal
 #' @param assay_id The name of an assay
 #'
@@ -300,12 +309,14 @@ identify_llod <- function(cc_se, llod_signal, assay_id) {
   # Calculate the mean signal values of the calibration samples
   m <- sapply(cc_lst, rowMeans, na.rm = TRUE)
   # LLOD for each chemical in spiked concentrations
-  apply(llod_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
+  out <- apply(llod_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
+  out <- labelled::set_label_attribute(out, "LLOD")
+  out
 }
 
 #' Identify the lower limit of quantification (LLOQ)
 #'
-#' @param cc_se A SummarizedExperiment object of the calibration samples
+#' @param cc_se A SumExp object of the calibration samples
 #' @param lloq_signal A numeric vector of the LLOQ in signal
 #' @param assay_id The name of an assay
 #'
@@ -325,7 +336,9 @@ identify_lloq <- function(cc_se, lloq_signal, assay_id) {
   # Minimum concentration that satisfies the condition
   min_conc_by_rsdp <- apply(rsdp, 1, get_min_value_satisfy_cond, colnames(rsdp))
   
-  apply(cbind(lloq, min_conc_by_rsdp), 1, max)
+  out <- apply(cbind(lloq, min_conc_by_rsdp), 1, max)
+  out <- labelled::set_label_attribute(out, "LLOQ")
+  out
 }
 
 #' Fit and test calibration curve models
@@ -394,15 +407,15 @@ linear_calcurve_model <- function(conc, value, weights) {
 
 #' Compute the concentration of chemicals
 #'
-#' @param x_se A SummarizedExperiment object of the samples
-#' @param cc_se A SummarizedExperiment object of the calibration samples
+#' @param x_se A SumExp object of the samples
+#' @param cc_se A SumExp object of the calibration samples
 #' @param calcurve_models A list of calibration curve models
 #' @param assay_id The name of an assay
 #'
 #' @return A matrix of the concentration of chemicals
 #' @export
 compute_concentration <- function(x_se, cc_se, calcurve_models, assay_id) {
-  mat <- SummarizedExperiment::assay(x_se, assay_id)
+  mat <- SumExp::assay(x_se, assay_id)
   # Calculate the concentration of each chemical
   conc <- sapply(rownames(x_se), \(i_chem) {
     v <- mat[i_chem, ]
@@ -412,16 +425,13 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, assay_id) {
     t()          # Chemicals to rows
   
   # Replace the values below LLOQ with half of the LLOQ
-  rl <- as.list(SummarizedExperiment::rowData(cc_se))
+  rl <- SumExp::row_df(cc_se)
   conc <- ifelse(mat < rl$lloq_signal, rl$lloq / 2, conc)
   # Replace the values below LLOD with 1/4 of the LLOQ
   conc <- ifelse(mat < rl$llod_signal, rl$lloq / 4, conc)
+  conc <- labelled::set_label_attribute(conc, "Concentration")
   return(conc)
 }
-
-
-
-
 
 
 

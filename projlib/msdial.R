@@ -26,7 +26,7 @@ get_three_section_indices <- function(msdial_file) {
 #' @param msdial_file Path to the MS-DIAL output file
 #' @param indices The indices of the columns that contain sample information
 #' 
-#' @return A tibble with sample information
+#' @return A data frame with sample information
 #' @export
 fetch_sample_info <- function(msdial_file, indices) {
   if (missing(indices)) indices <- get_three_section_indices(msdial_file)[[2]]
@@ -40,7 +40,9 @@ fetch_sample_info <- function(msdial_file, indices) {
   header <- sample_lines[, indices[1L] - 1L]
   
   # Extract sample information  
-  sinfo <- t(sample_lines[, indices, drop = FALSE])
+  sinfo <- sample_lines[, indices, drop = FALSE] |> 
+    t() |> 
+    as.data.frame()
   colnames(sinfo) <- header          # There was no header in `sinfo` before
   stopifnot(
     "Deviation from the expected names for samples" =
@@ -49,27 +51,25 @@ fetch_sample_info <- function(msdial_file, indices) {
         c("Class", "File type", "Injection order", "Batch ID")
       )
   )
-  colnames(sinfo)[5] <- "given_sample_id"
-  # Create a tibble with the sample information
-  sinfo <- tibble::as_tibble(sinfo) |> 
+  colnames(sinfo)[5] <- "sample_name"
+  # Syntactically valid for variable name in R
+  rownames(sinfo) <- make.names(sinfo$sample_name, unique = TRUE)
+  sinfo <- sinfo |> 
     dplyr::select(
       Class,
       sample_type = "File type",
       injection_order = "Injection order",
-      given_sample_id,
-    ) |> 
-    # Syntactically valid for variable name in R
-    dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE), .before = 1L)
+      sample_name,
+    )
   # For plot and table
-  sinfo <- expss::apply_labels(
-    sinfo, 
-    Class = "Class",
-    sample_type = "Sample Type",
-    injection_order = "Injection Order",
-    given_sample_id = "Sample ID",
-    sample_id = "Syntactically Valid Sample ID"
-  )
-  return(sinfo)
+  sinfo <- sinfo |> 
+    labelled::set_variable_labels(
+      Class = "Class",
+      sample_type = "Sample Type",
+      injection_order = "Injection Order",
+      sample_name = "Sample ID",
+    )
+  sinfo
 }
 
 #' Fetch data of the selected columns of the MS-DIAL output file
@@ -85,7 +85,7 @@ fetch_data_of_columns <- function(msdial_file, indices) {
   l1 <- readr::read_tsv(msdial_file, skip = 4L, n_max = 1L, col_names = FALSE, col_types = "c")
   coltypes <- rep("-", ncol(l1))      # Skip the rest columns
   coltypes[indices] <- "c"
-  # Read lines that contain chemical data
+  # Read lines of the selected columns
   readr::read_tsv(
     msdial_file, 
     skip = 4L,      # Data starts from the 5th line
@@ -121,29 +121,20 @@ get_sumexp_file_name <- function(params) {
 #' Read the parsed MS-DIAL data
 #'
 #' @param params A list of parameters including `input_file` and `intermediate_dir`.
-#' @param r_script Path to the R script that parses the MS-DIAL output file, `read-msdial.R`
 #'
-#' @return A SummarizedExperiment object
+#' @return A SumExp object
 #' @export
-read_parsed_msdial_data <- function(params, r_script = "code/scripts/read-msdial.R") {
-  stopifnot(!is.null(params$input_file))   # Required parameter
+read_parsed_msdial_data <- function(params) {
   sumexp_file <- get_sumexp_file_name(params)
-  has_run_r_script <- FALSE
-  if (! file.exists(sumexp_file)) {
-    utils::capture.output(source(r_script))     # Print suppressed
-    has_run_r_script <- TRUE
-  }
+  stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
   # Load the parsed data
   sumexp <- readRDS(sumexp_file)
   # Confirm the input file is the same as the one used in the parsing
   m5_f <- digest::digest(params$input_file, algo = "md5", file = TRUE)
-  m5_se <- S4Vectors::metadata(sumexp)$file_md5    # Saved by `read-msdial.R`
+  m5_se <- SumExp::metadata(sumexp)$file_md5    # Saved by `read-msdial.R`
   if (m5_f != m5_se) {
-    if (has_run_r_script) {
-      stop("The R script,", r_script, ", doesn't create properly")
-    }
-    utils::capture.output(source(r_script))     # Print suppressed
-    sumexp <- readRDS(sumexp_file)
+    stop("The input file is different from the one used in the parsing.",
+         "Please re-run `read-msdial.R` first.")
   }
   return(sumexp)
 }
@@ -162,7 +153,7 @@ read_parsed_msdial_data <- function(params, r_script = "code/scripts/read-msdial
 
 #' Export data with the chemical table to a tab-separated file
 #'
-#' @param sumexp A SummarizedExperiment object
+#' @param sumexp A SumExp object
 #' @param assay_id The name of the data in `sumexp` (or assay) to be exported
 #' @param in_file Path to the MS-DIAL output file that was used to create `sumexp`
 #' @param out_file Path to the output tab-separated file
@@ -172,27 +163,27 @@ export_data_with_chem_table_tsv <- function(sumexp, assay_id, in_file, out_file)
   i_sec <- get_three_section_indices(in_file)
   intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
   stopifnot(
-    intact_chem_cols$"Alignment ID" == SummarizedExperiment::rowData(sumexp)$alignment_id
+    intact_chem_cols$"Alignment ID" == SumExp::row_df(sumexp)$alignment_id
   )
   # Prepare the data table
-  mat_x <- SummarizedExperiment::assay(sumexp, assay_id)
+  mat_x <- sumexp[[assay_id]]
   df_x <- mat_x |>  
     round(.find_rounding_decimal_places(mat_x)) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(df_x) <- SummarizedExperiment::colData(sumexp)$given_sample_id
+  colnames(df_x) <- SumExp::col_df(sumexp)$sample_name
   df_x <- dplyr::bind_cols(intact_chem_cols, df_x)
   readr::write_tsv(df_x, file = out_file)
 }
 
 #' Export the concentration table
 #'
-#' @param sumexp A SummarizedExperiment object to be exported
+#' @param sumexp A SumExp object to be exported
 #' @param file Path to the output tab-separated file
 #' @export
 export_concentration_tsv <- function(sumexp, file) {
   # Prepare the chemical table
-  chem_columns <- SummarizedExperiment::rowData(sumexp) |> 
+  chem_columns <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble() |> 
     dplyr::select(
       `Alignment ID` = alignment_id,
@@ -201,12 +192,12 @@ export_concentration_tsv <- function(sumexp, file) {
       `Average Rt(min)` = rt,
     )
   # Prepare the concentration table
-  conc_mat <- SummarizedExperiment::assay(sumexp, "conc")
+  conc_mat <- sumexp[["conc"]]
   conc_df <- conc_mat |>
     round(.find_rounding_decimal_places(conc_mat)) |>    # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(conc_df) <- SummarizedExperiment::colData(sumexp)$given_sample_id
+  colnames(conc_df) <- SumExp::col_df(sumexp)$sample_name
   conc_df <- dplyr::bind_cols(chem_columns, conc_df)
   readr::write_tsv(conc_df, file)
 }

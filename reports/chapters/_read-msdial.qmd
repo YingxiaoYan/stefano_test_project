@@ -2,7 +2,7 @@
 title: "Read MS-DIAL output file"
 ---
 
-Given file: `` `r S4Vectors::metadata(overall_sumexp)$file_name` `` 
+Given file: `` `r SumExp::metadata(overall_sumexp)$file_name` `` 
 
 The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(overall_sumexp)` samples.
 
@@ -10,21 +10,21 @@ The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(o
 
 ### By class
 
-There are `r dplyr::n_distinct(overall_sumexp$Class)` classes of samples in the data.
+There are `r dplyr::n_distinct(SumExp::col_df(overall_sumexp)$Class)` classes of samples in the data.
 The number of samples for each class is as follows:
 
 ```{r}
-show$kable_number_of(overall_sumexp$Class)
+show$kable_number_of(SumExp::col_df(overall_sumexp)$Class)
 ```
 
 ### Special categories for preprocessing
 
-There are `r length(table(overall_sumexp$proc_cat, exclude = ""))` special sample categories for in the data.
+There are `r length(table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-show$kable_number_of(overall_sumexp$proc_cat, exclude = "")
+show$kable_number_of(SumExp::col_df(overall_sumexp)$proc_cat, exclude = "")
 ```
 
 #### Calibration curve samples
@@ -38,16 +38,18 @@ Concentration is extracted from the numeric part in the format after the replace
 
 ```{r}
 # Present the sample IDs for the calibration curve
-df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
-  tibble::as_tibble() |> 
-  dplyr::arrange(c_conc)
-expss::use_labels(df_show, {
-  ..data |> 
-    dplyr::select(given_sample_id, c_conc) |>
-    knitr::kable(format.args = list(scientific = FALSE)) |> 
-    kableExtra::kable_classic(full_width = FALSE) |> 
-    kableExtra::scroll_box(height = "160px")
-})
+df_show <- SumExp::col_df(overall_sumexp) |> 
+  dplyr::filter(proc_cat == "CalCurve") |> 
+  dplyr::arrange(c_conc) |> 
+  dplyr::select(sample_name, c_conc)
+df_show |> 
+  knitr::kable(
+    row.names = FALSE,
+    col.names = labelled::get_variable_labels(df_show),
+    format.args = list(scientific = FALSE)
+  ) |> 
+  kableExtra::kable_classic(full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "160px")
 ```
 
 ##### The number of samples per concentration
@@ -57,7 +59,10 @@ expss::use_labels(df_show, {
 # Present the number of samples in the calibration curve
 v <- df_show$c_conc
 table(v) |> 
-  knitr::kable(col.names = c(expss::var_lab(v), "Number of Samples"), align = "rr") |> 
+  knitr::kable(
+    col.names = c(labelled::get_label_attribute(v), "Number of Samples"), 
+    align = "rr"
+  ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
@@ -76,14 +81,14 @@ proc$extract_qc_samples_to_list(overall_sumexp) |>
 ## Chemicals
 
 The data contained `r nrow(overall_sumexp)` chemicals.
-Among them, `r sum(rowData(overall_sumexp)$std_type != "")` chemicals were targeted. 
+Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` chemicals were targeted. 
 The rest were not targeted.
 
 For those targeted chemicals, the standard type was specified.
 The number of chemicals for each type is as follows:
 
 ```{r}
-show$kable_number_of(rowData(overall_sumexp)$std_type, what = "Chemicals", exclude = "")
+show$kable_number_of(SumExp::row_df(overall_sumexp)$std_type, what = "Chemicals", exclude = "")
 ```
 
 ## Distribution of the values
@@ -98,7 +103,7 @@ As shown below, the values are distributed in a skewed manner.
 #| fig-height: 6
 #| out-width: '100%'
 
-p <- ggplot(overall_sumexp) +
+p <- SumExp::ggplot(overall_sumexp) +
     geom_histogram(aes(x = raw), bins = 50)
 gridExtra::grid.arrange(   # Two ggplots next to each other
   p + labs(title = "Linear scale", x = "Values"),

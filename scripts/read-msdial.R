@@ -30,7 +30,7 @@ sample_info <- msdial$fetch_sample_info(FILE$i, i_three_sections[[2]])
 
 # Chemical Data
 chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
-  dplyr::select(        # SummarizedExperiment will `make.names` change anyhow
+  dplyr::select( 
     alignment_id = "Alignment ID",
     chem_name = "Metabolite name",
     mz = "Average Mz",
@@ -38,14 +38,19 @@ chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
     sn_ratio = "S/N average",
     std_type = "Comment",            # Type of standard, e.g. "Quant", "IS", or NA 
   ) |> 
-  # `chem_id` = Syntactically valid ID
-  dplyr::mutate(chem_id = make.names(chem_name, unique = TRUE), .before = 1L) |> 
+  as.data.frame()        # To have row names
+
+# Syntactically valid ID
+rownames(chems) <- make.names(chems$chem_name, unique = TRUE)
+chems <- chems |> 
   dplyr::mutate(
     dplyr::across(c(mz, rt, sn_ratio), as.numeric),
     # Ignore other variants
     std_type = ifelse(std_type %in% c("Quant", "IS"), std_type, ""),
-  ) |> 
-  expss::apply_labels(
+  )
+# Apply labels
+chems <- chems |> 
+  labelled::set_variable_labels(
     alignment_id = "Alignment ID",
     chem_name = "Chemical Name",
     mz = "Average M/Z",
@@ -56,11 +61,12 @@ chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
 
 # Measured values of the chemicals into a matrix
 raw_df <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[2]])
-stopifnot(colnames(raw_df) == sample_info$given_sample_id)
-colnames(raw_df) <- sample_info$sample_id     # Update with syntactically valid names
+stopifnot(identical(colnames(raw_df), labelled::remove_labels(sample_info$sample_name)))
+colnames(raw_df) <- rownames(sample_info)     # Update with syntactically valid names
 raw_mat <- lapply(raw_df, as.numeric) |> 
-  as.data.frame(row.names = chems$chem_id) |> 
+  as.data.frame(row.names = rownames(chems)) |> 
   as.matrix()
+labelled::label_attribute(raw_mat) <- "Raw Intensity"
 
 cat("From the given file:", FILE$i, "\n",
     "Number of samples:", ncol(raw_mat), "\n",
@@ -77,7 +83,7 @@ sample_info <- sample_info |>
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
     ) |> 
-      expss::set_var_lab("Category for Processing")
+      labelled::set_label_attribute("Category for Processing")
   )
 stopifnot(
   "Calibration curve samples are required." = any(sample_info$proc_cat == "CalCurve"),
@@ -93,9 +99,10 @@ find_concentration <- function(sid) {
 }
 sample_info <- sample_info |> 
   dplyr::mutate(
-    c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_) |> 
-      expss::set_var_lab("Concentration"),
-    injection_order = as.integer(injection_order),
+    c_conc = ifelse(proc_cat == "CalCurve", find_concentration(sample_name), NA_real_) |> 
+      labelled::set_label_attribute("Concentration"),
+    injection_order = as.integer(injection_order) |> 
+      labelled::copy_labels_from(injection_order),
   )
 calcurve_conc <- sample_info$c_conc[sample_info$proc_cat == "CalCurve"]
 stopifnot(
@@ -104,11 +111,11 @@ stopifnot(
   "Multiple curve samples per concentration are required." = all(table(calcurve_conc) > 1)
 )
 
-# Into SummarizedExperiment
-sumexp <- SummarizedExperiment::SummarizedExperiment(
-  assays = list(raw = raw_mat),
-  colData = sample_info,
-  rowData = chems,
+# Into "SumExp" class
+sumexp <- SumExp::SumExp(
+  matrices = list(raw = raw_mat),
+  col_df = sample_info,
+  row_df = chems,
   metadata = rlang::list2(
     file_name = basename(FILE$i),
     file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),
@@ -116,7 +123,7 @@ sumexp <- SummarizedExperiment::SummarizedExperiment(
   )
 )
 
-# Save the SummarizedExperiment object
+# Save the "SumExp" object
 saveRDS(sumexp, file = FILE$o)
-cat("SummarizedExperiment object saved to:", FILE$o, "\n")
+cat("`SumExp` object saved to:", FILE$o, "\n")
 

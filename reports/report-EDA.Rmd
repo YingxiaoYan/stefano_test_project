@@ -12,7 +12,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
-  SummarizedExperiment[rowData, `rowData<-`, colData, `colData<-`, assays, `assays<-`],
+  SummarizedExperiment[row_df, `row_df<-`, col_df, `col_df<-`, assays, `assays<-`],
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
 )
 # Input file
@@ -68,17 +68,17 @@ fetch_sample_info <- function(msdial_file, indices) {
   stopifnot("Deviation from the expected names for samples" = identical(
     colnames(sinfo)[-5], c("Class", "File type", "Injection order", "Batch ID")
   ))
-  colnames(sinfo)[5] <- "given_sample_id"
+  colnames(sinfo)[5] <- "sample_name"
   # Create a tibble with the sample information
   sinfo <- tibble::as_tibble(sinfo) |> 
     dplyr::select(
       Class,
       sample_type = "File type",
       injection_order = "Injection order",
-      given_sample_id,
+      sample_name,
     ) |> 
     # Syntactically valid for variable name in R
-    dplyr::mutate(sample_id = make.names(given_sample_id, unique = TRUE), .before = 1L) |>
+    dplyr::mutate(sample_id = make.names(sample_name, unique = TRUE), .before = 1L) |>
     # Control sample groups
     dplyr::mutate(
       proc_cat = dplyr::case_when(
@@ -103,7 +103,7 @@ fetch_sample_info <- function(msdial_file, indices) {
   }
   sinfo <- sinfo |> 
     dplyr::mutate(
-      c_conc = ifelse(proc_cat == "CalCurve", find_concentration(given_sample_id), NA_real_),
+      c_conc = ifelse(proc_cat == "CalCurve", find_concentration(sample_name), NA_real_),
       injection_order = as.integer(injection_order),
     )
   stopifnot(
@@ -160,7 +160,7 @@ parse_to_sumexp <- function(msdial_file) {
   
   # Measured values of the chemicals into a matrix
   raw_df <- fetch_data_of_columns(msdial_file, i_three_sections[[2]])
-  stopifnot(identical(colnames(raw_df), sample_info$given_sample_id))
+  stopifnot(identical(colnames(raw_df), sample_info$sample_name))
   colnames(raw_df) <- sample_info$sample_id     # Update with syntactically valid names
   raw_mat <- lapply(raw_df, as.numeric) |> 
     as.data.frame(row.names = chems$chem_id) |> 
@@ -169,8 +169,8 @@ parse_to_sumexp <- function(msdial_file) {
   # Into SummarizedExperiment
   SummarizedExperiment::SummarizedExperiment(
     assays = list(raw = raw_mat),
-    colData = sample_info,
-    rowData = chems,
+    col_df = sample_info,
+    row_df = chems,
   )
 }
 overall_sumexp <- parse_to_sumexp(FILE$i)  # To be updated throughout the pre-processing
@@ -184,23 +184,23 @@ The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(o
 
 ### By class
 
-There are `r dplyr::n_distinct(overall_sumexp$Class)` classes of samples in the data.
+There are `r dplyr::n_distinct(SumExp::col_df(overall_sumexp)$Class)` classes of samples in the data.
 The number of samples for each class is as follows:
 
 ```{r}
-table(overall_sumexp$Class) |> 
+table(SumExp::col_df(overall_sumexp)$Class) |> 
   knitr::kable(col.names = c("Class", "Number of Samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
 ### Special categories for preprocessing
 
-There are `r length(table(overall_sumexp$proc_cat, exclude = ""))` special sample categories for in the data.
+There are `r length(table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-table(overall_sumexp$proc_cat, exclude = "") |> 
+table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = "") |> 
   knitr::kable(col.names = c("Category", "Number of Samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
@@ -216,11 +216,11 @@ Concentration is extracted from the numeric part in the format after the replace
 
 ```{r}
 # Present the sample IDs for the calibration curve
-df_show <- colData(overall_sumexp[, overall_sumexp$proc_cat == "CalCurve"]) |> 
+df_show <- col_df(overall_sumexp[, SumExp::col_df(overall_sumexp)$proc_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
   dplyr::arrange(c_conc)
 df_show |> 
-  dplyr::select(given_sample_id, c_conc) |>
+  dplyr::select(sample_name, c_conc) |>
   knitr::kable(
     col.names = c("Sample ID", "Concentration (ng/ml)"),
     format.args = list(scientific = FALSE)
@@ -268,13 +268,13 @@ extract_qc_samples_to_list(overall_sumexp) |>
 ## Chemicals
 
 The data contained `r nrow(overall_sumexp)` chemicals.
-Among them, `r sum(rowData(overall_sumexp)$std_type != "")` chemicals were targeted. 
+Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` chemicals were targeted. 
 The rest were not targeted.
 
 ```{r}
 #| purl: true
 # Extract standard chemicals
-is_targeted <- rowData(overall_sumexp)$std_type != ""
+is_targeted <- SumExp::row_df(overall_sumexp)$std_type != ""
 targeted_chems_se <- overall_sumexp[is_targeted, ]
 ```
 
@@ -282,7 +282,7 @@ For those targeted chemicals, the standard type was specified.
 The number of chemicals for each type is as follows:
 
 ```{r}
-table(rowData(targeted_chems_se)$std_type) |> 
+table(SumExp::row_df(targeted_chems_se)$std_type) |> 
   knitr::kable(col.names = c("Standard Type", "Number of Chemicals")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
@@ -331,17 +331,17 @@ Randomly selected 8 targeted chemicals are shown in the following figure.
 #| purl: true
 #' Randomly select `n` rows from `sumexp` with optional `subset`
 #'
-#' @param sumexp a SummarizedExperiment object
+#' @param sumexp a SumExp object
 #' @param n the number of rows to select
-#' @param subset an optional subset expression to apply to the `rowData` of `sumexp`
+#' @param subset an optional subset expression to apply to the `row_df` of `sumexp`
 #' @param keep_the_order if `TRUE`, the selected rows are sorted in the previous order
 #'
-#' @return a SummarizedExperiment object with `n` rows randomly selected from `sumexp`
+#' @return a SumExp object with `n` rows randomly selected from `sumexp`
 #' @export
 select_rows_randomly <- function(sumexp, n, subset, keep_the_order = FALSE) {
   ii <- c(1:nrow(sumexp))
-  if (!missing(subset)) {      # If given, apply it to the `rowData` of `sumexp`
-    ii <- ii[eval(substitute(subset), as.data.frame(rowData(sumexp)))]
+  if (!missing(subset)) {      # If given, apply it to the `row_df` of `sumexp`
+    ii <- ii[eval(substitute(subset), as.data.frame(SumExp::row_df(sumexp)))]
   }
   ii <- sample(ii, n)
   if (keep_the_order) ii <- sort(ii)
@@ -377,13 +377,13 @@ rsd_perc <- function(x, digits = 2) round(100 * sd(x) / mean(x), digits)
 internal_std_se <- local({
   se <- overall_sumexp
   # Extract the internal standard chemicals
-  se <- se[rowData(se)$std_type == "IS", ]
+  se <- se[SumExp::row_df(se)$std_type == "IS", ]
   # Sort by average retention time
-  se <- se[order(rowData(se)$rt), ]
+  se <- se[order(SumExp::row_df(se)$rt), ]
   # Number of zeros
-  rowData(se)$num_zeros <- rowSums(assays(se)$raw == 0)
+  SumExp::row_df(se)$num_zeros <- rowSums(assays(se)$raw == 0)
   # RSD% of the internal standard chemicals across all samples
-  rowData(se)$rsd <- apply(assays(se)$raw, 1, rsd_perc)
+  SumExp::row_df(se)$rsd <- apply(assays(se)$raw, 1, rsd_perc)
   return(se)
 })
 ```
@@ -395,7 +395,7 @@ Those chemicals are listed below, in the order of average retention time.
 #| purl: true
 # Table of internal standard chemicals
 kable_internal_std <- function(se) {
-  df <- rowData(se)[, c("chem_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
+  df <- SumExp::row_df(se)[, c("chem_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
   df$num_zeros <- ifelse(df$num_zeros == 0, "", df$num_zeros)
   knitr::kable(
     df, 
@@ -432,9 +432,9 @@ n_out_istd <- assays(internal_std_se)$raw |>
 is_outlier <- n_out_istd > nrow(internal_std_se) * 0.2
 if (all(! is_outlier)) {
   # Exclude the outlying samples
-  stopifnot(names(is_outlier) == colnames(internal_std_se))
+  stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
   internal_std_se <- internal_std_se[, !is_outlier]
-  stopifnot(names(is_outlier) == colnames(overall_sumexp))
+  stopifnot(identical(names(is_outlier), colnames(overall_sumexp)))
   overall_sumexp <- overall_sumexp[, !is_outlier]
 }
 ```
@@ -446,13 +446,13 @@ if (all(! is_outlier)) {
   cat("No outliers were identified.\n")
 } else {
   cat("The following samples were identified as outliers.\n\n")
-  stopifnot(names(is_outlier) == rownames(n_out_istd))
+  stopifnot(identical(names(is_outlier), rownames(n_out_istd)))
   tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
     dplyr::mutate(is_outlier = is_outlier) |>
-    dplyr::left_join(as.data.frame(colData(overall_sumexp)), by = "sample_id") |> 
+    dplyr::left_join(as.data.frame(col_df(overall_sumexp)), by = "sample_id") |> 
     dplyr::filter(is_outlier) |> 
     dplyr::select(
-      "Sample ID" = given_sample_id,
+      "Sample ID" = sample_name,
       Class,
       "File type" = sample_type,
       "Number of Outlying IS" = value
@@ -464,9 +464,9 @@ if (all(! is_outlier)) {
   cat("\n\nAfter excluding the outliers,", 
       "the table of internal standard chemicals is as follows.\n\n")
   # Number of zeros
-  rowData(internal_std_se)$num_zeros <- rowSums(assays(internal_std_se)$raw == 0)
+  SumExp::row_df(internal_std_se)$num_zeros <- rowSums(assays(internal_std_se)$raw == 0)
   # RSD% of the internal standard chemicals across all samples
-  rowData(internal_std_se)$rsd <- apply(assays(internal_std_se)$raw, 1, rsd_perc)
+  SumExp::row_df(internal_std_se)$rsd <- apply(assays(internal_std_se)$raw, 1, rsd_perc)
   # Updated table of internal standard chemicals
   kable_internal_std(internal_std_se)
 }
@@ -481,13 +481,13 @@ Internal standard (IS) chemicals that satisfy the following conditions were cons
 ```{r}
 #| label: 'failed-internal-standards'
 #| purl: true
-is_failed_istd <- rowData(internal_std_se)$num_zeros > 0
+is_failed_istd <- SumExp::row_df(internal_std_se)$num_zeros > 0
 ```
 
 ```{r}
 #| out-width: 100%
 box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
-  chem_name <- rowData(se)$chem_name[ii]
+  chem_name <- SumExp::row_df(se)$chem_name[ii]
   se_tbl <- tibble::as_tibble(se[ii, ])
   # Box plot
   p1 <- ggplot(se_tbl) +
@@ -557,8 +557,8 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 # Calculate RSD% per internal standard chemical and per quality control sample
 df1 <- extract_qc_samples_to_list(internal_std_se) |> 
   sapply(\(se) apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2)))
-stopifnot(rownames(df1) == rownames(internal_std_se))
-rownames(df1) <- rowData(internal_std_se)$chem_name
+stopifnot(identical(rownames(df1), rownames(internal_std_se)))
+rownames(df1) <- SumExp::row_df(internal_std_se)$chem_name
 knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality control sample") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
@@ -572,8 +572,8 @@ df1 <- sapply(setNames(nm = unique(se$Class)), function(cls) {
   se <- se[, se$Class == cls]
   apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2))
 })
-stopifnot(rownames(df1) == rownames(se))
-rownames(df1) <- rowData(se)$chem_name
+stopifnot(identical(rownames(df1), rownames(se)))
+rownames(df1) <- SumExp::row_df(se)$chem_name
 knitr::kable(df1, caption = "RSD% of internal standard chemicals by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
@@ -585,9 +585,9 @@ The data is normalized using the internal standard chemicals.
 ```{r}
 #| purl: true
 # Find the range of RT values
-overall_rt_range <- range(rowData(overall_sumexp)$rt)
-targetted_rt_range <- range(rowData(targeted_chems_se)$rt)
-rt <- rowData(internal_std_se)$rt
+overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)
+targetted_rt_range <- range(SumExp::row_df(targeted_chems_se)$rt)
+rt <- SumExp::row_df(internal_std_se)$rt
 ```
 
 The range of RT values of overall chemicals is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
@@ -604,8 +604,8 @@ The measured peak area of each chemical will be divided by the peak area of the 
 #| purl: true
 # Get the values of the closest internal standard chemicals
 get_raw_of_closest_istd <- function(se_x, internal_std_se) {
-  rt_x <- rowData(se_x)$rt
-  rt <- rowData(internal_std_se)$rt
+  rt_x <- SumExp::row_df(se_x)$rt
+  rt <- SumExp::row_df(internal_std_se)$rt
   # Find the closest internal standard chemical
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt - .x)))
   out <- assays(internal_std_se)$raw[i_closest, ]
@@ -626,7 +626,7 @@ assays(overall_sumexp)$closest_norm <- assays(overall_sumexp)$raw / closest_istd
 # Extract quantitative standards in QC samples
 extract_quant_qc <- function(sumexp) {
   se_lst <- extract_qc_samples_to_list(sumexp)
-  lapply(se_lst, \(se) se[rowData(se)$std_type == "Quant", ])
+  lapply(se_lst, \(se) se[SumExp::row_df(se)$std_type == "Quant", ])
 }
 # Calculate RSD of the quantification standard samples
 calc_rsd_qstd <- function(qc_se, assay_ids) {
@@ -695,7 +695,7 @@ excluded_category_for_normalization <- c("Blank", "CalCurve")
 loess_fit <- local({
   # Log-transform the data
   istd_log <- log(assays(internal_std_se)$raw)
-  rt <- rowData(internal_std_se)$rt
+  rt <- SumExp::row_df(internal_std_se)$rt
   
   # Normalize the data using the internal standards
   # Mean of each internal standard chemical for overall measurement samples
@@ -734,7 +734,7 @@ loess_fit <- local({
 })
 
 # Normalize the data by LOESS fit along RT
-rt <- rowData(overall_sumexp)$rt
+rt <- SumExp::row_df(overall_sumexp)$rt
 raw <- assays(overall_sumexp)$raw
 assays(overall_sumexp)$loess_norm <- sapply(
   colnames(overall_sumexp), function(sample_id) {
@@ -759,7 +759,7 @@ Randomly selected 3 samples are shown below.
 #| fig-width: 14
 #| fig-height: 12
 
-to_excl <- overall_sumexp$proc_cat %in% excluded_category_for_normalization
+to_excl <- SumExp::col_df(overall_sumexp)$proc_cat %in% excluded_category_for_normalization
 # Plot the normalized and original data for randomly selected 3 samples
 i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
 
@@ -772,7 +772,7 @@ loess_curve_df <- lapply(setNames(i_sel, colnames(overall_sumexp)[i_sel]), funct
   dplyr::mutate(rt = x) |>
   tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
 loess_curve_df$sample_name <-
-  overall_sumexp$given_sample_id[match(loess_curve_df$sample_id, overall_sumexp$sample_id)]
+  SumExp::col_df(overall_sumexp)$sample_name[match(loess_curve_df$sample_id, SumExp::col_df(overall_sumexp)$sample_id)]
 
 # Log-transform the data
 raw_log <- log(assays(overall_sumexp)$raw)
@@ -786,7 +786,7 @@ assays(selected_se) <- assays(selected_se) |>
   lapply(\(x) sweep(log(x), 1, mean_log, FUN = "-"))
 
 df_to_show <- tibble::as_tibble(selected_se) |>
-  dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = given_sample_id) |>
+  dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = sample_name) |>
   tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
   dplyr::mutate(
     Type = ifelse(std_type == "", "non-target", std_type),
@@ -852,7 +852,7 @@ Bar charts of the values of standard chemicals are compared for raw and normaliz
 #| out-width: '100%'
 
 se <- overall_sumexp
-df_show <- se[rowData(se)$std_type %in% c("Quant", "IS"), ] |> 
+df_show <- se[SumExp::row_df(se)$std_type %in% c("Quant", "IS"), ] |> 
   tibble::as_tibble() |> 
   tidyr::pivot_longer(cols = c(raw, loess_norm), names_to = "Data", values_to = "Value") |> 
   dplyr::mutate(
@@ -944,7 +944,7 @@ The RSD% values are presented in the table below.
 ```{r}
 #| label: 'rsd-comparison-table'
 df_to_show |> 
-  dplyr::left_join(as.data.frame(rowData(overall_sumexp)), by = "chem_id") |>   # Add chemical names
+  dplyr::left_join(as.data.frame(SumExp::row_df(overall_sumexp)), by = "chem_id") |>   # Add chemical names
   dplyr::select(QC, chem_name, dplyr::all_of(unname(assay_ids))) |> 
   dplyr::rename(all_of(assay_ids), `Chemical` = chem_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
@@ -961,13 +961,13 @@ write_normalized_data_tsv <- function(sumexp, in_file, out_file) {
   # Prepare the chemical table
   i_sec <- get_three_section_indices(in_file)
   intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
-  stopifnot(intact_chem_cols$"Alignment ID" == rowData(sumexp)$alignment_id)
+  stopifnot(identical(intact_chem_cols$"Alignment ID", SumExp::row_df(sumexp)$alignment_id))
   # Prepare the normalized data table
   norm_df <- assays(sumexp)$loess_norm |> 
     round(0) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(norm_df) <- colData(sumexp)$given_sample_id
+  colnames(norm_df) <- col_df(sumexp)$sample_name
   readr::write_tsv(dplyr::bind_cols(intact_chem_cols, norm_df), out_file)
 }
 write_normalized_data_tsv(overall_sumexp, FILE$i, FILE$o$norm)
@@ -985,7 +985,7 @@ The data of the zeros is used to calculate lower-limits of quantification (LLOQ)
 #| label: 'calcurve-samples-extraction'
 #| purl: true
 # Extract quantification standard data
-quant_se <- overall_sumexp[rowData(overall_sumexp)$std_type == "Quant", ]
+quant_se <- overall_sumexp[SumExp::row_df(overall_sumexp)$std_type == "Quant", ]
 # Calibration curve samples only
 calcurve_se <- quant_se[, quant_se$proc_cat == "CalCurve"]
 stopifnot("Calibration curve samples are required." = nrow(calcurve_se) > 0)
@@ -1018,7 +1018,7 @@ Hence the concentrations were excluded for which the peak areas after normalizat
 #| label: 'calcurve-upper-limit-concentration-range'
 #| purl: true
 
-rowData(calcurve_se)$max_conc <- local({
+SumExp::row_df(calcurve_se)$max_conc <- local({
   stopifnot(rownames(quant_se) == rownames(calcurve_se))
   se1 <- quant_se
   se1 <- se1[, se1$proc_cat %in% c("CalCurve", "QC") == FALSE]
@@ -1048,30 +1048,30 @@ get_mean_plus_sd <- function(mat, times) {
   m + times * s
 }
 # Find the lower-limit of quantification using values of the zero concentration samples
-rowData(calcurve_se)$lloq <- get_mean_plus_sd(assays(cal_0_se)$loess_norm, times = 10)
-rowData(calcurve_se)$min_conc <- local({
+SumExp::row_df(calcurve_se)$lloq <- get_mean_plus_sd(assays(cal_0_se)$loess_norm, times = 10)
+SumExp::row_df(calcurve_se)$min_conc <- local({
   cc <- calcurve_se
   # Find the minimum concentration of the calibration samples
-  apply(assays(cc)$loess_norm > rowData(cc)$lloq, 1, \(ea_row) {
+  apply(assays(cc)$loess_norm > SumExp::row_df(cc)$lloq, 1, \(ea_row) {
     if (all(!ea_row)) return(NA_real_)
     min(cc$c_conc[ea_row])
   })
 })
 
 # Mark the chemicals that have the minimum concentration equal to or greater than the maximum concentration
-rowData(calcurve_se)$to_exclude <- as.data.frame(rowData(calcurve_se)) |> 
+SumExp::row_df(calcurve_se)$to_exclude <- as.data.frame(SumExp::row_df(calcurve_se)) |> 
   with(is.na(min_conc) | is.na(max_conc) | min_conc >= max_conc)
 ```
 
 When the minimum concentration is equal to or greater than maximum concentration, the chemical is excluded from the calibration curve.
-`r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
+`r english::Words(sum(SumExp::row_df(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
 
 Remaining concentration range of each chemical is presented below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
-rowData(calcurve_se) |> 
+SumExp::row_df(calcurve_se) |> 
   tibble::as_tibble() |> 
   dplyr::mutate(
     min_conc = dplyr::case_when(
@@ -1100,17 +1100,17 @@ rowData(calcurve_se) |>
 #| purl: true
 
 # Exclude the marked chemicals
-is_marked <- rowData(calcurve_se)$to_exclude
+is_marked <- SumExp::row_df(calcurve_se)$to_exclude
 stopifnot(rownames(calcurve_se) == rownames(quant_se))
 calcurve_se <- calcurve_se[is_marked == FALSE, ]
 quant_se <- quant_se[is_marked == FALSE, ]
-rowData(quant_se)$lloq <- rowData(calcurve_se)$lloq    # Copy the LLOQ values
+SumExp::row_df(quant_se)$lloq <- SumExp::row_df(calcurve_se)$lloq    # Copy the LLOQ values
 # Exclude the values outside the concentration range
 calcurve_se <- local({
   cc <- calcurve_se
   # Concentration values in a matrix, rows are chemicals and columns are concentrations
   conc_mat <- matrix(rep(cc$c_conc, each = nrow(cc)), nrow = nrow(cc))
-  to_na <- conc_mat < rowData(cc)$min_conc | conc_mat > rowData(cc)$max_conc
+  to_na <- conc_mat < SumExp::row_df(cc)$min_conc | conc_mat > SumExp::row_df(cc)$max_conc
   assays(cc)$loess_norm[to_na] <- NA_real_
   cc
 })
@@ -1127,7 +1127,7 @@ set.seed(7579)
 # Randomly selected 9 chemicals to present in calibration curve plots
 i_9chem_to_show <- local({
   ii <- c(1:nrow(calcurve_se))
-  ii <- ii[rowData(calcurve_se)$std_type != "IS"]
+  ii <- ii[SumExp::row_df(calcurve_se)$std_type != "IS"]
   sample(ii, 9)
 })
 calcurve_to_show_df0 <- tibble::as_tibble(calcurve_se[i_9chem_to_show, ])
@@ -1267,7 +1267,7 @@ build_calcurve_model <- function(conc, value) {
 }
 
 # Fit the calibration curve
-to_excl <- rownames(calcurve_se)[rowData(calcurve_se)$to_exclude]
+to_excl <- rownames(calcurve_se)[SumExp::row_df(calcurve_se)$to_exclude]
 calcurve_se <- calcurve_se[]
 c_conc <- calcurve_se$c_conc
 rt_norm_mat <- assays(calcurve_se)$loess_norm
@@ -1307,8 +1307,8 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 #| purl: true
 # Compute the concentration of the samples skipping the calibration curve samples
 measurements_se <- quant_se[, ! quant_se$proc_cat %in% "CalCurve"]
-rowData(measurements_se)$c_conc <- NULL
-assays(measurements_se)$conc <- rowData(measurements_se)$chem_id |> 
+SumExp::row_df(measurements_se)$c_conc <- NULL
+assays(measurements_se)$conc <- SumExp::row_df(measurements_se)$chem_id |> 
   sapply(function(chem_id) {
     v <- assays(measurements_se)$loess_norm[chem_id, ]
     calcurve_models[[chem_id]]$best_model(v)
@@ -1317,9 +1317,9 @@ assays(measurements_se)$conc <- rowData(measurements_se)$chem_id |>
 # Negative concentrations are adjusted to zero
 assays(measurements_se)$conc[assays(measurements_se)$conc < 0] <- 0
 # Maximum/minimum concentration after trimming out of each chemical
-maxmin_conc <- rowData(calcurve_se)[c("max_conc", "min_conc")]
+maxmin_conc <- SumExp::row_df(calcurve_se)[c("max_conc", "min_conc")]
 stopifnot(rownames(maxmin_conc) == rownames(calcurve_se))
-rowData(measurements_se) <- cbind(rowData(measurements_se), maxmin_conc)
+SumExp::row_df(measurements_se) <- cbind(SumExp::row_df(measurements_se), maxmin_conc)
 ```
 
 The concentration of the sample classes, `r knitr::combine_words(unique(measurements_se$Class), before = "\x60")`,
@@ -1340,8 +1340,8 @@ models_to_show_tbl <- purrr::imap_dfr(calcurve_models, \(m, chem_id) {
     R2 = max(m$R2s),
     model_r2 = paste0(best_model_name, "\nR2=", round(R2, 2)),
     
-    chem_name = rowData(calcurve_se)[chem_id, ]$chem_name,
-    lloq = rowData(calcurve_se)[chem_id, ]$lloq,
+    chem_name = SumExp::row_df(calcurve_se)[chem_id, ]$chem_name,
+    lloq = SumExp::row_df(calcurve_se)[chem_id, ]$lloq,
   )
 }) |> 
   dplyr::slice(i_9chem_to_show)
@@ -1397,7 +1397,7 @@ data_to_show_tbl |>
 
 ```{r}
 classes_excl_qc_blank <- local({
-  df <- colData(measurements_se)
+  df <- col_df(measurements_se)
   unique(df$Class[!df$proc_cat %in% c("QC", "Blank")])
 })
 ```
@@ -1452,7 +1452,7 @@ The distribution of the concentration of the samples is shown below.
 #| fig-width: 12
 #| fig-height: 10
 ggplot(measurements_se) +
-  geom_boxplot(aes(x = given_sample_id, y = conc, fill = Class)) +
+  geom_boxplot(aes(x = sample_name, y = conc, fill = Class)) +
   labs(
     title = "Concentration distribution by sample", 
     x = "Sample ID",
@@ -1485,7 +1485,7 @@ ggplot(measurements_se) +
 # Write the concentration table
 write_concentration_tsv <- function(sumexp, file) {
   # Prepare the chemical table
-  chem_columns <- SummarizedExperiment::rowData(sumexp) |> 
+  chem_columns <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble() |> 
     dplyr::select(
       `Alignment ID` = alignment_id,
@@ -1498,7 +1498,7 @@ write_concentration_tsv <- function(sumexp, file) {
     round(3) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
-  colnames(conc_df) <- colData(sumexp)$given_sample_id
+  colnames(conc_df) <- col_df(sumexp)$sample_name
   readr::write_tsv(dplyr::bind_cols(chem_columns, conc_df), file)
 }
 write_concentration_tsv(measurements_se, FILE$o$conc)

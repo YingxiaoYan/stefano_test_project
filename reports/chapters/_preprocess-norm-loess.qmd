@@ -1,6 +1,3 @@
----
-title: "Normalization by LOESS"
----
 
 For each chemical, the average of all samples excluding 
 `r knitr::combine_words(excluded_category_for_normalization, before = "\x60")`
@@ -17,34 +14,40 @@ Randomly selected 3 samples are shown below.
 #| fig-width: 14
 #| fig-height: 12
 
-to_excl <- overall_sumexp$proc_cat %in% excluded_category_for_normalization
-# Plot the normalized and original data for randomly selected 3 samples
+# Plot the normalized and original data for randomly selected 3 samples excluding those not
+# used in normalization
+to_excl <- SumExp::col_df(overall_sumexp)$proc_cat %in% excluded_category_for_normalization
 i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
+i_sel <- setNames(i_sel, colnames(overall_sumexp)[i_sel])
 
 # To include LOESS smooth line
-x <- seq(overall_rt_range[1], overall_rt_range[2], length.out = 100)
-loess_curve_df <- lapply(setNames(i_sel, colnames(overall_sumexp)[i_sel]), function(ii) {
-  predict(loess_fit[[ii]], newdata = x)
-}) |> 
-  as.data.frame() |> 
-  dplyr::mutate(rt = x) |>
-  tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
-loess_curve_df$sample_name <-
-  overall_sumexp$given_sample_id[match(loess_curve_df$sample_id, overall_sumexp$sample_id)]
+loess_curve_df <- local({
+  rg <- overall_rt_range
+  x <- seq(rg[1], rg[2], length.out = 100)   # X-axis (retention time)
+  out <- lapply(i_sel, function(ii) predict(loess_fit[[ii]], newdata = x)) |> 
+    as.data.frame() |> 
+    dplyr::mutate(rt = x) |>
+    tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
+    # Attach sample names
+  dplyr::left_join(out, sample_names_tbl, by = "sample_id")
+})
 
 # Log-transform the data
-raw_log <- log(assays(overall_sumexp)$raw)
+raw_log <- log(overall_sumexp[["raw"]])
 # Overall mean of every chemical
 mat <- raw_log[, !to_excl, drop = FALSE]
-mat[is.finite(mat) == FALSE] <- NA    # Visualization purpose only
+mat[!is.finite(mat)] <- NA    # Visualization purpose only
 mean_log <- rowMeans(mat, na.rm = TRUE)
 # Deviation from the mean
 selected_se <- overall_sumexp[, i_sel]
-assays(selected_se) <- assays(selected_se) |> 
-  lapply(\(x) sweep(log(x), 1, mean_log, FUN = "-"))
+for(ii in c("raw", "loess_norm")) {
+  selected_se[[ii]] <- selected_se[[ii]] |> 
+    log() |> 
+    sweep(1, mean_log, FUN = "-")
+}
 
-df_to_show <- tibble::as_tibble(selected_se) |>
-  dplyr::rename(Raw = raw, Normalized = loess_norm, sample_name = given_sample_id) |>
+df_to_show <- SumExp::as_tibble(selected_se) |>
+  dplyr::rename(Raw = raw, Normalized = loess_norm) |>
   tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
   dplyr::mutate(
     Type = ifelse(std_type == "", "non-target", std_type),
@@ -58,7 +61,7 @@ ggplot(df_to_show, aes(x = rt, y = Value)) +
   geom_line(data = loess_curve_df, alpha = 0.5) +
   labs(
     title = "Normalized and original data",
-    x = "Average RT", 
+    x = labelled::get_label_attribute(rt),
     y = "log(Values) - log(avg)"
   ) +
   scale_shape_manual(values = c("IS" = 15, "Quant" = 21, "non-target" = 20)) +
@@ -81,14 +84,15 @@ The normalized data are evaluated by the changes of relative standard deviation 
 # Quantification standard chemicals of QC samples
 qc_se <- proc$extract_quant_qc(overall_sumexp)
 # Calculate RSD of the quantification standard samples
-assay_ids <- setNames(c("raw", "loess_norm"), nm = c("Raw", "LOESS Normalized"))
-rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |> 
+labs <- SumExp::name_labs(overall_sumexp)
+labs <- labs[labs %in% c("raw", "loess_norm")]
+rsd_qstd <- proc$calc_rsd_qstd(qc_se, labs) |> 
   dplyr::mutate(
     sign = ifelse(raw > loess_norm, "↓", "↑"),
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))
   ) 
-show$ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+show$ggplot_rsdp_metab(rsd_qstd, labs) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)
@@ -109,13 +113,12 @@ Bar charts of the values of standard chemicals are compared for raw and normaliz
 #| fig-height: 6
 #| out-width: '100%'
 
-se <- overall_sumexp
-df_show <- se[rowData(se)$std_type %in% c("Quant", "IS"), ] |> 
-  tibble::as_tibble() |> 
+is_IS_Qaunt <- SumExp::row_df(overall_sumexp)$std_type %in% c("Quant", "IS")
+labs <- SumExp::name_labs(overall_sumexp)
+df_show <- overall_sumexp[is_IS_Qaunt, ] |> 
+  SumExp::as_tibble() |> 
   tidyr::pivot_longer(cols = c(raw, loess_norm), names_to = "Data", values_to = "Value") |> 
-  dplyr::mutate(
-    Data = factor(Data, levels = c("raw", "loess_norm"), labels = c("Raw", "LOESS Normalized"))
-  )
+  dplyr::mutate(Data = factor(Data, levels = labs, labels = names(labs)))
 df_show |> 
   dplyr::filter(std_type == "Quant", proc_cat == "") |> 
   ggplot() +
@@ -140,8 +143,8 @@ plotly::ggplotly(
     geom_col(aes(y = Value, fill = chem_name)) +
     labs(
       title = "Internal standards", 
-      x = "Injection order",
-      fill = "Chemical name"
+      x = labelled::get_label_attribute(df1$injection_order),
+      fill = labelled::get_label_attribute(df1$chem_name),
     ) +
     geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
     facet_wrap(~ Data, scales = "free_y")
@@ -157,13 +160,13 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 
 # PCA
 se <- overall_sumexp
-se <- se[SummarizedExperiment::rowData(se)$std_type == "IS", ]
-assay_ids <- setNames(nm = c("raw", "loess_norm"))
-pca_res <- lapply(assay_ids, \(.x) {
-  mat <- SummarizedExperiment::assay(se, .x)
+se <- se[SumExp::row_df(se)$std_type == "IS", ]
+mat_ids <- setNames(nm = c("raw", "loess_norm"))
+pca_res <- lapply(mat_ids, \(.x) {
+  mat <- se[[.x]]
   stats::prcomp(t(mat), scale. = TRUE)
 })
-se_df <- SummarizedExperiment::colData(se)
+se_df <- SumExp::col_df(se)
 # Plot
 p1 <- ggplot2::autoplot(pca_res$raw, data = se_df, colour = "Class") +
   labs(title = "Raw")

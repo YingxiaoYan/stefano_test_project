@@ -15,7 +15,7 @@ box::use(
   projlib/proc,       # Preprocessing functions
   ggplot2[...],        # Too long to write and usually specific enough
   # Some methods were defined using S4 system, e.g. dim, `[`
-  SummarizedExperiment[rowData, `rowData<-`, colData, `colData<-`, assays, `assays<-`],
+  SummarizedExperiment[row_df, `row_df<-`, col_df, `col_df<-`, assays, `assays<-`],
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble 
 )
 # Read `params.yml` if `params` not provided
@@ -24,7 +24,7 @@ overall_sumexp <- msdial$read_parsed_msdial_data(params)
 set.seed(7579)
 
 # Extract standard chemicals
-is_targeted <- rowData(overall_sumexp)$std_type != ""
+is_targeted <- SumExp::row_df(overall_sumexp)$std_type != ""
 targeted_chems_se <- overall_sumexp[is_targeted, ]
 ```
 

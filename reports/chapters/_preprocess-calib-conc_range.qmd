@@ -9,9 +9,11 @@ The number of samples in the calibration curve after outlier removal is presente
 ```{r}
 #| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-table(calcurve_se$c_conc) |> 
+v <- SumExp::col_df(calcurve_se)$c_conc
+table(v) |> 
   knitr::kable(
     align = c("r", "r"),
+    # col.names = c(labelled::get_label_attribute(v), "Number of Samples")
     col.names = c("Concentration (ng/ml)", "Number of Samples")
   ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
@@ -30,14 +32,14 @@ When there are sufficient data points (≥ 5 concentrations), the maximum concen
 Concentrations that produce peak areas after normalization exceeding ten times the **highest** peak area of non-`CalCurve` and non-`QC` sample categories are excluded.
 
 If the LLOQ is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve.
-As a result, `r english::Words(sum(rowData(calcurve_se)$to_exclude))` chemicals have been removed from the calibration curve.
+As a result, `r english::Words(sum(SumExp::row_df(calcurve_se)$to_exclude))` chemicals have been removed from the calibration curve.
 
 The concentration range for each chemical is detailed below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
-show_df <- rowData(calcurve_se) |> 
+show_df <- SumExp::row_df(calcurve_se) |> 
   tibble::as_tibble() |> 
   dplyr::mutate(
     Note = dplyr::case_when(
@@ -48,20 +50,19 @@ show_df <- rowData(calcurve_se) |>
     LLOD = scales::number(llod),
     LLOQ = ifelse(is.na(lloq), "All < LLOQ or RSD% > 20%", scales::number(lloq)),
     max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)) |> 
-      expss::set_var_lab(expss::var_lab(max_c_conc))
+      labelled::copy_labels_from(max_c_conc)
   ) |>
   dplyr::select(chem_name, LLOD, LLOQ, max_c_conc, Note)
 
-expss::use_labels(show_df, {
-  knitr::kable(
-    ..data,
-    caption = "Concentration range of the calibration curve samples",
-    align = "lrrrr",
-  ) |> 
-    kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
-    kableExtra::scroll_box(height = "350px") |> 
-    # Color the rows that are marked in Note
-    kableExtra::row_spec(which(Note == "LLOD = LLOQ"), background = "lightblue") |> 
-    kableExtra::row_spec(which(Note == "Excluded"), background = "lightcoral")
-})
+knitr::kable(
+  show_df,
+  col.names = labelled::get_variable_labels(show_df, null_action = "fill"),
+  caption = "Concentration range of the calibration curve samples",
+  align = "lrrrr",
+) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "350px") |> 
+  # Color the rows that are marked in Note
+  kableExtra::row_spec(which(show_df$Note == "LLOD = LLOQ"), background = "lightblue") |> 
+  kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
 ```

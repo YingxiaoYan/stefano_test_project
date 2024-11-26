@@ -18,7 +18,7 @@
 #' @export
 kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
   if (missing(lab)) {
-    lab <- expss::var_lab(x)
+    lab <- labelled::get_label_attribute(x)
     if (is.null(lab)) lab <- deparse1(substitute(x))
   } else {
     .chq_if_a_single_char(lab)
@@ -65,25 +65,24 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 
 #' Plot the calibration curve for each chemical with the samples in the calibration curve
 #'
-#' @param data A data frame with columns `conc`, `Class`, `chem_name` and the column given in
-#'   `assay_id`
-#' @param cc_df A data frame of calibration samples with columns `c_conc`, `chem_name` and the
-#'   column given in `assay_id`
-#' @param region_df A data frame with columns `lloq`, `max_c_conc` and `chem_name`
+#' @param x_se A SumExp object with the samples to be plotted
+#' @param cc_se A SumExp object with the calibration curve samples 
+#' @param calcurve_models A list of the calibration curve models 
 #' @param assay_id A character of the assay ID to be plotted in the y-axis
+#'
 #' @return A ggplot object
 #' @export
-#' @rdname ggplot_calcurve_samples
 ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, assay_id) {
   .chq_if_a_single_char(assay_id)
   i_chems <- rownames(x_se)           # Limited to those chemicals in the `x_se`
   cc_se <- cc_se[i_chems, ]
-  cc_df <- tibble::as_tibble(cc_se) |> 
-    tidyr::drop_na(tidyselect::all_of(assay_id))      # Drop concentrations outside the range
+  cc_df <- SumExp::as_tibble(cc_se) |> 
+    # Drop concentrations outside the range
+    tidyr::drop_na(tidyselect::all_of(unname(assay_id)))
   # LLOQ and LLOD
-  region_df <- SummarizedExperiment::rowData(cc_se)[, c("chem_name", "lloq", "llod")]
+  region_df <- SumExp::row_df(cc_se)[, c("chem_name", "lloq", "llod")]
   # The samples to show with the calibration curve
-  x_df <- tibble::as_tibble(x_se) |> 
+  x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
   
   ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[assay_id]])) +
