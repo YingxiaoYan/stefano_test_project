@@ -244,7 +244,7 @@ measurements_se <- quant_se[, ! SumExp::col_df(quant_se)$proc_cat %in% "CalCurve
 SumExp::col_df(measurements_se)$c_conc <- NULL
 measurements_se[["conc"]] <- 
   proc$compute_concentration(measurements_se, calcurve_se, calcurve_models, DATA_ID) |> 
-  labelled::set_variable_labels("conc" = "Concentration (ng/mL)")
+  labelled::set_label_attribute("Concentration (ng/mL)")
 # Maximum/minimum concentration after trimming out of each chemical
 maxmin_conc <- SumExp::row_df(calcurve_se)[c("max_c_conc", "lloq", "llod")]
 stopifnot(identical(rownames(maxmin_conc), rownames(calcurve_se)))
@@ -272,7 +272,8 @@ measurements_se <- measurements_se[, ! is_blank]
 blank_mean_conc <- rowMeans(blank_se[["conc"]])
 conc <- measurements_se[["conc"]] - blank_mean_conc
 conc[conc < 0] <- 0
-measurements_se[["conc"]] <- conc
+measurements_se[["conc"]] <- conc |> 
+  labelled::copy_labels_from(measurements_se[["conc"]])
 ```
 
 {{< include chapters/_preprocess-concentration.qmd >}}
