@@ -9,7 +9,7 @@ The measured peak area of each chemical will be divided by the peak area of the 
 #| out-width: '80%'
 
 # Quantification standard samples
-qc_se <- proc$extract_quant_qc(overall_sumexp)
+qc_se <- show$extract_quant_qc(overall_sumexp)
 
 assay_ids <- setNames(c("raw", "closest_norm"), nm = c("Raw", "Closest IS Normalized"))
 rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |> 

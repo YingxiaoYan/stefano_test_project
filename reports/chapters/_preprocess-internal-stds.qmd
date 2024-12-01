@@ -1,9 +1,18 @@
+```{r}
+#| purl: true
+internal_std_se <- qc_steps[["internal std. raw"]]
+```
 
-There are `r nrow(internal_std_se0)` internal standard (IS) chemicals in the data.
+There are `r nrow(internal_std_se)` internal standard (IS) chemicals in the data.
 Those chemicals are listed below, in the order of average retention time.
 
 ```{r}
 #| purl: true
+SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
+  dplyr::mutate(
+    num_zeros = proc$count_zeros_per_chemical(internal_std_se[["raw"]]),
+    rsd = proc$compute_rsd_per_chemical(internal_std_se[["raw"]]),
+  )
 # Table of internal standard chemicals
 kable_internal_std <- function(se) {
   df <- SumExp::row_df(se) |> 
@@ -20,7 +29,7 @@ kable_internal_std <- function(se) {
   ) |> 
     kableExtra::kable_styling(full_width = FALSE)
 }
-kable_internal_std(internal_std_se0)
+kable_internal_std(internal_std_se)
 ```
 
 ### Outliers
@@ -32,13 +41,15 @@ When the number of outlying IS chemicals of a sample exceeds 20% of the total nu
 
 ```{r}
 #| label: 'outliers-table'
+is_outlier <- qc_steps[["internal std. outlying samples"]]
+n_out_istd <- qc_steps[["internal std. number of outliers"]]
 
 if (all(! is_outlier)) {
   cat("No outliers were identified.\n")
 } else {
   cat("The following samples were identified as outliers.\n\n")
   stopifnot(identical(names(is_outlier), names(n_out_istd)))
-  tb <- tibble::as_tibble(SumExp::col_df(internal_std_se0), rownames = "sample_id")
+  tb <- tibble::as_tibble(SumExp::col_df(internal_std_se), rownames = "sample_id")
   show_tb <- tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
     labelled::set_variable_labels(
       "value" = "Number of Outlying IS",
@@ -65,6 +76,9 @@ Internal standard (IS) chemicals that satisfy the following conditions were cons
 
 ```{r}
 #| out-width: 100%
+
+is_failed_istd <- qc_steps[["internal std. failed IS"]]
+
 box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
   chem_name <- SumExp::row_df(se)$chem_name[ii]
   se_tbl <- SumExp::as_tibble(se[ii, ])
@@ -103,6 +117,12 @@ if (any(is_failed_istd)) {
 
 ```{r}
 if (any(is_outlier) || any(is_failed_istd)) {
+  internal_std_se <- internal_std_se[!is_failed_istd, !is_outlier]
+  SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
+    dplyr::mutate(
+      num_zeros = proc$count_zeros_per_chemical(internal_std_se[["raw"]]),
+      rsd = proc$compute_rsd_per_chemical(internal_std_se[["raw"]]),
+    )
   # Update the table of internal standard chemicals
   cat("\n\nAfter excluding the outliers and failed internal standards,", 
       "the table of internal standard chemicals is as follows.\n\n")
@@ -136,7 +156,7 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 #| label: 'rsd-internal-standards-by-qc-samples'
 # Divide the internal standard chemicals by quality control sample
 # Calculate RSD% per internal standard chemical and per quality control sample
-df1 <- proc$extract_qc_samples_to_list(internal_std_se) |> 
+df1 <- show$extract_qc_samples_to_list(internal_std_se) |> 
   sapply(\(se) apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2)))
 stopifnot(identical(rownames(df1), rownames(internal_std_se)))
 rownames(df1) <- SumExp::row_df(internal_std_se)$chem_name
@@ -147,8 +167,7 @@ knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality cont
 #### By sample classes
 
 ```{r}
-se <- internal_std_se
-se <- se[, SumExp::col_df(se)$proc_cat != "QC"]
+se <- internal_std_se[, quote(proc_cat != "QC")]
 df1 <- sapply(setNames(nm = unique(SumExp::col_df(se)$Class)), function(cls) {
   se <- se[, SumExp::col_df(se)$Class == cls]
   apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2))

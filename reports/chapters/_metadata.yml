@@ -1,23 +1,14 @@
-# NOTE
-# - USE ABSOLUTE PATHS, possibly with `_quarto.yml.local`, when relative ones are not working (due
-#   to e.g. a soft link to the `code` directory).
-
-project:
-  title: "Building on open source tools for targeted and untargeted metabolomics and exposomics"
-  execute-dir: project
-  output-dir: "../../reports"
-
 lang: en
 date: today
 date-format: full
 toc: true
 number-sections: true
-bibliography: "bibliography.bib"
+bibliography: "../bibliography.bib"
 tbl-cap-location: top
 
 format:
   html: 
-    css: "styles.css"
+    css: "../styles.css"
     toc-depth: 3
     echo: false
     code-fold: true
@@ -40,12 +31,12 @@ execute:
 
 knitr:
   opts_knit:
-    root.dir: "../.."
+    root.dir: "../../.."
   opts_chunk:
     purl: false      # Most of the code are not to be extracted.
     message: false    # All messages are ignored.
     
-    # fig.path: "../outputs/figures/"
+    # fig.path: "../../outputs/figures/"
 
     R.options: 
       xfun.cache_rds.clean: false     # Keep old even after invalidated

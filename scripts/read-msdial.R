@@ -2,23 +2,20 @@
 # Parse a MS-Dial file and save the data to an `rds` file
 # ------------------------------------------------------------------------------------------- #
 
-# Read `params.yml` to get input file
-params <- yaml::read_yaml("params.yml")
-stopifnot(    # Required parameters
-  !is.null(params$input_file),
-  !is.null(params$concentration_unit)
-)
-
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
   projlib/msdial,   # Handle MS-Dial files
   projlib/io,       # Check input/output files
 )
+
+# Read `params.yml` to get input file
+params <- yaml::read_yaml("params.yml")
+msdial$has_required_params(params, "input_file")
 # Input/Output files
 FILE <- list(i = params$input_file)
 # Output file name, the base name of the input file with .rds extension
-FILE$o <- msdial$get_sumexp_file_name(params)
+FILE$o <- msdial$get_sumexp_file_name(params, "")
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
@@ -113,13 +110,12 @@ stopifnot(
 
 # Into "SumExp" class
 sumexp <- SumExp::SumExp(
-  matrices = list(raw = raw_mat),
+  raw = raw_mat,
   col_df = sample_info,
   row_df = chems,
   metadata = rlang::list2(
     file_name = basename(FILE$i),
     file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),
-    concentration_unit = params$concentration_unit,
   )
 )
 

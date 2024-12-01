@@ -4,6 +4,8 @@ The calibration curve of each of randomly selected 9 chemicals is presented belo
 
 ```{r}
 #| purl: true
+calcurve_se <- qc_steps[[DATA_ID]][["calcurve_se within range"]]
+
 set.seed(7579)
 # Randomly selected 9 chemicals to present in calibration curve plots
 i_9chem_to_show <- local({
@@ -12,10 +14,10 @@ i_9chem_to_show <- local({
   sample(ii, 9)
 })
 calcurve_to_show_df <- SumExp::as_tibble(calcurve_se[i_9chem_to_show, ]) |> 
-  tidyr::drop_na(loess_norm)        # Drop concentrations outside the range
+  tidyr::drop_na(all_of(unname(DATA_ID)))        # Drop concentrations outside the range
 ```
 
-The peak areas were normalized by the internal standards applying the LOESS normalization.
+The peak areas were normalized by the internal standards applying the `r names(DATA_ID)`.
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#concentration-ranges).
 
 ### Linear scale
@@ -25,10 +27,11 @@ The concentration range was narrowed down to the range after the trimming step d
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
-p <- ggplot(calcurve_to_show_df, aes(x = c_conc, y = loess_norm)) +
+x <- "c_conc"
+p <- ggplot(calcurve_to_show_df, aes(x = .data[[x]], y = .data[[DATA_ID]])) +
   geom_point() +
   labs(
-    x = "Concentration (ng/ml)",
+    x = labelled::label_attribute(calcurve_to_show_df[[x]]), 
     y = "Peak area (Normalized)"
   ) +  
   facet_wrap(~ chem_name, scales = "free", ncol = 3)
@@ -53,8 +56,12 @@ The best model is selected based on the $R^2$ value.
 The distribution of $R^2$ values by different models for the calibration curves is compared below.
 
 ```{r}
-#| label: 'calibration-R2-by-mmodels'
+#| purl: true
+calcurve_models <- qc_steps[[DATA_ID]][["calcurve_models"]]
+```
 
+```{r}
+#| label: 'calibration-R2-by-mmodels'
 R2s <- lapply(calcurve_models, \(m) m$R2s)
 R2s <- R2s[!is.na(R2s)] |> 
   dplyr::bind_rows(.id = "chem_id") |> 
@@ -62,10 +69,7 @@ R2s <- R2s[!is.na(R2s)] |>
 
 ggplot(R2s) +
   geom_boxplot(aes(x = Model, y = R2)) +
-  labs(
-    x = "Model",
-    y = expression(R^2)
-  )
+  labs(y = expression(R^2))
 ```
 
 The count of chemicals favoring each model is shown below.
@@ -76,15 +80,16 @@ The count of chemicals favoring each model is shown below.
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
 
-The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(measurements_se)$Class), before = "\x60")`,
-are computed using the calibration curve.
-Any negative concentration is adjusted to zero.
-
 ```{r}
 #| purl: true
+concn_se <- qc_steps[[DATA_ID]][["concn_se within range"]]
 # Table of the samples to show with the calibration curve
-to_show_se <- measurements_se[i_9chem_to_show, ]
+to_show_se <- concn_se[i_9chem_to_show, ]
 ```
+
+The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(concn_se)$Class), before = "\x60")`,
+are computed using the calibration curve.
+Any negative concentration is adjusted to zero.
 
 ### All measurement samples
 
@@ -97,7 +102,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-width: 12
 #| fig-height: 11
 show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
-  labs(y = names(DATA_ID))
+  labs(y = "Peak area (Normalized)")
 ```
 
 #### Log scale
@@ -115,9 +120,8 @@ show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DAT
 
 ```{r}
 classes_excl_qc_blank <- local({
-  df <- SumExp::col_df(measurements_se)
   unique(df$Class[!df$proc_cat %in% c("QC", "Blank")])
-})
+}, list(df = SumExp::col_df(concn_se)))
 ```
 
 The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.
@@ -151,7 +155,7 @@ geom_best_model_name <- geom_text(         # Display the best model name
   color = "red3"
 )
 
-to_show_se[, SumExp::col_df(to_show_se)$Class %in% classes_excl_qc_blank] |> 
+to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
   show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
   geom_best_model_name
 ```
@@ -162,7 +166,7 @@ to_show_se[, SumExp::col_df(to_show_se)$Class %in% classes_excl_qc_blank] |>
 #| label: 'calibration-curve-with-normsample-log'
 #| fig-width: 12
 #| fig-height: 11
-to_show_se[, SumExp::col_df(to_show_se)$Class %in% classes_excl_qc_blank] |> 
+to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
   show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
   geom_best_model_name +
   scale_x_log10() +

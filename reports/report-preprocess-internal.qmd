@@ -1,31 +1,42 @@
 ---
-title: "Exploratory Data Analysis - Exposome"
+title: "Exploratory Data Analysis"
 ---
 
 ```{r}
 #| label: 'setup-read-msdial'
 #| purl: true
 # The preprocessed data used for calibration
-DATA_ID <- setNames("loess_norm", nm = "Peak area (Normalized)")
+DATA_ID <- setNames("loess_norm", nm = "LOESS normalization")
 
 # Load packages and project local libraries
-options(
-  box.path = "code/",           # Path to project local libraries
-  box.warn.legacy = FALSE       # No warnings for source inside a module
-)
+options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
+  projlib/io,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
 # Read `params.yml` if `params` not provided
 if (! exists("params")) params <- yaml::read_yaml("params.yml")
+
+# Input/Output files
+FILE <- list(
+  i = rlang::list2(
+    proc = msdial$get_sumexp_file_name(params, "proc"),
+    qc = msdial$get_sumexp_file_name(params, "qc_steps"),   # Intermediate state of the data
+  )
+)
+# Check if input files and output directories exist
+io$check_io_exist(FILE)
+
+measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
 overall_sumexp <- msdial$read_parsed_msdial_data(params)
-# Conversion table for sample names
+qc_steps <- readRDS(FILE$i$qc)
+
 sample_names_tbl <- SumExp::col_df(overall_sumexp) |> 
   tibble::rownames_to_column("sample_id") |> 
   dplyr::select(sample_id, sample_name)
@@ -34,71 +45,17 @@ chem_names_tbl <- SumExp::row_df(overall_sumexp) |>
   tibble::rownames_to_column("chem_id") |> 
   dplyr::select(chem_id, chem_name)
 set.seed(7579)
-
-# Extract standard chemicals
-is_targeted <- SumExp::row_df(overall_sumexp)$std_type != ""
-targeted_chems_se <- overall_sumexp[is_targeted, ]
 ```
 
 # Given data
 
 {{< include chapters/_read-msdial.qmd >}}
 
-```{r}
-#| purl: true
-# Output file
-stopifnot(    # Required parameters
-  !is.null(params$input_file), 
-  !is.null(params$table_dir)
-)
-FILE <- list(
-  i = params$input_file,
-  o = local({
-    b <- basename(params$input_file) |> 
-      tools::file_path_sans_ext()    # Without extension
-    rlang::list2(
-      conc = rlang::list2(
-        loess_norm = file.path(params$table_dir, paste0(b, ".loess.conc.tsv")),
-        closest_norm = file.path(params$table_dir, paste0(b, ".closest.conc.tsv")),
-      ),
-      norm = rlang::list2(
-        loess_norm = file.path(params$table_dir, paste0(b, ".loess.norm.tsv")),
-        closest_norm = file.path(params$table_dir, paste0(b, ".closest.norm.tsv")),
-      )
-    )
-  })
-)
-```
-
 --------------------------------------------
 
 # Normalization using internal standards
 
 ## Internal standard (IS) chemicals
-
-```{r}
-#| purl: true
-internal_std_se0 <- internal_std_se <- proc$get_internal_std_se(overall_sumexp) |> 
-  proc$add_num_zeros_rsd()
-
-# Number of outlying internal standard chemicals per sample 
-n_out_istd <- proc$count_outliers_per_sample(internal_std_se, assay_id = "raw", times = 3)
-is_outlier <- n_out_istd > nrow(internal_std_se) * 0.2
-if (any(is_outlier)) {
-  # Exclude the outlying samples
-  stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
-  internal_std_se <- internal_std_se[, !is_outlier] |> 
-    proc$add_num_zeros_rsd()
-  stopifnot(identical(names(is_outlier), colnames(overall_sumexp)))
-  overall_sumexp <- overall_sumexp[, !is_outlier]
-}
-
-# Failed internal standards
-is_failed_istd <- SumExp::row_df(internal_std_se)$num_zeros > 0
-failed_istd <- internal_std_se[is_failed_istd, ]
-# Remove failed internal standard chemicals
-internal_std_se <- internal_std_se[!is_failed_istd, ]
-```
 
 {{< include chapters/_preprocess-internal-stds.qmd >}}
 
@@ -109,25 +66,21 @@ The data is normalized using the internal standard chemicals.
 ```{r}
 #| purl: true
 # Find the range of RT values
-overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)
-targetted_rt_range <- range(SumExp::row_df(targeted_chems_se)$rt)
-rt <- SumExp::row_df(internal_std_se)$rt
+all_rts <- SumExp::row_df(overall_sumexp)$rt
+overall_rt_range <- range(all_rts)
+targetted_rt_range <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "Quant"])
+rt <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "IS"])
 ```
 
 The range of RT values of overall chemicals is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of targeted chemicals is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and 
+while the range of targeted chemicals is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and
 the range of internal standard chemicals is `r range(rt)[1]` to `r range(rt)[2]`.
 
 ### Closest internal standard chemicals
 
 ```{r}
-#| label: 'normalize-rt-closest-istd'
 #| purl: true
-
-closest_istd_raw <- proc$get_raw_of_closest_istd(overall_sumexp, internal_std_se)
-# Normalize the data using closest internal standard chemicals
-overall_sumexp[["closest_norm"]] <- (overall_sumexp[["raw"]] / closest_istd_raw) |> 
-  labelled::set_variable_labels("Closest RT Normalized")
+overall_sumexp <- qc_steps[["Normalized"]]
 ```
 
 {{< include chapters/_preprocess-norm-closest.qmd >}}
@@ -135,121 +88,17 @@ overall_sumexp[["closest_norm"]] <- (overall_sumexp[["raw"]] / closest_istd_raw)
 ### LOESS fit along RT
 
 ```{r}
-#| label: 'normalize-rt'
-#| purl: true
+#| child: code/reports/chapters/_preprocess-norm-loess.qmd
 
-excluded_category_for_normalization <- c("Blank", "CalCurve")
-
-loess_fit <- proc$get_loess_fit(
-  istd_se = internal_std_se,
-  excl_cat = excluded_category_for_normalization,
-  overall_rt_range = overall_rt_range,
-  span = 1
-)
-# Normalize the data by LOESS fit along RT
-rt <- SumExp::row_df(overall_sumexp)$rt
-raw <- overall_sumexp[["raw"]]
-overall_sumexp[["loess_norm"]] <- sapply(
-  colnames(overall_sumexp), function(sample_id) {
-    norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
-    exp(log(raw[, sample_id]) - norm_factor)
-  }
-) |> 
-  labelled::set_variable_labels("LOESS Normalized")
 ```
-
-{{< include chapters/_preprocess-norm-loess.qmd >}}
 
 ### Comparison of the normalization methods
 
 {{< include chapters/_preprocess-norm-comparison.qmd >}}
 
-
-```{r}
-#| label: 'export-normalized-data'
-for(assy_id in c("loess_norm", "closest_norm")) {
-  msdial$export_data_with_chem_table_tsv(
-    sumexp = overall_sumexp, 
-    assay_id = assy_id,
-    in_file = FILE$i, 
-    out_file = FILE$o$norm[[assy_id]]
-  )
-}
-```
-
 # Calibration
 
-```{r}
-#| label: 'calcurve-samples-extraction'
-#| purl: true
-# Extract quantification standard data
-quant_se <- overall_sumexp[SumExp::row_df(overall_sumexp)$std_type == "Quant", ]
-# Calibration curve samples only
-calcurve_se <- quant_se[, SumExp::col_df(quant_se)$proc_cat == "CalCurve"]
-stopifnot("Calibration curve samples are required." = nrow(calcurve_se) > 0)
-# Calibration zero samples
-cal_0_se <- calcurve_se[, SumExp::col_df(calcurve_se)$c_conc == 0] 
-stopifnot("Multiple `Cal_0` samples are required." = ncol(cal_0_se) > 1)
-# Remove the 0 concentration samples
-calcurve_se <- calcurve_se[, SumExp::col_df(calcurve_se)$c_conc != 0]
-
-# Find the lower-limit of quantification using values of the zero concentration samples
-lloq_signal <- SumExp::row_df(calcurve_se)$lloq_signal <- 
-  proc$identify_llox_signal(cal_0_se, DATA_ID, times = 10)
-lloq <- SumExp::row_df(calcurve_se)$lloq <- proc$identify_lloq(calcurve_se, lloq_signal, DATA_ID)
-# Find the lower-limit of detection using values of the zero concentration samples
-llod_signal <- SumExp::row_df(calcurve_se)$llod_signal <- 
-  proc$identify_llox_signal(cal_0_se, DATA_ID, times = 3)
-llod <- SumExp::row_df(calcurve_se)$llod <- proc$identify_llod(calcurve_se, llod_signal, DATA_ID)
-# Calibration curve concentration upper limit
-max_c_conc <- proc$identify_max_conc(calcurve_se, quant_se, DATA_ID, times = 10)
-concs <- sort(unique(SumExp::col_df(calcurve_se)$c_conc))
-SumExp::row_df(calcurve_se)$max_c_conc <- proc$make_sure_to_have_enough_calcurve(
-  concs, lloq, max_c_conc, min_n = 3, enough_n = 5
-) 
-# Mark the chemicals to exclude due to LLOQ and maximum concentration
-SumExp::row_df(calcurve_se)$to_exclude <- as.list(SumExp::row_df(calcurve_se)) |> 
-  with(is.na(lloq) | is.na(llod) | (max_c_conc == -9) | is.na(max_c_conc))
-```
-
 {{< include chapters/_preprocess-calib-conc_range.qmd >}}
-
-```{r}
-#| label: 'compute-concentration'
-#| purl: true
-# Exclude the marked chemicals
-is_marked <- SumExp::row_df(calcurve_se)$to_exclude
-stopifnot(identical(rownames(calcurve_se), rownames(quant_se)))
-calcurve_se <- calcurve_se[! is_marked, ]
-quant_se <- quant_se[! is_marked, ]
-# Exclude the values outside the concentration range
-calcurve_se <- local({
-  cc <- calcurve_se
-  # Concentration values in a matrix, rows are chemicals and columns are concentrations
-  conc_mat <- matrix(rep(SumExp::col_df(cc)$c_conc, each = nrow(cc)), nrow = nrow(cc))
-  to_na <- conc_mat < SumExp::row_df(cc)$lloq | conc_mat > SumExp::row_df(cc)$max_c_conc
-  cc[["loess_norm"]][to_na] <- NA_real_
-  cc
-})
-
-# Fit the calibration curve
-c_conc <- SumExp::col_df(calcurve_se)$c_conc
-rt_norm_mat <- calcurve_se[["loess_norm"]]
-calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-  proc$fit_and_test_calcurve_model(c_conc, rt_norm_mat[ii, ])
-})
-
-# Compute the concentration of the samples skipping the calibration curve samples
-measurements_se <- quant_se[, ! SumExp::col_df(quant_se)$proc_cat %in% "CalCurve"]
-SumExp::col_df(measurements_se)$c_conc <- NULL
-measurements_se[["conc"]] <- 
-  proc$compute_concentration(measurements_se, calcurve_se, calcurve_models, DATA_ID) |> 
-  labelled::set_label_attribute("Concentration (ng/mL)")
-# Maximum/minimum concentration after trimming out of each chemical
-maxmin_conc <- SumExp::row_df(calcurve_se)[c("max_c_conc", "lloq", "llod")]
-stopifnot(identical(rownames(maxmin_conc), rownames(calcurve_se)))
-SumExp::row_df(measurements_se) <- cbind(SumExp::row_df(measurements_se), maxmin_conc)
-```
 
 {{< include chapters/_preprocess-calibration.qmd >}}
 
@@ -257,34 +106,21 @@ SumExp::row_df(measurements_se) <- cbind(SumExp::row_df(measurements_se), maxmin
 
 ## Computed concentrations
 
+```{r}
+#| purl: true
+concn_se <- qc_steps[[DATA_ID]][["concn_se within range"]]     # Used in the following 
+```
+
 {{< include chapters/_preprocess-concentration.qmd >}}
 
 ## Blank subtraction
 
 ```{r}
-#| label: 'blank-subtraction'
 #| purl: true
-
-# Blank subtraction
-is_blank <- SumExp::col_df(measurements_se)$proc_cat == "Blank"
-blank_se <- measurements_se[, is_blank]
-measurements_se <- measurements_se[, ! is_blank]
-blank_mean_conc <- rowMeans(blank_se[["conc"]])
-conc <- measurements_se[["conc"]] - blank_mean_conc
-conc[conc < 0] <- 0
-measurements_se[["conc"]] <- conc |> 
-  labelled::copy_labels_from(measurements_se[["conc"]])
+concn_se <- qc_steps[[DATA_ID]][["concn_blank_substracted"]]     # Used in the following 
 ```
 
 {{< include chapters/_preprocess-concentration.qmd >}}
-
-```{r}
-#| label: 'export-concentration-table'
-for(assy_id in c("loess_norm", "closest_norm")) {
-  msdial$export_concentration_tsv(measurements_se, FILE$o$conc[[assy_id]])
-}
-```
-
 
 ```{r}
 #| echo: false

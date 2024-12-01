@@ -94,28 +94,58 @@ fetch_data_of_columns <- function(msdial_file, indices) {
   )
 }
 
+
+
+
+#' Confirm the `params` list has the required parameters
+#' 
+#' @param params A list of parameters
+#' @param ... The required parameters in a character vector
+#' @return TRUE if the required parameters are present
+#' @export
+has_required_params <- function(params, ...) {
+  for (p in c(...)) {
+    if(is.null(params[[p]])) stop(paste(p, "is required"))
+  } 
+}
+
+#' Make directory if not exists
+#' 
+#' If the directory does not exist, it will be created with the specified mode.
+#' Write permission is required to the directory.
+#' 
+#' @param dir A directory path
+#' @param mode The mode of the creating directory, when it does not exist
+#' @return The directory path
+#' @export
+mkdir_if_not_exist <- function(dir, mode = "0777") {
+  stopifnot(is.character(dir) && length(dir) == 1L)
+  dir_q <- deparse1(substitute(dir))
+  if(!dir.exists(dir)) {
+    warning(paste("The directory", dir_q, "(", dir, ") does not exist. Creating it now."))
+    is_created <- dir.create(dir, showWarnings = FALSE, recursive = TRUE, mode = mode)
+    stopifnot("The directory could not be created" = is_created)
+  }
+  if (file.access(dir, 2L) != 0) stop("Write permission is required to", dir_q, "(", dir, ")")
+  invisible(dir)
+}
+
 #' Get the file name of the parsed data
 #'
 #' @param params A list of parameters including `input_file` and `intermediate_dir`.
+#' @param suffix A suffix to add to the file name to distinguish between data at different
+#'   stages, such as raw and processed data.
 #'
 #' @return A text string of the file name
 #' @export
-get_sumexp_file_name <- function(params) {
-  stopifnot(    # Required parameters
-    !is.null(params$input_file), 
-    !is.null(params$intermediate_dir)
-  )
+get_sumexp_file_name <- function(params, suffix = '') {
+  has_required_params(params, "input_file", "intermediate_dir")
   file <- params$input_file
-  dir <- params$intermediate_dir
-  # Check if the user has write permission to the directory
-  stopifnot(
-    "The directory `params$intermediate_dir` should exists" = dir.exists(dir), 
-    "Write permission is required to `params$intermediate_dir`" = file.access(dir, 2L) == 0
-  )
+  dir <- mkdir_if_not_exist(params$intermediate_dir)
   # Expected output file name from `read-msdial.R`
   file.path(dir, basename(file)) |> 
     tools::file_path_sans_ext(compression = TRUE) |> 
-    paste0(".rds")
+    paste0(suffix, ".rds")
 }
 
 #' Read the parsed MS-DIAL data
@@ -154,11 +184,11 @@ read_parsed_msdial_data <- function(params) {
 #' Export data with the chemical table to a tab-separated file
 #'
 #' @param sumexp A SumExp object
-#' @param assay_id The name of the data in `sumexp` (or assay) to be exported
+#' @param mat_id The name of the data in `sumexp` (or assay) to be exported
 #' @param in_file Path to the MS-DIAL output file that was used to create `sumexp`
 #' @param out_file Path to the output tab-separated file
 #' @export
-export_data_with_chem_table_tsv <- function(sumexp, assay_id, in_file, out_file) {
+export_data_with_chem_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
   # Prepare the chemical table
   i_sec <- get_three_section_indices(in_file)
   intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
@@ -166,7 +196,7 @@ export_data_with_chem_table_tsv <- function(sumexp, assay_id, in_file, out_file)
     intact_chem_cols$"Alignment ID" == SumExp::row_df(sumexp)$alignment_id
   )
   # Prepare the data table
-  mat_x <- sumexp[[assay_id]]
+  mat_x <- sumexp[[mat_id]]
   df_x <- mat_x |>  
     round(.find_rounding_decimal_places(mat_x)) |>     # Reduce the number of decimals
     tibble::as_tibble()

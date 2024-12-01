@@ -9,17 +9,25 @@ The number of samples in the calibration curve after outlier removal is presente
 ```{r}
 #| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-v <- SumExp::col_df(calcurve_se)$c_conc
+v <- SumExp::col_df(overall_sumexp)$c_conc
+v <- v[!is.na(v)] |> 
+  labelled::copy_labels_from(v)
 table(v) |> 
   knitr::kable(
     align = c("r", "r"),
-    # col.names = c(labelled::get_label_attribute(v), "Number of Samples")
-    col.names = c("Concentration (ng/ml)", "Number of Samples")
+    col.names = c(labelled::get_label_attribute(v), "Number of Samples")
+    # col.names = c("Concentration (ng/ml)", "Number of Samples")
   ) |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Concentration ranges
+
+```{r}
+#| purl: true
+limit_df <- qc_steps[[DATA_ID]][["limits"]]
+```
+
 
 The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using zero concentration samples.
 The LLOD is defined as the lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration samples. 
@@ -32,15 +40,15 @@ When there are sufficient data points (≥ 5 concentrations), the maximum concen
 Concentrations that produce peak areas after normalization exceeding ten times the **highest** peak area of non-`CalCurve` and non-`QC` sample categories are excluded.
 
 If the LLOQ is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve.
-As a result, `r english::Words(sum(SumExp::row_df(calcurve_se)$to_exclude))` chemicals have been removed from the calibration curve.
+As a result, `r english::Words(sum(limit_df$to_exclude))` chemicals have been removed from the calibration curve.
 
 The concentration range for each chemical is detailed below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
-show_df <- SumExp::row_df(calcurve_se) |> 
-  tibble::as_tibble() |> 
+show_df <- limit_df |> 
+  tibble::as_tibble(rownames = "chem_id") |> 
   dplyr::mutate(
     Note = dplyr::case_when(
       to_exclude ~ "Excluded", 
@@ -52,6 +60,7 @@ show_df <- SumExp::row_df(calcurve_se) |>
     max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)) |> 
       labelled::copy_labels_from(max_c_conc)
   ) |>
+  dplyr::left_join(chem_names_tbl, by = "chem_id") |> 
   dplyr::select(chem_name, LLOD, LLOQ, max_c_conc, Note)
 
 knitr::kable(

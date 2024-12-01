@@ -7,7 +7,7 @@ The RSD% of the quantification standard samples is calculated for the raw data a
 
 labs <- SumExp::name_labs(overall_sumexp)
 names(labs) <- gsub(" .*", "", names(labs))    # First word only
-df_to_show <- proc$extract_quant_qc(overall_sumexp) |> 
+df_to_show <- show$extract_quant_qc(overall_sumexp) |> 
   proc$calc_rsd_qstd(labs) |> 
   dplyr::mutate(
     sign = ifelse(loess_norm <= closest_norm, "↓ LOESS", "↓ Closest"),

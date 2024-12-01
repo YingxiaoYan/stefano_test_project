@@ -3,7 +3,7 @@ The concentration of the samples has been computed using the calibration curve i
 The distribution of the concentration of the samples is shown below.
 
 ```{r}
-cl <- unique(SumExp::col_df(measurements_se)$Class)
+cl <- unique(SumExp::col_df(concn_se)$Class)
 n_class <- length(cl)
 max_nchar_chem <- max(nchar(cl))
 ```
@@ -12,7 +12,7 @@ max_nchar_chem <- max(nchar(cl))
 #| fig-height: !expr 'max_nchar_chem * 0.1 + 2'
 #| fig-width: !expr 'n_class * 0.4 + 0.7'
 #| out-width: !expr 'paste0(n_class * 4 + 7, "%")'
-show_df <- SumExp::as_tibble(measurements_se)
+show_df <- SumExp::as_tibble(concn_se)
 show_df_by_chem <- split(show_df, show_df$chem_name)
 for(df1 in show_df_by_chem) {
   p <- ggplot(df1) +

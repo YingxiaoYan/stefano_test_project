@@ -5,6 +5,30 @@
   stop(paste("`", x_chr, "` should be a single character", sep = ""))
 }
 
+#' Extract QC samples into list
+#'
+#' @param se A `SumExp` object
+#'
+#' @return A list of SumExp objects divided by QC Classes
+#' @export
+extract_qc_samples_to_list <- function(se) {
+  se <- se[, quote(proc_cat == "QC")]
+  qc_id <- SumExp::col_df(se)$Class
+  # Column-wise split
+  lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
+}
+
+#' Extract quantitative standards in QC samples
+#'
+#' @param sumexp A `SumExp` object
+#' @return A list of SumExp objects with quantitative standards in QC samples
+#' @export
+extract_quant_qc <- function(sumexp) {
+  se_lst <- extract_qc_samples_to_list(sumexp)
+  lapply(se_lst, \(se) {
+    se[quote(std_type == "Quant"), ]
+  })
+}
 
 #' Make a frequency `kable` table by factor level
 #'
@@ -68,24 +92,24 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 #' @param x_se A SumExp object with the samples to be plotted
 #' @param cc_se A SumExp object with the calibration curve samples 
 #' @param calcurve_models A list of the calibration curve models 
-#' @param assay_id A character of the assay ID to be plotted in the y-axis
+#' @param mat_id A character of the assay ID to be plotted in the y-axis
 #'
 #' @return A ggplot object
 #' @export
-ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, assay_id) {
-  .chq_if_a_single_char(assay_id)
+ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
+  .chq_if_a_single_char(mat_id)
   i_chems <- rownames(x_se)           # Limited to those chemicals in the `x_se`
   cc_se <- cc_se[i_chems, ]
   cc_df <- SumExp::as_tibble(cc_se) |> 
     # Drop concentrations outside the range
-    tidyr::drop_na(tidyselect::all_of(unname(assay_id)))
+    tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
   # LLOQ and LLOD
   region_df <- SumExp::row_df(cc_se)[, c("chem_name", "lloq", "llod")]
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
   
-  ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[assay_id]])) +
+  ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
@@ -116,10 +140,10 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, assay_id) {
 ggplot_calcurve_samples_facet <- function(x_se,
                                           cc_se,
                                           calcurve_models,
-                                          assay_id,
+                                          mat_id,
                                           scales = "free",
                                           ncol = 3,
                                           ...) {
-  ggplot_calcurve_samples(x_se, cc_se, calcurve_models, assay_id) +
+  ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id) +
     ggplot2::facet_wrap(~ chem_name, scales = scales, ncol = ncol, ...)
 }
