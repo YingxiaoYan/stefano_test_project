@@ -1,6 +1,3 @@
----
-title: "Read MS-DIAL output file"
----
 
 Given file: `` `r SumExp::metadata(overall_sumexp)$file_name` `` 
 

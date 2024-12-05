@@ -1,3 +1,40 @@
+---
+title: Calibration
+---
+
+```{r}
+#| label: 'setup-calibration'
+#| purl: true
+#| eval: !expr '!knitr::opts_knit$get("child")'
+DATA_ID <- setNames("loess_norm", nm = "LOESS normalization")
+
+# Load packages and project local libraries
+options(box.path = "code/")           # Path to project local libraries
+box::use(
+  SumExp,           # Light SummarizedExperiment, `[`
+  projlib/msdial,     # Handle MS-Dial files
+  projlib/proc,       # Preprocessing functions
+  projlib/show,       # Functions to present data
+  ggplot2[...],        # Too long to write and usually specific enough
+)
+# Read `params.yml` if `params` not provided
+if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# Input/Output files
+FILE <- list(
+  i = rlang::list2(
+    qc = msdial$get_sumexp_file_name(params, "qc_steps"),   # Intermediate state of the data
+  )
+)
+# Check if input files and output directories exist
+box::use(projlib/io)
+io$check_io_exist(FILE)
+
+qc_steps <- readRDS(FILE$i$qc)
+# Conversion tables
+sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
+chem_id_name_tbl <- qc_steps[["chem_id_name_tbl"]]
+```
+
 ## Calibration curve per chemical
 
 The calibration curve of each of randomly selected 9 chemicals is presented below.
@@ -82,7 +119,7 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 
 ```{r}
 #| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_se within range"]]
+concn_se <- qc_steps[[DATA_ID]][["concn_se with conc"]]
 # Table of the samples to show with the calibration curve
 to_show_se <- concn_se[i_9chem_to_show, ]
 ```
@@ -145,7 +182,7 @@ models_to_show_tbl <- purrr::imap_dfr(calcurve_models[i_9chem_to_show], \(m, che
     txt = paste0(best_model_name, "\n R2=", round(R2, 3)),
   )
 }) |> 
-  dplyr::left_join(chem_names_tbl, by = "chem_id")
+  dplyr::left_join(chem_id_name_tbl, by = "chem_id")
 geom_best_model_name <- geom_text(         # Display the best model name
   aes(x = Inf, y = 0, label = txt),
   data = models_to_show_tbl,

@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis"
+title: "Exploratory data analysis"
 ---
 
 ```{r}
@@ -35,15 +35,12 @@ io$check_io_exist(FILE)
 
 measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
 overall_sumexp <- msdial$read_parsed_msdial_data(params)
+# Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-
-sample_names_tbl <- SumExp::col_df(overall_sumexp) |> 
-  tibble::rownames_to_column("sample_id") |> 
-  dplyr::select(sample_id, sample_name)
-# Conversion table for chemical names
-chem_names_tbl <- SumExp::row_df(overall_sumexp) |> 
-  tibble::rownames_to_column("chem_id") |> 
-  dplyr::select(chem_id, chem_name)
+stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessed"]])
+# Conversion tables
+sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
+chem_id_name_tbl <- qc_steps[["chem_id_name_tbl"]]
 set.seed(7579)
 ```
 
@@ -100,7 +97,10 @@ overall_sumexp <- qc_steps[["Normalized"]]
 
 {{< include chapters/_preprocess-calib-conc_range.qmd >}}
 
-{{< include chapters/_preprocess-calibration.qmd >}}
+```{r}
+#| child: code/reports/chapters/_preprocess-calibration.qmd
+
+```
 
 # Concentration
 
@@ -108,7 +108,7 @@ overall_sumexp <- qc_steps[["Normalized"]]
 
 ```{r}
 #| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_se within range"]]     # Used in the following 
+concn_se <- qc_steps[[DATA_ID]][["concn_se with conc"]]     # Used in the following 
 ```
 
 {{< include chapters/_preprocess-concentration.qmd >}}
@@ -117,15 +117,9 @@ concn_se <- qc_steps[[DATA_ID]][["concn_se within range"]]     # Used in the fol
 
 ```{r}
 #| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_blank_substracted"]]     # Used in the following 
+concn_se <- qc_steps[[DATA_ID]][["concn_minus_blk_se"]]     # Used in the following 
 ```
 
 {{< include chapters/_preprocess-concentration.qmd >}}
 
-```{r}
-#| echo: false
-#| results: 'asis'
-# Avoid duplication of the bibliography when this is called as a child.
-if(! knitr::opts_knit$get("child")) cat('\n\n# References\n\n')
-```
-
+# References

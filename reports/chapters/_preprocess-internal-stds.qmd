@@ -42,7 +42,7 @@ When the number of outlying IS chemicals of a sample exceeds 20% of the total nu
 ```{r}
 #| label: 'outliers-table'
 is_outlier <- qc_steps[["internal std. outlying samples"]]
-n_out_istd <- qc_steps[["internal std. number of outliers"]]
+n_out_istd <- qc_steps[["internal std. number of outliers per sample"]]
 
 if (all(! is_outlier)) {
   cat("No outliers were identified.\n")

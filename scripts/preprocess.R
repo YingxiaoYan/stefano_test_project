@@ -1,5 +1,8 @@
 # ------------------------------------------------------------------------------------------- #
-# Parse a MS-Dial file, preprocess, and save the data to an `rds` file
+# Read a parsed MS-Dial file, preprocess, and save the data to an `rds` file
+#
+# During preprocessing for quality control, the intermediate data is saved to an `rds` file
+# using the `proc$initialize_qc_steps` and `proc$append_to_qc_steps` functions. 
 # ------------------------------------------------------------------------------------------- #
 
 # Load packages and project local libraries
@@ -8,7 +11,6 @@ box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
-  projlib/io,       # Check input/output files
 )
 # Read `params.yml` to get input file
 params <- yaml::read_yaml("params.yml")
@@ -22,26 +24,49 @@ FILE <- list(
   )
 )
 # Check if input files and output directories exist
+box::use(projlib/io)
 io$check_io_exist(FILE)
-proc$initialize_qc_steps(FILE$o$qc)     # To store intermediate data during quality control steps
 
-# Read the parsed data by `read-msdial.R`
+# To store intermediate data during quality control steps
+proc$initialize_qc_steps(FILE$o$qc)
+
+# Read the parsed data by `read-msdial.R`. If not available, warn the user
 overall_sumexp <- msdial$read_parsed_msdial_data(params)
 
+# Conversion tables for sample/chemical names
+sample_id_name_tbl <- SumExp::col_df(overall_sumexp) |> 
+  tibble::rownames_to_column("sample_id") |> 
+  dplyr::select(sample_id, sample_name)
+chem_id_name_tbl <- SumExp::row_df(overall_sumexp) |> 
+  tibble::rownames_to_column("chem_id") |> 
+  dplyr::select(chem_id, chem_name)
+proc$append_to_qc_steps(
+  "sample_id_name_tbl" = sample_id_name_tbl, 
+  "chem_id_name_tbl" = chem_id_name_tbl,
+  file = FILE$o$qc
+)
+
+# Normalization using internal standards -------------------------------------------------
+
 # Extract internal standard chemicals
-internal_std_se <- local({
-  se <- se[quote(std_type == "IS"), ]
-  se[quote(order(rt)), ]    # Sort by average retention time
-}, list(se = overall_sumexp))
+internal_std_se <- local(
+  envir = list(se = overall_sumexp),
+  {
+    se <- se[quote(std_type == "IS"), ]
+    se[quote(order(rt)), ]    # Sort by average retention time
+  }
+)
 # Store intermediate data during quality control steps
 proc$append_to_qc_steps("internal std. raw" = internal_std_se, file = FILE$o$qc)
 
-# Number of outlying internal standard chemicals per sample      ---------------
-n_out_istd <- proc$count_outliers_per_sample(internal_std_se, mat_id = "raw", times = 3)
+# Outlier removal     ---------------
+# Number of outlying internal standard chemicals per sample
+n_outlier <- proc$count_outliers_per_sample(internal_std_se, mat_id = "raw", times = 3)
 n_chem <- nrow(internal_std_se)
-is_outlier <- n_out_istd > (0.2 * n_chem)
+# Outlying samples
+is_outlier <- n_outlier > (0.2 * n_chem)
 proc$append_to_qc_steps(
-  "internal std. number of outliers" = n_out_istd,
+  "internal std. number of outliers per sample" = n_outlier,
   "internal std. outlying samples" = is_outlier, 
   file = FILE$o$qc
 )
@@ -55,10 +80,11 @@ if (any(is_outlier)) {
 
 # Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_chemical(internal_std_se[["raw"]])
-stopifnot(identical(names(num_zeros), rownames(internal_std_se)))
 is_failed <- num_zeros > 0
-proc$append_to_qc_steps("internal std. failed IS" = is_failed, file = FILE$o$qc)
-failed_istd <- internal_std_se[is_failed, ]
+proc$append_to_qc_steps(
+  "internal std. failed IS" = is_failed, 
+  file = FILE$o$qc
+)
 # Remove failed internal standard chemicals
 internal_std_se <- internal_std_se[!is_failed, ]
 
@@ -68,7 +94,7 @@ closest_istd <- proc$get_value_of_closest_istd(overall_sumexp, internal_std_se, 
 overall_sumexp[["closest_norm"]] <- (overall_sumexp[["raw"]] / closest_istd) |> 
   labelled::set_variable_labels("Closest RT Normalized")
 
-# Find the LOESS fit for normalization     ---------------
+# LOESS fit over RT normalization     ---------------
 overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)    # Fit for RT of all chemicals
 excl_cat <- c("Blank", "CalCurve")
 loess_fit <- proc$get_loess_fit(
@@ -76,11 +102,6 @@ loess_fit <- proc$get_loess_fit(
   excl_cat = excl_cat,
   overall_rt_range = overall_rt_range,
   span = 1
-)
-proc$append_to_qc_steps(
-  "excluded categories in normalization" = excl_cat, 
-  "LOESS fit" = loess_fit,
-  file = FILE$o$qc
 )
 # Normalize the data by LOESS fit along RT
 rt <- SumExp::row_df(overall_sumexp)$rt
@@ -92,38 +113,43 @@ overall_sumexp[["loess_norm"]] <- sapply(
   }
 ) |> 
   labelled::set_variable_labels("LOESS Normalized")
-proc$append_to_qc_steps("Normalized" = overall_sumexp, file = FILE$o$qc)
+proc$append_to_qc_steps(
+  "excluded categories in normalization" = excl_cat, 
+  "LOESS fit" = loess_fit,
+  "Normalized" = overall_sumexp, 
+  file = FILE$o$qc
+)
 
-# Calibration     ---------------
+# Calibration using calcurve -------------------------------------------------------------
 
 # Extract quantification standard data
 quant_se <- overall_sumexp[quote(std_type == "Quant"), ]
-
-# Calibration curve samples only
+# Before excluding out-of-range calibration concentrations
 calcurve_se0 <- quant_se[, quote(proc_cat == "CalCurve")]
 stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
-# Calibration zero samples
+# Calibration zero samples (Not modified during calibration)
 cal_0_se <- calcurve_se0[, quote(c_conc == 0)] 
 stopifnot("Multiple `Cal_0` samples are required." = ncol(cal_0_se) > 1)
 
-# Per normalization method     ---------------
 
-concn_blank_substracted_lst <- 
-  lapply(setNames(nm = c("loess_norm", "closest_norm")), function(mat_id) {
+# Per normalization method
+concn_minus_blk_se_lst <- setNames(nm = c("loess_norm", "closest_norm")) |> 
+  lapply(function(mat_id) {
     calcurve_se <- calcurve_se0[, quote(c_conc != 0)]          # Non-zero conc
-    concn_se <- quant_se[, quote(! proc_cat %in% "CalCurve")]   # Non-calcurve
-    SumExp::col_df(concn_se)$c_conc <- NULL
-    stopifnot(identical(rownames(calcurve_se), rownames(concn_se)))
+    # Non-calcurve. `conc` will be added.
+    concn_se <- quant_se[, quote(! proc_cat %in% "CalCurve")]
+    SumExp::col_df(concn_se)$c_conc <- NULL     # Non-calcurve doesn't have known concentration
+    stopifnot(identical(rownames(calcurve_se), rownames(concn_se)))  # Identical chemicals
     
-    # Store intermediate data during calibration 
+    # Store intermediate data during calibration. `append_to_qc_steps` takes too long to save
     interm_data <- list()
     # Label for the normalized data. To label the output of this function
     norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]]) |> 
       stringr::str_replace("Normalized", "normalization")
     
-    concs <- SumExp::col_df(calcurve_se)$c_conc   # Available concentrations
-    limit_df <- proc$identify_limts_in_calibrations(
-      cc_se = calcurve_se, cal_0_se, quant_se, mat_id, concs
+    c_concs <- SumExp::col_df(calcurve_se)$c_conc   # Available concentrations
+    limit_df <- proc$identify_limts_in_calibrations(    # Such as LLOD, meaningful max
+      cc_se = calcurve_se, cal_0_se, quant_se, mat_id, c_concs
     )
     SumExp::row_df(calcurve_se) <- cbind(SumExp::row_df(calcurve_se), limit_df)
     SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), limit_df)
@@ -131,49 +157,51 @@ concn_blank_substracted_lst <-
     # Exclude the chemicals by LLOQ and maximum concentration
     to_exclude <- SumExp::row_df(calcurve_se) |> 
       with(is.na(lloq) | is.na(llod) | (max_c_conc == -9) | is.na(max_c_conc))
-    interm_data[["limits"]] <- cbind(limit_df, to_exclude)
-    
+    interm_data[["calcurve conc ranges"]] <- cbind(limit_df, to_exclude)
     calcurve_se <- calcurve_se[! to_exclude, ]
     concn_se <- concn_se[! to_exclude, ]
-    # Exclude the values outside the concentration range
+    
+    # Replace the values outside the concentration range with NA
     lloq <- SumExp::row_df(calcurve_se)$lloq
     max_conc <- SumExp::row_df(calcurve_se)$max_c_conc
     calcurve_se[[mat_id]] <- proc$replace_outside_concentration_range_with_na(
-      calcurve_se[[mat_id]], concs, lloq, max_conc
+      calcurve_se[[mat_id]], c_concs, min_conc = lloq, max_conc = max_conc
     )
     interm_data[["calcurve_se within range"]] <- calcurve_se
     
     # Fit the calibration curve
     rt_norm_mat <- calcurve_se[[mat_id]]
     calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-      proc$fit_and_test_calcurve_model(concs, rt_norm_mat[ii, ])
+      proc$fit_and_test_calcurve_model(c_concs, rt_norm_mat[ii, ])
     })
     interm_data[["calcurve_models"]] <- calcurve_models
     
     # Compute the concentration of the samples using the calibration curve
-    limit_df <- SumExp::row_df(concn_se) |> 
+    llodq <- SumExp::row_df(concn_se) |> 
       dplyr::select(lloq, llod, llod_signal, lloq_signal)
     concn_se[["conc"]] <- proc$compute_concentration(
       concn_se, calcurve_se, calcurve_models, mat_id
     ) |> 
-      proc$replace_below_lloq_llod(concn_se[[mat_id]], limit_df)
+      proc$replace_below_lloq_llod(concn_se[[mat_id]], llodq)
     # Maximum/minimum concentration after trimming out of each chemical
-    interm_data[["concn_se within range"]] <- concn_se
+    interm_data[["concn_se with conc"]] <- concn_se
     
     # Blank subtraction
-    concn_blank_substracted <- proc$subtract_blank_sumexp(
+    concn_minus_blk_se <- proc$subtract_blank_sumexp(
       concn_se, proc_cat == "Blank", mat_id = "conc"
     )
-    interm_data[["concn_blank_substracted"]] <- concn_blank_substracted
+    interm_data[["concn_minus_blk_se"]] <- concn_minus_blk_se
     labelled::label_attribute(interm_data) <- norm_lab
-    do.call(proc$append_to_qc_steps, c(setNames(list(interm_data), mat_id), file = FILE$o$qc))
+    # Wrap up the intermediate data as a list
+    interm_data <- setNames(list(interm_data), mat_id)
+    do.call(proc$append_to_qc_steps, c(interm_data, file = FILE$o$qc))
     
-    concn_blank_substracted |> 
+    concn_minus_blk_se |> 
       labelled::set_label_attribute(norm_lab)
   })
 
 # Save the processed data
-saveRDS(concn_blank_substracted_lst, file = FILE$o$proc)
+saveRDS(concn_minus_blk_se_lst, file = FILE$o$proc)
 cat("The `SumExp` object after preprocessing saved to:", FILE$o$proc, "\n")
 # Mark the preprocessing step as completed
 proc$append_to_qc_steps("Preprocessed" = TRUE, file = FILE$o$qc)

@@ -25,7 +25,7 @@ table(v) |>
 
 ```{r}
 #| purl: true
-limit_df <- qc_steps[[DATA_ID]][["limits"]]
+limit_df <- qc_steps[[DATA_ID]][["calcurve conc ranges"]]
 ```
 
 
@@ -60,7 +60,7 @@ show_df <- limit_df |>
     max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)) |> 
       labelled::copy_labels_from(max_c_conc)
   ) |>
-  dplyr::left_join(chem_names_tbl, by = "chem_id") |> 
+  dplyr::left_join(chem_id_name_tbl, by = "chem_id") |> 
   dplyr::select(chem_name, LLOD, LLOQ, max_c_conc, Note)
 
 knitr::kable(

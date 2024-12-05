@@ -33,7 +33,7 @@ io$check_io_exist(FILE)
 qc_steps <- readRDS(FILE$i$qc)
 overall_sumexp <- qc_steps[["Normalized"]]
 
-sample_names_tbl <- SumExp::col_df(overall_sumexp) |> 
+sample_id_name_tbl <- SumExp::col_df(overall_sumexp) |> 
   tibble::rownames_to_column("sample_id") |> 
   dplyr::select(sample_id, sample_name)
 
@@ -74,12 +74,12 @@ loess_curve_df <- local({
     dplyr::mutate(rt = x) |>
     tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
     # Attach sample names
-  dplyr::left_join(out, sample_names_tbl, by = "sample_id")
+  dplyr::left_join(out, sample_id_name_tbl, by = "sample_id")
 }, list(
   loess_fit = qc_steps[["LOESS fit"]],
   rg = overall_rt_range,
   i_sel = i_sel,
-  sample_names_tbl = sample_names_tbl
+  sample_id_name_tbl = sample_id_name_tbl
 ))
 
 # Deviation from the mean
@@ -213,7 +213,7 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 # PCA
 
 se <- overall_sumexp[quote(std_type == "IS"), ]
-mat_ids <- setNames(nm = c("raw", "loess_norm"))
+mat_ids <- setNames(nm = c("raw", DATA_ID))
 pca_res <- lapply(mat_ids, \(.x) {
   mat <- se[[.x]]
   stats::prcomp(t(mat), scale. = TRUE)

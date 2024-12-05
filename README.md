@@ -52,5 +52,4 @@ All R functions, except for those from the packages listed below, are primarily 
 * Packages in `tidyverse` (e.g. `dplyr`, `tidyr`, `purrr`, ...)
 * Packages for S3 methods unable to specify them using `::` (e.g. `predict`, `autoplot`, ...) 
 
-All R code adhere to [the `tidyverse` **R style guide**](https://style.tidyverse.org/syntax.html) as closely as possible.
 

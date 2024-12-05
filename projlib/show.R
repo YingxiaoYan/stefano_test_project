@@ -7,7 +7,7 @@
 
 #' Extract QC samples into list
 #'
-#' @param se A `SumExp` object
+#' @param se A [`SumExp`] object
 #'
 #' @return A list of SumExp objects divided by QC Classes
 #' @export
@@ -20,7 +20,7 @@ extract_qc_samples_to_list <- function(se) {
 
 #' Extract quantitative standards in QC samples
 #'
-#' @param sumexp A `SumExp` object
+#' @param sumexp A [`SumExp`] object
 #' @return A list of SumExp objects with quantitative standards in QC samples
 #' @export
 extract_quant_qc <- function(sumexp) {
@@ -90,7 +90,8 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 #' Plot the calibration curve for each chemical with the samples in the calibration curve
 #'
 #' @param x_se A SumExp object with the samples to be plotted
-#' @param cc_se A SumExp object with the calibration curve samples 
+#' @param cc_se A SumExp object with the calibration curve samples. The chemicals in `x_se`
+#'   should be a subset of `cc_se`
 #' @param calcurve_models A list of the calibration curve models 
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
 #'
@@ -98,35 +99,71 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 #' @export
 ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
   .chq_if_a_single_char(mat_id)
-  i_chems <- rownames(x_se)           # Limited to those chemicals in the `x_se`
-  cc_se <- cc_se[i_chems, ]
+  chem_ids <- rownames(x_se)           # Limited to those chemicals in the `x_se`
+  cc_se <- cc_se[chem_ids, ]
   cc_df <- SumExp::as_tibble(cc_se) |> 
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
-  # LLOQ and LLOD
-  region_df <- SumExp::row_df(cc_se)[, c("chem_name", "lloq", "llod")]
+  # LLOQ, LLOD, max_c_conc
+  lim_df <- SumExp::row_df(cc_se)[, c("chem_name", "lloq", "llod", "max_c_conc")]
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
+  # X label from label attribute
+  xlab <- labelled::label_attribute(x_se[[mat_id]])
+  if (is.null(xlab)) xlab <- mat_id
+  
+  # Calibration curve lines
+  .geom_ccline <- function(chem_ids, lim_df, calcurve_models) {
+    chem_id_name <- tibble::rownames_to_column(lim_df, "chem_id")
+    chem_ids <- stats::setNames(nm = chem_ids)
+    conc_df <- sapply(chem_ids, \(chem_id) {
+      lims <- lim_df[chem_id, ]
+      lloq <- lims$lloq
+      max_c_conc <- lims$max_c_conc
+      sort(c(
+        seq(lloq, max_c_conc, length.out = 100)[-c(1, 100)],             # Linear scale
+        expm1(seq(log1p(lloq), log1p(max_c_conc), length.out = 100))   # Log scale
+      ))
+    }) |> 
+      as.data.frame() |> 
+      tidyr::pivot_longer(tidyr::everything(), names_to = "chem_id", values_to = "conc") |> 
+      dplyr::left_join(chem_id_name, by = "chem_id")
+    
+    ccline_df <- conc_df |> 
+      dplyr::mutate(
+        .y_value = purrr::map2_dbl(
+          chem_id, conc, 
+          ~stats::predict.lm(calcurve_models[[.x]]$inv_model, data.frame(conc = .y))
+        )
+      ) |> 
+      dplyr::arrange(chem_id, conc)
+    ggplot2::geom_line(
+      ggplot2::aes(x = conc, y = .y_value), data = ccline_df,
+      color = "cadetblue",
+      alpha = 0.7
+    )
+  }
   
   ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
+    .geom_ccline(chem_ids, lim_df, calcurve_models) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
     ggplot2::geom_point(ggplot2::aes(color = Class)) +
     # Density of points at the edges of the plot
     ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
-    ggplot2::labs(x = "Concentration (ng/ml)") +  
+    ggplot2::labs(x = xlab) +  
     ggplot2::geom_rect(         # Shade the region below the LLOQ
       ggplot2::aes(xmin = 0, xmax = lloq, ymin = 0, ymax = Inf),
-      data = region_df,
+      data = lim_df,
       fill = "grey30",
       alpha = 0.5,
       inherit.aes = FALSE
     ) +
     ggplot2::geom_rect(         # Shade the region below the LLOD
       ggplot2::aes(xmin = 0, xmax = llod, ymin = 0, ymax = Inf),
-      data = region_df,
+      data = lim_df,
       fill = "grey25",
       alpha = 0.5,
       inherit.aes = FALSE

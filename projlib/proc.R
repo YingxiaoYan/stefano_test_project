@@ -72,7 +72,7 @@ identify_outliers <- function(x, times = 3) {
 
 #' Count outlying internal standard chemicals per sample 
 #'
-#' @param se A `SumExp` object
+#' @param se A [`SumExp`] object
 #' @param mat_id The name of a matrix in `se`
 #' @param times A numeric value for the threshold. mean +/- times * sd
 #' @return A numeric vector of the number of outlying internal standard chemicals per sample
@@ -88,8 +88,8 @@ count_outliers_per_sample <- function(se, mat_id = "raw", times = 3) {
 
 #' Get the values of the closest internal standard chemicals
 #'
-#' @param se A `SumExp` object
-#' @param istd_se A `SumExp` object of internal standard chemicals
+#' @param se A [`SumExp`] object
+#' @param istd_se A [`SumExp`] object of internal standard chemicals
 #' @param mat_id The name of a matrix in `se` 
 #' @param rt The name of the retention time column 
 #' @return A numeric matrix of the values of the closest internal standard chemicals
@@ -108,7 +108,7 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id = "raw", rt = "rt") {
 
 #' Get the LOESS fit model
 #'
-#' @param istd_se A `SumExp` object of internal standard chemicals
+#' @param istd_se A [`SumExp`] object of internal standard chemicals
 #' @param excl_cat A character vector of the categories to exclude
 #' @param overall_rt_range A numeric vector of the overall retention time range, to which the
 #'   model is expanded
@@ -181,8 +181,8 @@ calc_rsd_qstd <- function(qc_se, mat_ids) {
 
 #' Identify the maximum concentration of the calibration samples
 #'
-#' @param cc_se A `SumExp` object of the calibration samples
-#' @param q_se A `SumExp` object of the samples for measurement
+#' @param cc_se A [`SumExp`] object of the calibration samples
+#' @param q_se A [`SumExp`] object of the samples for measurement
 #' @param mat_id The name of a matrix in `cc_se` and `q_se`
 #' @param times A numeric value to multiply the maximum peak area of the samples for
 #'   measurement to get a margin for the maximum concentration
@@ -242,7 +242,7 @@ make_sure_to_have_enough_calcurve <- function(max_c_conc, concs, lloq, min_n = 3
 
 #' Get a list of a matrix of calibration curves by concentration
 #'
-#' @param cc_se A `SumExp` object of the calibration samples
+#' @param cc_se A [`SumExp`] object of the calibration samples
 #' @param mat_id The name of a matrix in `cc_se`
 #' @param concs A numeric vector of the concentrations of the calibration samples.
 #'
@@ -265,7 +265,7 @@ get_min_value_satisfy_cond <- function(cond, values, shift = 0) {
 
 #' Identify the LLO(Q/D) in signal
 #'
-#' @param cc_0_se A `SumExp` object of the calibration samples with 0 concentration
+#' @param cc_0_se A [`SumExp`] object of the calibration samples with 0 concentration
 #' @param mat_id The name of a matrix in `cc_0_se`
 #' @param times A numeric value to multiply the mean of the samples with 0 concentration
 #' @param na.rm A logical value to remove NA values
@@ -280,7 +280,7 @@ identify_llox_signal <- function(cc_0_se, mat_id, times, na.rm = FALSE) {
 
 #' Identify the lower limit of detection (LLOD) and quantification (LLOQ)
 #'
-#' @param cc_se A `SumExp` object of the calibration curve samples
+#' @param cc_se A [`SumExp`] object of the calibration curve samples
 #' @param llod_signal,lloq_signal A numeric vector of the LLOD/LLOQ in signal
 #' @param mat_id The name of a matrix in `cc_se`
 #' @param concs A numeric vector of the concentrations of the calibration samples.
@@ -327,9 +327,9 @@ identify_lloq <- function(cc_se, lloq_signal, mat_id, concs) {
 #' 
 #' LLOQ, LLOD, and maximum concentration
 #' 
-#' @param cc_se A `SumExp` object of the calibration curve samples
-#' @param cc_0_se A `SumExp` object of the zero concentration samples
-#' @param quant_se A `SumExp` object of the quantification samples
+#' @param cc_se A [`SumExp`] object of the calibration curve samples
+#' @param cc_0_se A [`SumExp`] object of the zero concentration samples
+#' @param quant_se A [`SumExp`] object of the quantification samples
 #' @param mat_id The name of a matrix in `cc_se`, `cc_0_se`, and `quant_se` to use
 #' @param concs A vector of concentrations of the calibration curve samples
 #' 
@@ -358,9 +358,16 @@ identify_limts_in_calibrations <- function(cc_se, cc_0_se, quant_se, mat_id, con
 #' @param conc A vector of concentrations
 #' @param value A vector of signal values
 #'
-#' @return
-#' @export
+#' @return A list with the best model, the name of it, the R2 values of all models, and the
+#'   number of unique concentrations
+#' @examples
+#' conc <- rep(c(0.1, 0.2, 0.5, 1, 2), 3)
+#' value <- conc * 5 + rnorm(length(conc))
+#' fit_and_test_calcurve_model(conc, value)
+#' @name calcurve_model
+NULL
 #' @rdname calcurve_model
+#' @export
 fit_and_test_calcurve_model <- function(conc, value) {
   if (all(is.na(value) | value == 0)) {
     return(list(
@@ -381,13 +388,16 @@ fit_and_test_calcurve_model <- function(conc, value) {
   qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, value, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
   models <- c(lmodels, qmodels)
-  R2s <- sapply(models, \(f) attr(f, "R2"))
-  list(
-    "best_model" = models[[which.max(R2s)]],        # Best model by R2
+  R2s <- sapply(models, \(x) summary(x$inv_mod)$r.squared)
+  rlang::list2(
+    "best_model" = models[[which.max(R2s)]]$model,        # Best model by R2
+    "best_model_name" = names(models)[which.max(R2s)],
     "R2s" = R2s,
-    "best_model_name" = names(models)[which.max(R2s)]
+    "n_conc" = length(unique(conc[!is.na(value)])),      # Number of unique concentrations
+    "inv_model" = models[[which.max(R2s)]]$inv_mod,
   )
 }
+#' @param weights weights for linear model fit
 #' @rdname calcurve_model
 quadratic_calcurve_model <- function(conc, value, weights) {
   lmfit <- stats::lm(value ~ conc + I(conc^2), weights = weights)
@@ -395,14 +405,13 @@ quadratic_calcurve_model <- function(conc, value, weights) {
   a <- beta[["I(conc^2)"]]
   b <- beta[["conc"]]
   cc <- beta[["(Intercept)"]]
-  out <- function(x) {
+  model <- function(x) {
     det <- b ^ 2 - 4 * a * (cc - x)
     conc <- suppressWarnings((-b + sqrt(det)) / (2 * a))      # det < 0
     conc[conc < 0 | conc < 0] <- 0
     conc
   }
-  attr(out, "R2") <- summary(lmfit)$r.squared
-  out
+  list(model = model, inv_mod = lmfit)
 }
 #' @rdname calcurve_model
 linear_calcurve_model <- function(conc, value, weights) {
@@ -410,17 +419,16 @@ linear_calcurve_model <- function(conc, value, weights) {
   beta <- stats::coef(lmfit)
   b1 <- beta[["conc"]]
   b0 <- beta[["(Intercept)"]]
-  out <- function(x) {
+  model <- function(x) {
     (x - b0) / b1
   }
-  attr(out, "R2") <- summary(lmfit)$r.squared
-  out
+  list(model = model, inv_mod = lmfit)
 }
 
 #' Compute the concentration of chemicals
 #'
-#' @param x_se A `SumExp` object of the samples
-#' @param cc_se A `SumExp` object of the calibration samples
+#' @param x_se A [`SumExp`] object of the samples
+#' @param cc_se A [`SumExp`] object of the calibration samples
 #' @param calcurve_models A list of calibration curve models
 #' @param mat_id The name of a matrix in `x_se`
 #'
@@ -485,12 +493,12 @@ replace_outside_concentration_range_with_na <- function(cc_mat, concs, min_conc,
 
 #' Subtract the average values of the blank samples from the samples
 #'
-#' @param x_se A `SumExp` object of the samples
+#' @param x_se A [`SumExp`] object of the samples
 #' @param condition_blank A condition to select the blank samples. Evaluated in the context of
 #'   the columns of `x_se`
 #' @param mat_id The name of a matrix in `x_se`
 #'
-#' @return A `SumExp` object with the blank values subtracted
+#' @return A [`SumExp`] object with the blank values subtracted
 #' @export
 subtract_blank_sumexp <- function(x_se, condition_blank, mat_id) {
   is_blank <- eval(substitute(condition_blank), SumExp::col_df(x_se), parent.frame())

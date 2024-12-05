@@ -33,6 +33,8 @@ format:
   pdf:
     echo: false 
     fig-align: center  # Assure line breaks between figures
+    documentclass: report
+    papersize: a4
 
 execute:
   output: asis

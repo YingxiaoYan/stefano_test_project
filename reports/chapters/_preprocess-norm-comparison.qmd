@@ -61,7 +61,7 @@ The RSD% values are presented in the table below.
 ```{r}
 #| label: 'rsd-comparison-table'
 df_to_show |> 
-  dplyr::left_join(chem_names_tbl, by = "chem_id") |>   # Add chemical names
+  dplyr::left_join(chem_id_name_tbl, by = "chem_id") |>   # Add chemical names
   dplyr::select(QC, chem_name, dplyr::all_of(unname(labs))) |> 
   dplyr::rename(all_of(labs), `Chemical` = chem_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
