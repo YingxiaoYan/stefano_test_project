@@ -1,6 +1,6 @@
 
-The closest internal standard chemicals to each chemical will be identified based on the retention time.
-The measured peak area of each chemical will be divided by the peak area of the closest internal standard chemical.
+The closest internal standard features to each feature will be identified based on the retention time.
+The measured peak area of each feature will be divided by the peak area of the closest internal standard feature.
 
 #### Evaluation of normalization
 
@@ -24,7 +24,7 @@ show$ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with higher/lower RSD after normalization is counted below.
+The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'evaluation-normalization-closest-istd-count'
 #| results: 'markup'

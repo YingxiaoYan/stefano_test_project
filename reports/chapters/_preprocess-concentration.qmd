@@ -5,20 +5,20 @@ The distribution of the concentration of the samples is shown below.
 ```{r}
 cl <- unique(SumExp::col_df(concn_se)$Class)
 n_class <- length(cl)
-max_nchar_chem <- max(nchar(cl))
+max_nchar_feature <- max(nchar(cl))
 ```
 
 ```{r}
-#| fig-height: !expr 'max_nchar_chem * 0.1 + 2'
+#| fig-height: !expr 'max_nchar_feature * 0.1 + 2'
 #| fig-width: !expr 'n_class * 0.4 + 0.7'
 #| out-width: !expr 'paste0(n_class * 4 + 7, "%")'
 show_df <- SumExp::as_tibble(concn_se)
-show_df_by_chem <- split(show_df, show_df$chem_name)
-for(df1 in show_df_by_chem) {
+show_df_by_feature <- split(show_df, show_df$feature_name)
+for(df1 in show_df_by_feature) {
   p <- ggplot(df1) +
     geom_boxplot(aes(x = Class, y = conc, fill = Class)) +
     labs(
-      title = df1$chem_name[1],
+      title = df1$feature_name[1],
       x = labelled::get_label_attribute(df1$Class),
       y = labelled::get_label_attribute(df1$conc),
     ) +

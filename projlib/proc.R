@@ -37,12 +37,12 @@ rsd_perc <- function(x, na.rm = FALSE) {
 
 # Clean ----------------------------------------------------------------------------------
 
-#' Count zeros per chemical
+#' Count zeros per feature
 #'
 #' @param mat A numeric matrix
-#' @return A numeric vector of the number of zeros per chemical in rows
+#' @return A numeric vector of the number of zeros per feature in rows
 #' @export
-count_zeros_per_chemical <- function(mat) {
+count_zeros_per_feature <- function(mat) {
   rowSums(mat == 0) |> 
     labelled::set_label_attribute("Number of zeros")
 }
@@ -52,7 +52,7 @@ count_zeros_per_chemical <- function(mat) {
 #' @param mat A numeric matrix
 #' @return A numeric vector of RSD% across the samples in columns
 #' @export
-compute_rsd_per_chemical <- function(mat) {
+compute_rsd_per_feature <- function(mat) {
   apply(mat, 1, rsd_perc) |> 
     labelled::set_label_attribute("RSD%")
 }
@@ -70,12 +70,12 @@ identify_outliers <- function(x, times = 3) {
   return((x > m + times * sd) | (x < m - times * sd))
 }
 
-#' Count outlying internal standard chemicals per sample 
+#' Count outlying internal standard features per sample 
 #'
 #' @param se A [`SumExp`] object
 #' @param mat_id The name of a matrix in `se`
 #' @param times A numeric value for the threshold. mean +/- times * sd
-#' @return A numeric vector of the number of outlying internal standard chemicals per sample
+#' @return A numeric vector of the number of outlying internal standard features per sample
 #' @export
 count_outliers_per_sample <- function(se, mat_id = "raw", times = 3) {
   x <- se[[mat_id]]
@@ -86,18 +86,18 @@ count_outliers_per_sample <- function(se, mat_id = "raw", times = 3) {
 
 
 
-#' Get the values of the closest internal standard chemicals
+#' Get the values of the closest internal standard features
 #'
 #' @param se A [`SumExp`] object
-#' @param istd_se A [`SumExp`] object of internal standard chemicals
+#' @param istd_se A [`SumExp`] object of internal standard features
 #' @param mat_id The name of a matrix in `se` 
 #' @param rt The name of the retention time column 
-#' @return A numeric matrix of the values of the closest internal standard chemicals
+#' @return A numeric matrix of the values of the closest internal standard features
 #' @export
 get_value_of_closest_istd <- function(se, istd_se, mat_id = "raw", rt = "rt") {
   rt_x <- SumExp::row_df(se)[[rt]]
   rt_istd <- SumExp::row_df(istd_se)[[rt]]
-  # Find the closest internal standard chemical
+  # Find the closest internal standard feature
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
   out <- istd_se[[mat_id]][i_closest, ]
   rownames(out) <- rownames(se)
@@ -108,7 +108,7 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id = "raw", rt = "rt") {
 
 #' Get the LOESS fit model
 #'
-#' @param istd_se A [`SumExp`] object of internal standard chemicals
+#' @param istd_se A [`SumExp`] object of internal standard features
 #' @param excl_cat A character vector of the categories to exclude
 #' @param overall_rt_range A numeric vector of the overall retention time range, to which the
 #'   model is expanded
@@ -124,9 +124,9 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id = "r
   rt_istd <- SumExp::row_df(istd_se)[[rt]]
   
   # Normalize the data using the internal standards
-  # Mean of each internal standard chemical for overall measurement samples
+  # Mean of each internal standard feature for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- SumExp::col_df(istd_se)$proc_cat %in% excl_cat
+  to_excl <- SumExp::col_df(istd_se)$contr_cat %in% excl_cat
   # The data of the samples with measurements
   mat <- istd_log[, !to_excl, drop = FALSE]
   stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
@@ -145,7 +145,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id = "r
     fr_m_log
   )
   
-  # LOESS fit of the internal standard chemicals along RT
+  # LOESS fit of the internal standard features along RT
   loess_fit <- purrr::map(1:ncol(fr_m_log), function(ii) {
     # Fit a loess curve
     y <- fr_m_log[, ii]
@@ -169,8 +169,8 @@ calc_rsd_qstd <- function(qc_se, mat_ids) {
   lapply(qc_se, \(qc1) {
     sapply(stats::setNames(nm = mat_ids), function(nm) {
       apply(qc1[[nm]], 1, rsd_perc)
-    }) |>    # Rows are chemicals, columns are matrix IDs
-      tibble::as_tibble(rownames = "chem_id")
+    }) |>    # Rows are features, columns are matrix IDs
+      tibble::as_tibble(rownames = "feature_id")
   }) |> 
     # `QC` has the name of the QC samples
     dplyr::bind_rows(.id = "QC")
@@ -189,14 +189,14 @@ calc_rsd_qstd <- function(qc_se, mat_ids) {
 #' @param concs A numeric vector of the concentrations of the calibration samples.
 #'
 #' @return A numeric vector of the maximum concentration of the calibration samples. 
-#'   If all values of `q_se` are zero for a chemical, the maximum concentration is zero. The
-#'   names of the returned vector are the chemicals. They are the same as the rownames of
+#'   If all values of `q_se` are zero for a feature, the maximum concentration is zero. The
+#'   names of the returned vector are the features. They are the same as the rownames of
 #'   `cc_se`.
 #' @export
 identify_max_conc <- function(cc_se, q_se, mat_id, times, concs) {
   stopifnot(length(concs) == ncol(cc_se))
-  stopifnot("Not identical chemicals" = identical(rownames(q_se), rownames(cc_se)))
-  q_se <- q_se[, quote(! proc_cat %in% c("CalCurve", "QC"))]
+  stopifnot("Not identical features" = identical(rownames(q_se), rownames(cc_se)))
+  q_se <- q_se[, quote(! contr_cat %in% c("CalCurve", "QC"))]
   # Find maximum peak area of the samples of the classes for measurement
   max_in_q_se <- apply(q_se[[mat_id]], 1, max, na.rm = TRUE)
   # Find the maximum concentration of the calibration samples that are not too far (`times`x)
@@ -205,7 +205,7 @@ identify_max_conc <- function(cc_se, q_se, mat_id, times, concs) {
   in_range <- cbind(in_range, all_0 = max_in_q_se == 0, no_valid = TRUE)
   # Add 0 and -9 to the end for all_0 and no_valid
   concs <- c(concs, 0, -9)
-  out <- apply(in_range, 1, \(ea_chem) max(concs[ea_chem]))
+  out <- apply(in_range, 1, \(ea_feature) max(concs[ea_feature]))
   out <- labelled::set_label_attribute(out, "Maximum Concentration")
   stopifnot(identical(names(out), rownames(cc_se)))
   out
@@ -285,7 +285,7 @@ identify_llox_signal <- function(cc_0_se, mat_id, times, na.rm = FALSE) {
 #' @param mat_id The name of a matrix in `cc_se`
 #' @param concs A numeric vector of the concentrations of the calibration samples.
 #'
-#' @return A numeric vector of the LLOD/LLOQ for each chemical. The names are the same as the
+#' @return A numeric vector of the LLOD/LLOQ for each feature. The names are the same as the
 #'   row names of `cc_se`.
 #' @name llod_lloq
 NULL
@@ -295,7 +295,7 @@ identify_llod <- function(cc_se, llod_signal, mat_id, concs) {
   cc_lst <- .get_list_of_calcurve_by_conc(cc_se, mat_id, concs)
   # Calculate the mean signal values of the calibration samples
   m <- sapply(cc_lst, rowMeans, na.rm = TRUE)
-  # LLOD for each chemical in spiked concentrations
+  # LLOD for each feature in spiked concentrations
   out <- apply(llod_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
   out <- labelled::set_label_attribute(out, "LLOD")
   stopifnot(identical(names(out), rownames(cc_se)))
@@ -307,7 +307,7 @@ identify_lloq <- function(cc_se, lloq_signal, mat_id, concs) {
   cc_lst <- .get_list_of_calcurve_by_conc(cc_se, mat_id, concs)
   # Calculate the mean signal values of the calibration samples
   m <- sapply(cc_lst, rowMeans, na.rm = TRUE)
-  # LLOQ for each chemical in spiked concentrations
+  # LLOQ for each feature in spiked concentrations
   lloq <- apply(lloq_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
   
   # Find minimum concentration that pass the condition RSD% < 20%
@@ -425,24 +425,24 @@ linear_calcurve_model <- function(conc, value, weights) {
   list(model = model, inv_mod = lmfit)
 }
 
-#' Compute the concentration of chemicals
+#' Compute the concentration of features
 #'
 #' @param x_se A [`SumExp`] object of the samples
 #' @param cc_se A [`SumExp`] object of the calibration samples
 #' @param calcurve_models A list of calibration curve models
 #' @param mat_id The name of a matrix in `x_se`
 #'
-#' @return A matrix of the concentration of chemicals
+#' @return A matrix of the concentration of features
 #' @export
 compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
   mat <- x_se[[mat_id]]
-  # Calculate the concentration of each chemical
-  conc <- sapply(rownames(x_se), \(i_chem) {
-    v <- mat[i_chem, ]
+  # Calculate the concentration of each feature
+  conc <- sapply(rownames(x_se), \(i_feature) {
+    v <- mat[i_feature, ]
     # Concentration by the best model
-    calcurve_models[[i_chem]]$best_model(v)
+    calcurve_models[[i_feature]]$best_model(v)
   }) |> 
-    t()          # Chemicals to rows
+    t()          # Features to rows
   conc <- labelled::set_label_attribute(conc, "Concentration")
   conc
 }
@@ -483,7 +483,7 @@ replace_outside_concentration_range_with_na <- function(cc_mat, concs, min_conc,
     length(min_conc) == nrow(cc_mat),
     length(max_conc) == nrow(cc_mat)
   )
-  # Concentration values in a matrix, rows are chemicals and columns are concentrations
+  # Concentration values in a matrix, rows are features and columns are concentrations
   conc_mat <- matrix(rep(concs, each = nrow(cc_mat)), nrow = nrow(cc_mat))
   to_na <- conc_mat < min_conc | conc_mat > max_conc
   cc_mat[to_na] <- NA_real_

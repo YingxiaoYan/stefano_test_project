@@ -3,20 +3,20 @@
 internal_std_se <- qc_steps[["internal std. raw"]]
 ```
 
-There are `r nrow(internal_std_se)` internal standard (IS) chemicals in the data.
-Those chemicals are listed below, in the order of average retention time.
+There are `r nrow(internal_std_se)` internal standard (IS) features in the data.
+Those features are listed below, in the order of average retention time.
 
 ```{r}
 #| purl: true
 SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
   dplyr::mutate(
-    num_zeros = proc$count_zeros_per_chemical(internal_std_se[["raw"]]),
-    rsd = proc$compute_rsd_per_chemical(internal_std_se[["raw"]]),
+    num_zeros = proc$count_zeros_per_feature(internal_std_se[["raw"]]),
+    rsd = proc$compute_rsd_per_feature(internal_std_se[["raw"]]),
   )
-# Table of internal standard chemicals
+# Table of internal standard features
 kable_internal_std <- function(se) {
   df <- SumExp::row_df(se) |> 
-    dplyr::select(chem_name, rt, mz, sn_ratio, rsd, num_zeros) |> 
+    dplyr::select(feature_name, rt, mz, sn_ratio, rsd, num_zeros) |> 
     dplyr::mutate(
       num_zeros = ifelse(num_zeros == 0, "", num_zeros) |> 
         labelled::copy_labels_from(num_zeros)
@@ -34,10 +34,10 @@ kable_internal_std(internal_std_se)
 
 ### Outliers
 
-Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) chemicals, which were supposed to be the same across all the samples. 
-For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the chemical.
-In the other way, the chemical was marked as an outlier for the sample.
-When the number of outlying IS chemicals of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
+Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) features, which were supposed to be the same across all the samples. 
+For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the feature.
+In the other way, the feature was marked as an outlier for the sample.
+When the number of outlying IS features of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
 
 ```{r}
 #| label: 'outliers-table'
@@ -70,7 +70,7 @@ if (all(! is_outlier)) {
 
 ### Failed internal standards
 
-Internal standard (IS) chemicals that satisfy the following conditions were considered as failed IS:
+Internal standard (IS) features that satisfy the following conditions were considered as failed IS:
 
 * One or more samples have zero values.
 
@@ -79,13 +79,13 @@ Internal standard (IS) chemicals that satisfy the following conditions were cons
 
 is_failed_istd <- qc_steps[["internal std. failed IS"]]
 
-box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
-  chem_name <- SumExp::row_df(se)$chem_name[ii]
+box_scatter_plot_of_one_feature <- function(se, ii, widths) {
+  feature_name <- SumExp::row_df(se)$feature_name[ii]
   se_tbl <- SumExp::as_tibble(se[ii, ])
   # Box plot
   p1 <- ggplot(se_tbl) +
     geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
-    labs(title = chem_name, y = "Peak area") +
+    labs(title = feature_name, y = "Peak area") +
     theme(legend.position = "none") +   # No legend for fill
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
     scale_y_log10()
@@ -102,16 +102,16 @@ box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
 }
 
 if (any(is_failed_istd)) {
-  cat("The following internal standard chemicals were identified as failed IS,",
+  cat("The following internal standard features were identified as failed IS,",
       "which were removed.\n\n")
-  # Table of failed internal standard chemicals
+  # Table of failed internal standard features
   print(kable_internal_std(failed_istd))
-  # Box and scatter plots of the failed internal standard chemicals 
+  # Box and scatter plots of the failed internal standard features 
   for(ii in 1:nrow(failed_istd)) {
-    print(box_scatter_plot_of_one_chemical(failed_istd, ii, widths = c(0.3, 0.7)))
+    print(box_scatter_plot_of_one_feature(failed_istd, ii, widths = c(0.3, 0.7)))
   }
 } else {
-  cat("No failed internal standard chemicals were identified.\n")
+  cat("No failed internal standard features were identified.\n")
 }
 ```
 
@@ -120,33 +120,33 @@ if (any(is_outlier) || any(is_failed_istd)) {
   internal_std_se <- internal_std_se[!is_failed_istd, !is_outlier]
   SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
     dplyr::mutate(
-      num_zeros = proc$count_zeros_per_chemical(internal_std_se[["raw"]]),
-      rsd = proc$compute_rsd_per_chemical(internal_std_se[["raw"]]),
+      num_zeros = proc$count_zeros_per_feature(internal_std_se[["raw"]]),
+      rsd = proc$compute_rsd_per_feature(internal_std_se[["raw"]]),
     )
-  # Update the table of internal standard chemicals
+  # Update the table of internal standard features
   cat("\n\nAfter excluding the outliers and failed internal standards,", 
-      "the table of internal standard chemicals is as follows.\n\n")
+      "the table of internal standard features is as follows.\n\n")
   kable_internal_std(internal_std_se)
 }
 ```
 
-### Distribution of the values of individual IS chemicals
+### Distribution of the values of individual IS features
 
 ```{r}
 #| label: 'distribution-values-internal-standards'
 #| fig-width: 13
 #| fig-height: 4
 #| out-width: 100%
-# Internal standard chemicals to show
+# Internal standard features to show
 se_show <- internal_std_se
 for(ii in 1:nrow(se_show)) {
-  print(box_scatter_plot_of_one_chemical(se_show, ii, widths = c(0.3, 0.7)))
+  print(box_scatter_plot_of_one_feature(se_show, ii, widths = c(0.3, 0.7)))
 }
 ```
 
 ### Raw RSD%
 
-The relative standard deviation (RSD%) of the raw values of the internal standard chemicals are calculated.
+The relative standard deviation (RSD%) of the raw values of the internal standard features are calculated.
 
 #### `QC` samples
 
@@ -154,26 +154,26 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 
 ```{r}
 #| label: 'rsd-internal-standards-by-qc-samples'
-# Divide the internal standard chemicals by quality control sample
-# Calculate RSD% per internal standard chemical and per quality control sample
+# Divide the internal standard features by quality control sample
+# Calculate RSD% per internal standard feature and per quality control sample
 df1 <- show$extract_qc_samples_to_list(internal_std_se) |> 
   sapply(\(se) apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2)))
 stopifnot(identical(rownames(df1), rownames(internal_std_se)))
-rownames(df1) <- SumExp::row_df(internal_std_se)$chem_name
-knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality control sample") |> 
+rownames(df1) <- SumExp::row_df(internal_std_se)$feature_name
+knitr::kable(df1, caption = "RSD% of internal standard features by quality control sample") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 #### By sample classes
 
 ```{r}
-se <- internal_std_se[, quote(proc_cat != "QC")]
+se <- internal_std_se[, quote(contr_cat != "QC")]
 df1 <- sapply(setNames(nm = unique(SumExp::col_df(se)$Class)), function(cls) {
   se <- se[, SumExp::col_df(se)$Class == cls]
   apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2))
 })
 stopifnot(identical(rownames(df1), rownames(se)))
-rownames(df1) <- SumExp::row_df(se)$chem_name
-knitr::kable(df1, caption = "RSD% of internal standard chemicals by sample classes") |> 
+rownames(df1) <- SumExp::row_df(se)$feature_name
+knitr::kable(df1, caption = "RSD% of internal standard features by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```

@@ -15,7 +15,7 @@ box::use(
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
-  projlib/io,       # Check input/output files
+  io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
@@ -37,10 +37,10 @@ measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
 overall_sumexp <- msdial$read_parsed_msdial_data(params)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessed"]])
+stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])
 # Conversion tables
 sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
-chem_id_name_tbl <- qc_steps[["chem_id_name_tbl"]]
+feature_id_name_tbl <- qc_steps[["feature_id_name_tbl"]]
 set.seed(7579)
 ```
 
@@ -52,13 +52,13 @@ set.seed(7579)
 
 # Normalization using internal standards
 
-## Internal standard (IS) chemicals
+## Internal standard (IS) features
 
 {{< include chapters/_preprocess-internal-stds.qmd >}}
 
 ## Normalization
 
-The data is normalized using the internal standard chemicals.
+The data is normalized using the internal standard features.
 
 ```{r}
 #| purl: true
@@ -69,11 +69,11 @@ targetted_rt_range <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "
 rt <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "IS"])
 ```
 
-The range of RT values of overall chemicals is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of targeted chemicals is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and
-the range of internal standard chemicals is `r range(rt)[1]` to `r range(rt)[2]`.
+The range of RT values of overall features is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
+while the range of targeted features is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and
+the range of internal standard features is `r range(rt)[1]` to `r range(rt)[2]`.
 
-### Closest internal standard chemicals
+### Closest internal standard features
 
 ```{r}
 #| purl: true

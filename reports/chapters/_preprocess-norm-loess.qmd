@@ -14,7 +14,7 @@ box::use(
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
-  projlib/io,       # Check input/output files
+  io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
@@ -47,11 +47,11 @@ overall_rt_range <- range(all_rts)
 excl_cat <- qc_steps[["excluded categories in normalization"]]
 ```
 
-For each chemical, the average of all samples excluding `r knitr::combine_words(excl_cat, before = "\x60")` samples was calculated after log-transformation.
+For each feature, the average of all samples excluding `r knitr::combine_words(excl_cat, before = "\x60")` samples was calculated after log-transformation.
 The deviation of each sample from the average was calculated as normalization factor.
-The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) chemicals along RT.
-The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all chemicals. 
-The normalization factors of those at the boundaries of IS are used for the boundary RT values of all chemicals.
+The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) features along RT.
+The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all features. 
+The normalization factors of those at the boundaries of IS are used for the boundary RT values of all features.
 The normalized data are calculated by subtracting the normalization factor from the log-transformed data.
 
 Randomly selected 3 samples are shown below.
@@ -62,7 +62,7 @@ Randomly selected 3 samples are shown below.
 
 # Plot the normalized and original data for randomly selected 3 samples excluding those not
 # used in normalization
-to_excl <- SumExp::col_df(overall_sumexp)$proc_cat %in% excl_cat
+to_excl <- SumExp::col_df(overall_sumexp)$contr_cat %in% excl_cat
 i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
 i_sel <- setNames(i_sel, colnames(overall_sumexp)[i_sel])
 
@@ -87,7 +87,7 @@ dev_from_mean <- local({
   # Log-transform the data
   mat <- log(se[["raw"]][, !to_excl, drop = FALSE])
   mat[!is.finite(mat)] <- NA    # nan = -Inf - -Inf. Replace -Inf by `log` with NA
-  # Overall mean of every chemical
+  # Overall mean of every feature
   mean_log <- rowMeans(mat, na.rm = TRUE)
   out_se <- se[, i_sel]
   for (ii in c("raw", "loess_norm")) {
@@ -126,12 +126,12 @@ Those zeros were kept as zeros in the normalized data.
 
 #### Evaluation of normalization
 
-The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard chemicals of the QC samples.
+The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard features of the QC samples.
 ```{r}
 #| label: 'rsd-eval'
 #| out-width: '80%'
 
-# Quantification standard chemicals of QC samples
+# Quantification standard features of QC samples
 qc_se <- show$extract_quant_qc(overall_sumexp)
 # Calculate RSD of the quantification standard samples
 labs <- SumExp::name_labs(overall_sumexp)
@@ -149,7 +149,7 @@ show$ggplot_rsdp_metab(rsd_qstd, labs) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with higher/lower RSD after normalization is counted below.
+The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'rsd-count'
 #| results: 'markup'
@@ -157,7 +157,7 @@ rsd_qstd |>
   janitor::tabyl(QC, sign)
 ```
 
-Bar charts of the values of standard chemicals are compared for raw and normalized data.
+Bar charts of the values of standard features are compared for raw and normalized data.
 
 ```{r}
 #| fig-width: 14
@@ -172,7 +172,7 @@ df_show <- overall_sumexp[quote(std_type %in% c("Quant", "IS")), ] |>
   dplyr::mutate(Data = factor(Data, levels = labs, labels = names(labs)))
 
 df_show |> 
-  dplyr::filter(std_type == "Quant", proc_cat == "") |> 
+  dplyr::filter(std_type == "Quant", contr_cat == "") |> 
   ggplot() +
   geom_col(aes(x = injection_order, y = Value, fill = Class)) +
   labs(title = "Quantification standards", x = "Injection order") +
@@ -192,11 +192,11 @@ ggplot(df1, aes(x = injection_order)) +
 # )
 # plotly::ggplotly(
 ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = chem_name)) +
+  geom_col(aes(y = Value, fill = feature_name)) +
   labs(
     title = "Internal standards", 
     x = labelled::get_label_attribute(df1$injection_order),
-    fill = labelled::get_label_attribute(df1$chem_name),
+    fill = labelled::get_label_attribute(df1$feature_name),
   ) +
   geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
   facet_wrap(~ Data, scales = "free_y")

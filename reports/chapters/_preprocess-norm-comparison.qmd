@@ -20,12 +20,12 @@ show$ggplot_rsdp_metab(df_to_show, labs) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with lower RSD after each normalization is counted below.
+The number of features with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
 #| results: 'markup'
-# Count the number of chemicals with lower RSD
+# Count the number of features with lower RSD
 df_to_show |> 
   janitor::tabyl(QC, sign)
 ```
@@ -49,7 +49,7 @@ df_to_show |>
     .by = QC
   ) |>  
   knitr::kable(
-    caption = "Number of chemicals with RSD% above or below 20", 
+    caption = "Number of features with RSD% above or below 20", 
     col.names = c("QC", rep(names(labs), 2))
   ) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
@@ -61,9 +61,9 @@ The RSD% values are presented in the table below.
 ```{r}
 #| label: 'rsd-comparison-table'
 df_to_show |> 
-  dplyr::left_join(chem_id_name_tbl, by = "chem_id") |>   # Add chemical names
-  dplyr::select(QC, chem_name, dplyr::all_of(unname(labs))) |> 
-  dplyr::rename(all_of(labs), `Chemical` = chem_name) |> 
+  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |>   # Add feature names
+  dplyr::select(QC, feature_name, dplyr::all_of(unname(labs))) |> 
+  dplyr::rename(all_of(labs), `Feature` = feature_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
   kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |>
   kableExtra::scroll_box(height = "300px")

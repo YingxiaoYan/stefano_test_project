@@ -6,7 +6,7 @@
 options(box.path = "code/")           # Path to project local libraries
 box::use(
   projlib/msdial,   # Handle MS-Dial files
-  projlib/io,       # Check input/output files
+  io = projlib/check_io_exist,       # Check input/output files
 )
 
 # Read `params.yml` to get input file
@@ -25,11 +25,11 @@ i_three_sections <- msdial$get_three_section_indices(FILE$i)
 # Sample Info
 sample_info <- msdial$fetch_sample_info(FILE$i, i_three_sections[[2]])
 
-# Chemical Data
-chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
-  dplyr::select( 
+# Feature Data
+features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
+  dplyr::select(          # new_id = "Given ID"
     alignment_id = "Alignment ID",
-    chem_name = "Metabolite name",
+    feature_name = "Metabolite name",
     mz = "Average Mz",
     rt = "Average Rt(min)",
     sn_ratio = "S/N average",
@@ -38,57 +38,55 @@ chems <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[1]]) |>
   as.data.frame()        # To have row names
 
 # Syntactically valid ID
-rownames(chems) <- make.names(chems$chem_name, unique = TRUE)
-chems <- chems |> 
+rownames(features) <- make.names(features$feature_name, unique = TRUE)
+features <- features |> 
   dplyr::mutate(
     dplyr::across(c(mz, rt, sn_ratio), as.numeric),
     # Ignore other variants
     std_type = ifelse(std_type %in% c("Quant", "IS"), std_type, ""),
   )
 # Apply labels
-chems <- chems |> 
+features <- features |> 
   labelled::set_variable_labels(
     alignment_id = "Alignment ID",
-    chem_name = "Chemical Name",
+    feature_name = "Feature Name",
     mz = "Average M/Z",
     rt = "Average Retention Time (min)",
     sn_ratio = "Average S/N Ratio",
     std_type = "Standard Type"
   )
 
-# Measured values of the chemicals into a matrix
+# Measured values of the features into a matrix
 raw_df <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[[2]])
 stopifnot(identical(colnames(raw_df), labelled::remove_labels(sample_info$sample_name)))
 colnames(raw_df) <- rownames(sample_info)     # Update with syntactically valid names
 raw_mat <- lapply(raw_df, as.numeric) |> 
-  as.data.frame(row.names = rownames(chems)) |> 
+  as.data.frame(row.names = rownames(features)) |> 
   as.matrix()
-labelled::label_attribute(raw_mat) <- "Raw Intensity"
+labelled::label_attribute(raw_mat) <- "Peak area"
 
 cat("From the given file:", FILE$i, "\n",
     "Number of samples:", ncol(raw_mat), "\n",
-    "Number of chemicals:", nrow(raw_mat), "\n")
+    "Number of features:", nrow(raw_mat), "\n")
 
 # Special control sample categories ------------------------------------------------------
 
 sample_info <- sample_info |> 
-  # Control sample groups
   dplyr::mutate(
-    proc_cat = dplyr::case_when(
+    # Control sample categories
+    contr_cat = dplyr::case_when(
       sample_type == "Standard" & Class == "CalCurve" ~ "CalCurve",
       sample_type == "QC"    ~ "QC",
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
     ) |> 
-      labelled::set_label_attribute("Category for Processing")
+      labelled::set_label_attribute("Control Sample Category")
   )
-stopifnot(
-  "Calibration curve samples are required." = any(sample_info$proc_cat == "CalCurve"),
-  "QC samples are required." = any(sample_info$proc_cat == "QC"),
-  "Blank samples are required." = any(sample_info$proc_cat == "Blank")
-)
-# Function to find concentration values from the given IDs
-find_concentration <- function(sid) {
+for(cat in c("CalCurve", "QC", "Blank")) {
+  if (!any(sample_info$contr_cat == cat)) stop("`", cat, "` samples are required.")
+}
+# Function to identify concentration values from the given IDs
+catch_concentration <- function(sid) {
   sid |> 
     stringr::str_extract("Cal_([[:digit:]-]+)", group = 1) |> 
     stringr::str_replace("-", ".") |>     # Replace "-" with "."
@@ -96,12 +94,12 @@ find_concentration <- function(sid) {
 }
 sample_info <- sample_info |> 
   dplyr::mutate(
-    c_conc = ifelse(proc_cat == "CalCurve", find_concentration(sample_name), NA_real_) |> 
-      labelled::set_label_attribute("Concentration"),
+    c_conc = ifelse(contr_cat == "CalCurve", catch_concentration(sample_name), NA_real_) |> 
+      labelled::set_label_attribute("Known Concentration"),
     injection_order = as.integer(injection_order) |> 
       labelled::copy_labels_from(injection_order),
   )
-calcurve_conc <- sample_info$c_conc[sample_info$proc_cat == "CalCurve"]
+calcurve_conc <- sample_info$c_conc[sample_info$contr_cat == "CalCurve"]
 stopifnot(
   "Error in Calibration sample IDs" = all(!is.na(calcurve_conc)), 
   "`Cal_0` samples are required." = any(calcurve_conc == 0),
@@ -112,7 +110,7 @@ stopifnot(
 sumexp <- SumExp::SumExp(
   raw = raw_mat,
   col_df = sample_info,
-  row_df = chems,
+  row_df = features,
   metadata = rlang::list2(
     file_name = basename(FILE$i),
     file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),

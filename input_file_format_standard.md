@@ -10,7 +10,7 @@ The input file contains the data in a table format described as below.
 | Lines    |      1st      |       2nd        | 3rd column section |
 | :------- | :-----------: | :--------------: | :----------------: |
 | 1st-4th  |    *empty*    |   Sample info    |      *empty*       |
-| From 5th | Chemical info | Measurement data |    Extra stats     |
+| From 5th | Feature info | Measurement data |    Extra stats     |
 
 ## First 4 lines
 
@@ -20,7 +20,7 @@ The first four lines contain
 `"Injection order"` and
 `"Batch ID"`
 data. 
-These lines are in a wide format and begin with a series of tabs representing empty columns for chemical data.
+These lines are in a wide format and begin with a series of tabs representing empty columns for feature data.
 
 Restriction in the MS-Dial software for those 4 lines is as below. 
 
@@ -31,15 +31,15 @@ Restriction in the MS-Dial software for those 4 lines is as below.
 
 ## Starting from the 5th line
 
-From the 5th line onward, the file contains measurement data and information about chemicals beginning with a header line. 
+From the 5th line onward, the file contains measurement data and information about features beginning with a header line. 
 The columns in these lines are organized into 3 sections. 
-* The first section contains chemical information. 
+* The first section contains feature information. 
 * The second includes all measurement data.
 * The third section provides some statistical summaries of the measurement data. Those extra columns can be identified by `"NA"` in the `"File type"` row. 
 
-### Chemical Information Columns (1st section)
+### Feature Information Columns (1st section)
 
-The initial set of columns contains information about chemicals.
+The initial set of columns contains information about features.
 
 * **Required Columns**:
   `"Alignment ID"`,
@@ -58,7 +58,7 @@ The initial set of columns contains information about chemicals.
 
 * **Comment Column Values**:
   The `Comment` column contains information about the type of standards and can have one of the following values: 
-  `"Quant"` (standard for calibration curve),`"IS"` (Internal standard), or `""` (non-targeted chemical).
+  `"Quant"` (standard for calibration curve),`"IS"` (Internal standard), or `""` (non-targeted feature).
 
 ### Sample Information Columns (2nd section)
 

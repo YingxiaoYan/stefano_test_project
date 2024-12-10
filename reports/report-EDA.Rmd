@@ -16,7 +16,7 @@ box::use(
   tidySummarizedExperiment,      # Defined using S3 but not exported, e.g. ggplot, as_tibble
 )
 # Input file
-box::use(projlib/io)       # Handle snakemake parameters and input/output files
+box::use(io = projlib/check_io_exist)       # Handle snakemake parameters and input/output files
 FILE <- rlang::list2(
   i = "data/raw_internal/water_samples_original_ESipos_MSdial_output (not blank filtered).txt",
 )
@@ -81,7 +81,7 @@ fetch_sample_info <- function(msdial_file, indices) {
     dplyr::mutate(sample_id = make.names(sample_name, unique = TRUE), .before = 1L) |>
     # Control sample groups
     dplyr::mutate(
-      proc_cat = dplyr::case_when(
+      contr_cat = dplyr::case_when(
         sample_type == "Standard" & Class == "CalCurve" ~ "CalCurve",
         sample_type == "QC"    ~ "QC",
         sample_type == "Blank" ~ "Blank",
@@ -89,9 +89,9 @@ fetch_sample_info <- function(msdial_file, indices) {
       )
     )
   stopifnot(
-    "Calibration curve samples are required." = any(sinfo$proc_cat == "CalCurve"),
-    "QC samples are required." = any(sinfo$proc_cat == "QC"),
-    "Blank samples are required." = any(sinfo$proc_cat == "Blank")
+    "Calibration curve samples are required." = any(sinfo$contr_cat == "CalCurve"),
+    "QC samples are required." = any(sinfo$contr_cat == "QC"),
+    "Blank samples are required." = any(sinfo$contr_cat == "Blank")
   )
   
   # Function to find concentration values from the given IDs
@@ -103,11 +103,11 @@ fetch_sample_info <- function(msdial_file, indices) {
   }
   sinfo <- sinfo |> 
     dplyr::mutate(
-      c_conc = ifelse(proc_cat == "CalCurve", find_concentration(sample_name), NA_real_),
+      c_conc = ifelse(contr_cat == "CalCurve", find_concentration(sample_name), NA_real_),
       injection_order = as.integer(injection_order),
     )
   stopifnot(
-    "Error in Calibration sample IDs" = all(! is.na(sinfo$c_conc[sinfo$proc_cat == "CalCurve"]))
+    "Error in Calibration sample IDs" = all(! is.na(sinfo$c_conc[sinfo$contr_cat == "CalCurve"]))
   )
   return(sinfo)
 }
@@ -123,7 +123,7 @@ fetch_data_of_columns <- function(msdial_file, indices) {
   l1 <- readr::read_tsv(msdial_file, skip = 4L, n_max = 1L, col_names = FALSE, col_types = "c")
   coltypes <- rep("-", ncol(l1))      # Skip the rest columns
   coltypes[indices] <- "c"
-  # Read lines that contain chemical data
+  # Read lines that contain feature data
   readr::read_tsv(
     msdial_file, 
     skip = 4L,      # Data starts from the 5th line
@@ -137,18 +137,18 @@ parse_to_sumexp <- function(msdial_file) {
   i_three_sections <- get_three_section_indices(msdial_file)
   sample_info <- fetch_sample_info(msdial_file, i_three_sections[[2]])
   
-  # Read chemical data in the first section
-  chems <- fetch_data_of_columns(msdial_file, i_three_sections[[1]]) |>
+  # Read feature data in the first section
+  features <- fetch_data_of_columns(msdial_file, i_three_sections[[1]]) |>
     dplyr::select(        # SummarizedExperiment will `make.names` change anyhow
       alignment_id = "Alignment ID",
-      chem_name = "Metabolite name",
+      feature_name = "Metabolite name",
       mz = "Average Mz",
       rt = "Average Rt(min)",
       sn_ratio = "S/N average",
       std_type = "Comment",            # Type of standard, e.g. "Quant", "IS", or NA 
     ) |> 
-    # `chem_id` = Syntactically valid ID
-    dplyr::mutate(chem_id = make.names(chem_name, unique = TRUE), .before = 1L) |> 
+    # `feature_id` = Syntactically valid ID
+    dplyr::mutate(feature_id = make.names(feature_name, unique = TRUE), .before = 1L) |> 
     dplyr::mutate(
       dplyr::across(c(mz, rt, sn_ratio), as.numeric),
       std_type = dplyr::case_when(
@@ -158,19 +158,19 @@ parse_to_sumexp <- function(msdial_file) {
       )
     )
   
-  # Measured values of the chemicals into a matrix
+  # Measured values of the features into a matrix
   raw_df <- fetch_data_of_columns(msdial_file, i_three_sections[[2]])
   stopifnot(identical(colnames(raw_df), sample_info$sample_name))
   colnames(raw_df) <- sample_info$sample_id     # Update with syntactically valid names
   raw_mat <- lapply(raw_df, as.numeric) |> 
-    as.data.frame(row.names = chems$chem_id) |> 
+    as.data.frame(row.names = features$feature_id) |> 
     as.matrix()
   
   # Into SummarizedExperiment
   SummarizedExperiment::SummarizedExperiment(
     assays = list(raw = raw_mat),
     col_df = sample_info,
-    row_df = chems,
+    row_df = features,
   )
 }
 overall_sumexp <- parse_to_sumexp(FILE$i)  # To be updated throughout the pre-processing
@@ -178,7 +178,7 @@ overall_sumexp <- parse_to_sumexp(FILE$i)  # To be updated throughout the pre-pr
 
 Given file: `` `r FILE$i` `` 
 
-The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(overall_sumexp)` samples.
+The given file contains data of `r nrow(overall_sumexp)` features and `r ncol(overall_sumexp)` samples.
 
 ## Samples
 
@@ -195,12 +195,12 @@ table(SumExp::col_df(overall_sumexp)$Class) |>
 
 ### Special categories for preprocessing
 
-There are `r length(table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = ""))` special sample categories for in the data.
+There are `r length(table(SumExp::col_df(overall_sumexp)$contr_cat, exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = "") |> 
+table(SumExp::col_df(overall_sumexp)$contr_cat, exclude = "") |> 
   knitr::kable(col.names = c("Category", "Number of Samples")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
@@ -216,7 +216,7 @@ Concentration is extracted from the numeric part in the format after the replace
 
 ```{r}
 # Present the sample IDs for the calibration curve
-df_show <- col_df(overall_sumexp[, SumExp::col_df(overall_sumexp)$proc_cat == "CalCurve"]) |> 
+df_show <- col_df(overall_sumexp[, SumExp::col_df(overall_sumexp)$contr_cat == "CalCurve"]) |> 
   tibble::as_tibble() |> 
   dplyr::arrange(c_conc)
 df_show |> 
@@ -248,7 +248,7 @@ table(df_show$c_conc) |>
 #| purl: true
 # Extract QC samples into list
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, se$proc_cat == "QC"]
+  se <- se[, se$contr_cat == "QC"]
   qc_id <- se$Class
   # Column-wise split
   lapply(setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
@@ -265,31 +265,31 @@ extract_qc_samples_to_list(overall_sumexp) |>
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-## Chemicals
+## Features
 
-The data contained `r nrow(overall_sumexp)` chemicals.
-Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` chemicals were targeted. 
+The data contained `r nrow(overall_sumexp)` features.
+Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` features were targeted. 
 The rest were not targeted.
 
 ```{r}
 #| purl: true
-# Extract standard chemicals
+# Extract standard features
 is_targeted <- SumExp::row_df(overall_sumexp)$std_type != ""
-targeted_chems_se <- overall_sumexp[is_targeted, ]
+targeted_features_se <- overall_sumexp[is_targeted, ]
 ```
 
-For those targeted chemicals, the standard type was specified.
-The number of chemicals for each type is as follows:
+For those targeted features, the standard type was specified.
+The number of features for each type is as follows:
 
 ```{r}
-table(SumExp::row_df(targeted_chems_se)$std_type) |> 
-  knitr::kable(col.names = c("Standard Type", "Number of Chemicals")) |> 
+table(SumExp::row_df(targeted_features_se)$std_type) |> 
+  knitr::kable(col.names = c("Standard Type", "Number of Features")) |> 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
 ## Distribution of the values
 
-### Overall samples and targeted chemicals
+### Overall samples and targeted features
 
 #### Linear scale
 
@@ -297,7 +297,7 @@ table(SumExp::row_df(targeted_chems_se)$std_type) |>
 #| label: 'distribution-values-overall-linear'
 #| fig-width: 8 
 #| out-width: '60%'
-p <- ggplot(targeted_chems_se) +
+p <- ggplot(targeted_features_se) +
   geom_histogram(aes(x = raw), bins = 50) +
   labs(title = "Distribution of the values", x = "Values")
 print(p)
@@ -312,20 +312,20 @@ print(p)
 p + scale_x_log10()
 ```
 
-### By sample class and overall targeted chemicals
+### By sample class and overall targeted features
 
 ```{r}
 #| label: 'distribution-values-by-class'
-ggplot(targeted_chems_se) +
+ggplot(targeted_features_se) +
   geom_histogram(aes(x = raw), bins = 30) +
   labs(title = "Distribution of the values by sample class", x = "Values") +
   scale_x_log10() +
   facet_wrap(~ Class, scales = "free_y", ncol = 4)
 ```
 
-### By chemical and overall samples
+### By feature and overall samples
 
-Randomly selected 8 targeted chemicals are shown in the following figure.
+Randomly selected 8 targeted features are shown in the following figure.
 
 ```{r}
 #| purl: true
@@ -350,20 +350,20 @@ select_rows_randomly <- function(sumexp, n, subset, keep_the_order = FALSE) {
 ```
 
 ```{r}
-#| label: 'distribution-values-by-chemical'
-se <- select_rows_randomly(targeted_chems_se, 8, std_type != "IS")
+#| label: 'distribution-values-by-feature'
+se <- select_rows_randomly(targeted_features_se, 8, std_type != "IS")
 ggplot(se) +
   geom_histogram(aes(x = raw, fill = Class), bins = 30) +
-  labs(title = "Distribution of the values by chemical", x = "Values") +
+  labs(title = "Distribution of the values by feature", x = "Values") +
   scale_x_log10() +
-  facet_wrap(~ chem_name, scales = "free_x", ncol = 4)
+  facet_wrap(~ feature_name, scales = "free_x", ncol = 4)
 ```
 
 ----------------------------
 
 # Normalization using internal standards
 
-## Internal standard (IS) chemicals
+## Internal standard (IS) features
 
 ```{r}
 #| purl: true
@@ -376,31 +376,31 @@ rsd_perc <- function(x, digits = 2) round(100 * sd(x) / mean(x), digits)
 
 internal_std_se <- local({
   se <- overall_sumexp
-  # Extract the internal standard chemicals
+  # Extract the internal standard features
   se <- se[SumExp::row_df(se)$std_type == "IS", ]
   # Sort by average retention time
   se <- se[order(SumExp::row_df(se)$rt), ]
   # Number of zeros
   SumExp::row_df(se)$num_zeros <- rowSums(assays(se)$raw == 0)
-  # RSD% of the internal standard chemicals across all samples
+  # RSD% of the internal standard features across all samples
   SumExp::row_df(se)$rsd <- apply(assays(se)$raw, 1, rsd_perc)
   return(se)
 })
 ```
 
-There are `r nrow(internal_std_se)` internal standard (IS) chemicals in the data.
-Those chemicals are listed below, in the order of average retention time.
+There are `r nrow(internal_std_se)` internal standard (IS) features in the data.
+Those features are listed below, in the order of average retention time.
 
 ```{r}
 #| purl: true
-# Table of internal standard chemicals
+# Table of internal standard features
 kable_internal_std <- function(se) {
-  df <- SumExp::row_df(se)[, c("chem_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
+  df <- SumExp::row_df(se)[, c("feature_name", "rt", "mz", "sn_ratio", "rsd", "num_zeros"), drop = FALSE]
   df$num_zeros <- ifelse(df$num_zeros == 0, "", df$num_zeros)
   knitr::kable(
     df, 
     row.names = FALSE,
-    col.names = c("Chemical Name", "Avg Retention Time (min)", "m/z", "S/N Ratio", 
+    col.names = c("Feature Name", "Avg Retention Time (min)", "m/z", "S/N Ratio", 
                   "RSD%", "Number of zeros"),
     align = "lrrrrr"
   ) |> 
@@ -411,10 +411,10 @@ kable_internal_std(internal_std_se)
 
 ### Outliers
 
-Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) chemicals, which were supposed to be the same across all the samples. 
-For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the chemical.
-In the other way, the chemical was marked as an outlier for the sample.
-When the number of outlying IS chemicals of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
+Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) features, which were supposed to be the same across all the samples. 
+For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the feature.
+In the other way, the feature was marked as an outlier for the sample.
+When the number of outlying IS features of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
 
 ```{r}
 #| purl: true
@@ -424,7 +424,7 @@ identify_outliers <- function(x) {
   sd <- sd(x)
   return((x > m + 3 * sd) | (x < m - 3 * sd))
 }
-# Number of outlying internal standard chemicals per sample 
+# Number of outlying internal standard features per sample 
 n_out_istd <- assays(internal_std_se)$raw |> 
   log1p() |>              # Log-transform the data
   apply(1, identify_outliers) |>
@@ -460,21 +460,21 @@ if (all(! is_outlier)) {
     knitr::kable(align = "lccr") |> 
     kableExtra::kable_classic(full_width = FALSE)
   
-  # Update the table of internal standard chemicals
+  # Update the table of internal standard features
   cat("\n\nAfter excluding the outliers,", 
-      "the table of internal standard chemicals is as follows.\n\n")
+      "the table of internal standard features is as follows.\n\n")
   # Number of zeros
   SumExp::row_df(internal_std_se)$num_zeros <- rowSums(assays(internal_std_se)$raw == 0)
-  # RSD% of the internal standard chemicals across all samples
+  # RSD% of the internal standard features across all samples
   SumExp::row_df(internal_std_se)$rsd <- apply(assays(internal_std_se)$raw, 1, rsd_perc)
-  # Updated table of internal standard chemicals
+  # Updated table of internal standard features
   kable_internal_std(internal_std_se)
 }
 ```
 
 ### Failed internal standards
 
-Internal standard (IS) chemicals that satisfy the following conditions were considered as failed IS:
+Internal standard (IS) features that satisfy the following conditions were considered as failed IS:
 
 * One or more samples have zero values.
 
@@ -486,13 +486,13 @@ is_failed_istd <- SumExp::row_df(internal_std_se)$num_zeros > 0
 
 ```{r}
 #| out-width: 100%
-box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
-  chem_name <- SumExp::row_df(se)$chem_name[ii]
+box_scatter_plot_of_one_feature <- function(se, ii, widths) {
+  feature_name <- SumExp::row_df(se)$feature_name[ii]
   se_tbl <- tibble::as_tibble(se[ii, ])
   # Box plot
   p1 <- ggplot(se_tbl) +
     geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
-    labs(title = chem_name, y = "Peak area") +
+    labs(title = feature_name, y = "Peak area") +
     theme(legend.position = "none") +   # No legend for fill
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
     scale_y_log10()
@@ -509,43 +509,43 @@ box_scatter_plot_of_one_chemical <- function(se, ii, widths) {
 }
 
 if (all(! is_failed_istd)) {
-  cat("No failed internal standard chemicals were identified.\n")
+  cat("No failed internal standard features were identified.\n")
 } else {
-  cat("The following internal standard chemicals were identified as failed IS,",
+  cat("The following internal standard features were identified as failed IS,",
       "which were removed.\n\n")
   failed <- internal_std_se[is_failed_istd, ]
-  # Table of failed internal standard chemicals
+  # Table of failed internal standard features
   print(kable_internal_std(failed))
-  # Box and scatter plots of the failed internal standard chemicals 
+  # Box and scatter plots of the failed internal standard features 
   for(ii in 1:nrow(failed)) {
-    print(box_scatter_plot_of_one_chemical(failed, ii, widths = c(0.3, 0.7)))
+    print(box_scatter_plot_of_one_feature(failed, ii, widths = c(0.3, 0.7)))
   }
 }
 ```
 
 ```{r}
 #| purl: true
-# Remove failed internal standard chemicals
+# Remove failed internal standard features
 internal_std_se <- internal_std_se[!is_failed_istd, ]
 ```
 
-### Distribution of the values of individual IS chemicals
+### Distribution of the values of individual IS features
 
 ```{r}
 #| label: 'distribution-values-internal-standards'
 #| fig-width: 13
 #| fig-height: 4
 #| out-width: 100%
-# Internal standard chemicals to show
+# Internal standard features to show
 se_show <- internal_std_se
 for(ii in 1:nrow(se_show)) {
-  print(box_scatter_plot_of_one_chemical(se_show, ii, widths = c(0.3, 0.7)))
+  print(box_scatter_plot_of_one_feature(se_show, ii, widths = c(0.3, 0.7)))
 }
 ```
 
 ### Raw RSD%
 
-The relative standard deviation (RSD%) of the raw values of the internal standard chemicals are calculated.
+The relative standard deviation (RSD%) of the raw values of the internal standard features are calculated.
 
 #### `QC` samples
 
@@ -553,13 +553,13 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 
 ```{r}
 #| label: 'rsd-internal-standards-by-qc-samples'
-# Divide the internal standard chemicals by quality control sample
-# Calculate RSD% per internal standard chemical and per quality control sample
+# Divide the internal standard features by quality control sample
+# Calculate RSD% per internal standard feature and per quality control sample
 df1 <- extract_qc_samples_to_list(internal_std_se) |> 
   sapply(\(se) apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2)))
 stopifnot(identical(rownames(df1), rownames(internal_std_se)))
-rownames(df1) <- SumExp::row_df(internal_std_se)$chem_name
-knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality control sample") |> 
+rownames(df1) <- SumExp::row_df(internal_std_se)$feature_name
+knitr::kable(df1, caption = "RSD% of internal standard features by quality control sample") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
@@ -567,46 +567,46 @@ knitr::kable(df1, caption = "RSD% of internal standard chemicals by quality cont
 
 ```{r}
 se <- internal_std_se
-se <- se[, se$proc_cat != "QC"]
+se <- se[, se$contr_cat != "QC"]
 df1 <- sapply(setNames(nm = unique(se$Class)), function(cls) {
   se <- se[, se$Class == cls]
   apply(assays(se)$raw, 1, \(.x) round(rsd_perc(.x), 2))
 })
 stopifnot(identical(rownames(df1), rownames(se)))
-rownames(df1) <- SumExp::row_df(se)$chem_name
-knitr::kable(df1, caption = "RSD% of internal standard chemicals by sample classes") |> 
+rownames(df1) <- SumExp::row_df(se)$feature_name
+knitr::kable(df1, caption = "RSD% of internal standard features by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
 ## Normalization
 
-The data is normalized using the internal standard chemicals.
+The data is normalized using the internal standard features.
 
 ```{r}
 #| purl: true
 # Find the range of RT values
 overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)
-targetted_rt_range <- range(SumExp::row_df(targeted_chems_se)$rt)
+targetted_rt_range <- range(SumExp::row_df(targeted_features_se)$rt)
 rt <- SumExp::row_df(internal_std_se)$rt
 ```
 
-The range of RT values of overall chemicals is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of targeted chemicals is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and 
-the range of internal standard chemicals is `r range(rt)[1]` to `r range(rt)[2]`.
+The range of RT values of overall features is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
+while the range of targeted features is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and 
+the range of internal standard features is `r range(rt)[1]` to `r range(rt)[2]`.
 
-### Closest internal standard chemicals
+### Closest internal standard features
 
-The closest internal standard chemicals to each chemical will be identified based on the retention time.
-The measured peak area of each chemical will be divided by the peak area of the closest internal standard chemical.
+The closest internal standard features to each feature will be identified based on the retention time.
+The measured peak area of each feature will be divided by the peak area of the closest internal standard feature.
 
 ```{r}
 #| label: 'normalize-rt-closest-istd'
 #| purl: true
-# Get the values of the closest internal standard chemicals
+# Get the values of the closest internal standard features
 get_raw_of_closest_istd <- function(se_x, internal_std_se) {
   rt_x <- SumExp::row_df(se_x)$rt
   rt <- SumExp::row_df(internal_std_se)$rt
-  # Find the closest internal standard chemical
+  # Find the closest internal standard feature
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt - .x)))
   out <- assays(internal_std_se)$raw[i_closest, ]
   rownames(out) <- rownames(se_x)
@@ -614,7 +614,7 @@ get_raw_of_closest_istd <- function(se_x, internal_std_se) {
 }
 closest_istd_raw <- get_raw_of_closest_istd(overall_sumexp, internal_std_se)
 
-# Normalize the data using closest internal standard chemicals
+# Normalize the data using closest internal standard features
 assays(overall_sumexp)$closest_norm <- assays(overall_sumexp)$raw / closest_istd_raw
 ```
 
@@ -633,13 +633,13 @@ calc_rsd_qstd <- function(qc_se, assay_ids) {
   lapply(qc_se, \(qc1) {
     sapply(setNames(nm = assay_ids), function(nm) {
       apply(assays(qc1)[[nm]], 1, rsd_perc)
-    }) |>    # Rows are chemicals, columns are assay IDs
-      tibble::as_tibble(rownames = "chem_id")
+    }) |>    # Rows are features, columns are assay IDs
+      tibble::as_tibble(rownames = "feature_id")
   }) |> 
     # `QC` has the name of the QC samples
     dplyr::bind_rows(.id = "QC")
 }
-# Plot the RSD% of various data sets of chemicals
+# Plot the RSD% of various data sets of features
 ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
   nms <- names(assay_ids)
   ids <- unname(assay_ids)    # Duplicated by `dplyr::all_of`
@@ -652,7 +652,7 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
     dplyr::mutate(Data = factor(Data, levels = ids, labels = nms))
   ggplot(rsd_df) +
     aes(x = Data, y = `RSD%`) +
-    geom_line(aes(group = chem_id), alpha = 0.5)
+    geom_line(aes(group = feature_id), alpha = 0.5)
 }
 ```
 ```{r}
@@ -675,7 +675,7 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with higher/lower RSD after normalization is counted below.
+The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'evaluation-normalization-closest-istd-count'
 #| results: 'markup'
@@ -698,9 +698,9 @@ loess_fit <- local({
   rt <- SumExp::row_df(internal_std_se)$rt
   
   # Normalize the data using the internal standards
-  # Mean of each internal standard chemical for overall measurement samples
+  # Mean of each internal standard feature for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- internal_std_se$proc_cat %in% excluded_category_for_normalization
+  to_excl <- internal_std_se$contr_cat %in% excluded_category_for_normalization
   # The data of the samples with measurements
   mat <- istd_log[, !to_excl, drop = FALSE]
   stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
@@ -719,7 +719,7 @@ loess_fit <- local({
     fr_m_log
   )
   
-  # LOESS fit of the internal standard chemicals along RT
+  # LOESS fit of the internal standard features along RT
   loess_fit <- purrr::map(1:ncol(fr_m_log), function(ii) {
     # Fit a loess curve
     y <- fr_m_log[, ii]
@@ -744,13 +744,13 @@ assays(overall_sumexp)$loess_norm <- sapply(
 )
 ```
 
-For each chemical, the average of all samples excluding 
+For each feature, the average of all samples excluding 
 `r knitr::combine_words(excluded_category_for_normalization, before = "\x60")`
 samples was calculated after log-transformation.
 The deviation of each sample from the average was calculated as normalization factor.
-The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) chemicals along RT.
-The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all chemicals. 
-The normalization factors of those at the boundaries of IS are used for the boundary RT values of all chemicals.
+The data of the sample are normalized by a LOESS curve fitted to the deviation values of the internal standard (IS) features along RT.
+The curve was fitted over the smallest and largest RT values of IS to cover the entire range of RT values of all features. 
+The normalization factors of those at the boundaries of IS are used for the boundary RT values of all features.
 The normalized data are calculated by subtracting the normalization factor from the log-transformed data.
 
 Randomly selected 3 samples are shown below.
@@ -759,7 +759,7 @@ Randomly selected 3 samples are shown below.
 #| fig-width: 14
 #| fig-height: 12
 
-to_excl <- SumExp::col_df(overall_sumexp)$proc_cat %in% excluded_category_for_normalization
+to_excl <- SumExp::col_df(overall_sumexp)$contr_cat %in% excluded_category_for_normalization
 # Plot the normalized and original data for randomly selected 3 samples
 i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
 
@@ -776,7 +776,7 @@ loess_curve_df$sample_name <-
 
 # Log-transform the data
 raw_log <- log(assays(overall_sumexp)$raw)
-# Overall mean of every chemical
+# Overall mean of every feature
 mat <- raw_log[, !to_excl, drop = FALSE]
 mat[is.finite(mat) == FALSE] <- NA    # Visualization purpose only
 mean_log <- rowMeans(mat, na.rm = TRUE)
@@ -815,12 +815,12 @@ Those zeros were kept as zeros in the normalized data.
 
 #### Evaluation of normalization
 
-The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard chemicals of the QC samples.
+The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard features of the QC samples.
 ```{r}
 #| label: 'rsd-eval'
 #| out-width: '80%'
 
-# Quantification standard chemicals of QC samples
+# Quantification standard features of QC samples
 qc_se <- extract_quant_qc(overall_sumexp)
 # Calculate RSD of the quantification standard samples
 assay_ids <- setNames(c("raw", "loess_norm"), nm = c("Raw", "LOESS Normalized"))
@@ -836,7 +836,7 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with higher/lower RSD after normalization is counted below.
+The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'rsd-count'
 #| results: 'markup'
@@ -844,7 +844,7 @@ rsd_qstd |>
   janitor::tabyl(QC, sign)
 ```
 
-Bar charts of the values of standard chemicals are compared for raw and normalized data.
+Bar charts of the values of standard features are compared for raw and normalized data.
 
 ```{r}
 #| fig-width: 14
@@ -859,7 +859,7 @@ df_show <- se[SumExp::row_df(se)$std_type %in% c("Quant", "IS"), ] |>
     Data = factor(Data, levels = c("raw", "loess_norm"), labels = c("Raw", "LOESS Normalized"))
   )
 df_show |> 
-  dplyr::filter(std_type == "Quant", proc_cat == "") |> 
+  dplyr::filter(std_type == "Quant", contr_cat == "") |> 
   ggplot() +
   geom_col(aes(x = injection_order, y = Value, fill = Class)) +
   labs(title = "Quantification standards", x = "Injection order") +
@@ -875,7 +875,7 @@ ggplot(df1, aes(x = injection_order)) +
   facet_wrap(~ Data, scales = "free_y")
 
 ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = chem_name)) +
+  geom_col(aes(y = Value, fill = feature_name)) +
   labs(title = "Internal standards", x = "Injection order") +
   geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
   facet_wrap(~ Data, scales = "free_y")
@@ -903,12 +903,12 @@ ggplot_rsdp_metab(df_to_show, assay_ids) +
   facet_grid(~ QC)
 ```
 
-The number of chemicals with lower RSD after each normalization is counted below.
+The number of features with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
 #| results: 'markup'
-# Count the number of chemicals with lower RSD
+# Count the number of features with lower RSD
 df_to_show |> 
   janitor::tabyl(QC, sign)
 ```
@@ -932,7 +932,7 @@ df_to_show |>
     .by = QC
   ) |>  
   knitr::kable(
-    caption = "Number of chemicals with RSD% above or below 20", 
+    caption = "Number of features with RSD% above or below 20", 
     col.names = c("QC", rep(names(assay_ids), 2))
   ) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
@@ -944,9 +944,9 @@ The RSD% values are presented in the table below.
 ```{r}
 #| label: 'rsd-comparison-table'
 df_to_show |> 
-  dplyr::left_join(as.data.frame(SumExp::row_df(overall_sumexp)), by = "chem_id") |>   # Add chemical names
-  dplyr::select(QC, chem_name, dplyr::all_of(unname(assay_ids))) |> 
-  dplyr::rename(all_of(assay_ids), `Chemical` = chem_name) |> 
+  dplyr::left_join(as.data.frame(SumExp::row_df(overall_sumexp)), by = "feature_id") |>   # Add feature names
+  dplyr::select(QC, feature_name, dplyr::all_of(unname(assay_ids))) |> 
+  dplyr::rename(all_of(assay_ids), `Feature` = feature_name) |> 
   knitr::kable(caption = "RSD% of the quantification standard samples", digits = 2) |> 
   kableExtra::kable_classic(bootstrap_options = "striped", full_width = FALSE) |>
   kableExtra::scroll_box(height = "300px")
@@ -958,17 +958,17 @@ df_to_show |>
 
 # Write the LOESS normalized data
 write_normalized_data_tsv <- function(sumexp, in_file, out_file) {
-  # Prepare the chemical table
+  # Prepare the feature table
   i_sec <- get_three_section_indices(in_file)
-  intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
-  stopifnot(identical(intact_chem_cols$"Alignment ID", SumExp::row_df(sumexp)$alignment_id))
+  intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
+  stopifnot(identical(intact_feature_cols$"Alignment ID", SumExp::row_df(sumexp)$alignment_id))
   # Prepare the normalized data table
   norm_df <- assays(sumexp)$loess_norm |> 
     round(0) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
   colnames(norm_df) <- col_df(sumexp)$sample_name
-  readr::write_tsv(dplyr::bind_cols(intact_chem_cols, norm_df), out_file)
+  readr::write_tsv(dplyr::bind_cols(intact_feature_cols, norm_df), out_file)
 }
 write_normalized_data_tsv(overall_sumexp, FILE$i, FILE$o$norm)
 ```
@@ -987,7 +987,7 @@ The data of the zeros is used to calculate lower-limits of quantification (LLOQ)
 # Extract quantification standard data
 quant_se <- overall_sumexp[SumExp::row_df(overall_sumexp)$std_type == "Quant", ]
 # Calibration curve samples only
-calcurve_se <- quant_se[, quant_se$proc_cat == "CalCurve"]
+calcurve_se <- quant_se[, quant_se$contr_cat == "CalCurve"]
 stopifnot("Calibration curve samples are required." = nrow(calcurve_se) > 0)
 # Calibration zero samples
 cal_0_se <- calcurve_se[, calcurve_se$c_conc == 0] 
@@ -1021,7 +1021,7 @@ Hence the concentrations were excluded for which the peak areas after normalizat
 SumExp::row_df(calcurve_se)$max_conc <- local({
   stopifnot(rownames(quant_se) == rownames(calcurve_se))
   se1 <- quant_se
-  se1 <- se1[, se1$proc_cat %in% c("CalCurve", "QC") == FALSE]
+  se1 <- se1[, se1$contr_cat %in% c("CalCurve", "QC") == FALSE]
   # Find maximum peak area of the samples of the classes for measurement
   max_loess_norm <- apply(assays(se1)$loess_norm, 1, max, na.rm = TRUE)
   
@@ -1058,15 +1058,15 @@ SumExp::row_df(calcurve_se)$min_conc <- local({
   })
 })
 
-# Mark the chemicals that have the minimum concentration equal to or greater than the maximum concentration
+# Mark the features that have the minimum concentration equal to or greater than the maximum concentration
 SumExp::row_df(calcurve_se)$to_exclude <- as.data.frame(SumExp::row_df(calcurve_se)) |> 
   with(is.na(min_conc) | is.na(max_conc) | min_conc >= max_conc)
 ```
 
-When the minimum concentration is equal to or greater than maximum concentration, the chemical is excluded from the calibration curve.
-`r english::Words(sum(SumExp::row_df(calcurve_se)$to_exclude))` chemicals are excluded from the calibration curve.
+When the minimum concentration is equal to or greater than maximum concentration, the feature is excluded from the calibration curve.
+`r english::Words(sum(SumExp::row_df(calcurve_se)$to_exclude))` features are excluded from the calibration curve.
 
-Remaining concentration range of each chemical is presented below.
+Remaining concentration range of each feature is presented below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
@@ -1082,10 +1082,10 @@ SumExp::row_df(calcurve_se) |>
     max_conc = ifelse(is.na(max_conc), "All 0s, no valid", scales::number(max_conc)),
     to_exclude = ifelse(to_exclude, "Excluded", "")
   ) |>
-  dplyr::select(chem_name, min_conc, max_conc, to_exclude) |>
+  dplyr::select(feature_name, min_conc, max_conc, to_exclude) |>
   knitr::kable(
     caption = "Concentration range of the calibration curve samples",
-    col.names = c("Chemical",
+    col.names = c("Feature",
                   "Minimum (ng/ml)",
                   "Maximum concentration (ng/ml)",
                   "Excluded?"), 
@@ -1099,7 +1099,7 @@ SumExp::row_df(calcurve_se) |>
 #| label: 'calcurve-exclude-data-by-concentration-range'
 #| purl: true
 
-# Exclude the marked chemicals
+# Exclude the marked features
 is_marked <- SumExp::row_df(calcurve_se)$to_exclude
 stopifnot(rownames(calcurve_se) == rownames(quant_se))
 calcurve_se <- calcurve_se[is_marked == FALSE, ]
@@ -1108,7 +1108,7 @@ SumExp::row_df(quant_se)$lloq <- SumExp::row_df(calcurve_se)$lloq    # Copy the 
 # Exclude the values outside the concentration range
 calcurve_se <- local({
   cc <- calcurve_se
-  # Concentration values in a matrix, rows are chemicals and columns are concentrations
+  # Concentration values in a matrix, rows are features and columns are concentrations
   conc_mat <- matrix(rep(cc$c_conc, each = nrow(cc)), nrow = nrow(cc))
   to_na <- conc_mat < SumExp::row_df(cc)$min_conc | conc_mat > SumExp::row_df(cc)$max_conc
   assays(cc)$loess_norm[to_na] <- NA_real_
@@ -1116,21 +1116,21 @@ calcurve_se <- local({
 })
 ```
 
-## Calibration curve per chemical
+## Calibration curve per feature
 
-The calibration curve of each of randomly selected 9 chemicals is presented below.
+The calibration curve of each of randomly selected 9 features is presented below.
 
 ```{r}
 #| purl: true
 
 set.seed(7579)
-# Randomly selected 9 chemicals to present in calibration curve plots
-i_9chem_to_show <- local({
+# Randomly selected 9 features to present in calibration curve plots
+i_9feature_to_show <- local({
   ii <- c(1:nrow(calcurve_se))
   ii <- ii[SumExp::row_df(calcurve_se)$std_type != "IS"]
   sample(ii, 9)
 })
-calcurve_to_show_df0 <- tibble::as_tibble(calcurve_se[i_9chem_to_show, ])
+calcurve_to_show_df0 <- tibble::as_tibble(calcurve_se[i_9feature_to_show, ])
 calcurve_to_show_df <- calcurve_to_show_df0 |> 
   tidyr::drop_na(loess_norm)        # Drop concentrations outside the range
 ```
@@ -1141,7 +1141,7 @@ The peak areas of the calibration samples are presented in the linear scale.
 The presented data includes all the concentrations that were trimmed out.
 
 ```{r}
-#| label: 'calcurve-per-chemical-linear-before-norm'
+#| label: 'calcurve-per-feature-linear-before-norm'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
@@ -1151,7 +1151,7 @@ ggplot(calcurve_to_show_df0, aes(x = c_conc, y = raw)) +
     x = "Concentration (ng/ml)",
     y = "Peak area (Raw)"
   ) +  
-  facet_wrap(~ chem_name, scales = "free_y", ncol = 3)
+  facet_wrap(~ feature_name, scales = "free_y", ncol = 3)
 ```
 
 ### After normalization and narrowing the concentration range
@@ -1162,7 +1162,7 @@ The concentration range was narrowed down to the range after the trimming step d
 #### Linear scale
 
 ```{r}
-#| label: 'calcurve-per-chemical-linear'
+#| label: 'calcurve-per-feature-linear'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
@@ -1172,14 +1172,14 @@ p <- ggplot(calcurve_to_show_df, aes(x = c_conc, y = loess_norm)) +
     x = "Concentration (ng/ml)",
     y = "Peak area (Normalized)"
   ) +  
-  facet_wrap(~ chem_name, scales = "free", ncol = 3)
+  facet_wrap(~ feature_name, scales = "free", ncol = 3)
 print(p)
 ```
 
 #### Log scale
 
 ```{r}
-#| label: 'calcurve-per-chemical-log'
+#| label: 'calcurve-per-feature-log'
 #| fig-width: 12
 #| fig-height: 11
 p + scale_x_log10() + scale_y_log10()
@@ -1188,7 +1188,7 @@ p + scale_x_log10() + scale_y_log10()
 ### After normalization by closest IS in RT
 
 ```{r}
-#| label: 'calcurve-per-chemical-linear-closest'
+#| label: 'calcurve-per-feature-linear-closest'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
@@ -1198,10 +1198,10 @@ ggplot(calcurve_to_show_df, aes(x = c_conc, y = closest_norm)) +
     x = "Concentration (ng/ml)",
     y = "Peak area (Normalized)"
   ) +  
-  facet_wrap(~ chem_name, scales = "free", ncol = 3)
+  facet_wrap(~ feature_name, scales = "free", ncol = 3)
 ```
 
-## Calibration of the chemicals
+## Calibration of the features
 
 The calibration curve is fitted to the [normalized data](#normalization) using 6 different models.
 Linear models and quadratic models are fitted to the data with three different weights, $1$, $\frac{1}{x}$ and $\frac{1}{x^2}$.
@@ -1283,8 +1283,8 @@ The distribution of $R^2$ values by different models for the calibration curves 
 
 R2s <- lapply(calcurve_models, \(m) m$R2s)
 R2s <- R2s[!is.na(R2s)] |> 
-  dplyr::bind_rows(.id = "chem_id") |> 
-  tidyr::pivot_longer(cols = -chem_id, names_to = "Model", values_to = "R2")
+  dplyr::bind_rows(.id = "feature_id") |> 
+  tidyr::pivot_longer(cols = -feature_id, names_to = "Model", values_to = "R2")
 
 ggplot(R2s) +
   geom_boxplot(aes(x = Model, y = R2)) +
@@ -1294,10 +1294,10 @@ ggplot(R2s) +
   )
 ```
 
-The count of chemicals favoring each model is shown below.
+The count of features favoring each model is shown below.
 
 ```{r}
-#| label: 'present-model-count-by-chem'
+#| label: 'present-model-count-by-feature'
 #| results: 'markup'
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
@@ -1306,17 +1306,17 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 #| label: 'concentration-computation'
 #| purl: true
 # Compute the concentration of the samples skipping the calibration curve samples
-measurements_se <- quant_se[, ! quant_se$proc_cat %in% "CalCurve"]
+measurements_se <- quant_se[, ! quant_se$contr_cat %in% "CalCurve"]
 SumExp::row_df(measurements_se)$c_conc <- NULL
-assays(measurements_se)$conc <- SumExp::row_df(measurements_se)$chem_id |> 
-  sapply(function(chem_id) {
-    v <- assays(measurements_se)$loess_norm[chem_id, ]
-    calcurve_models[[chem_id]]$best_model(v)
+assays(measurements_se)$conc <- SumExp::row_df(measurements_se)$feature_id |> 
+  sapply(function(feature_id) {
+    v <- assays(measurements_se)$loess_norm[feature_id, ]
+    calcurve_models[[feature_id]]$best_model(v)
   }) |>
-    t()          # Chemicals to rows
+    t()          # Features to rows
 # Negative concentrations are adjusted to zero
 assays(measurements_se)$conc[assays(measurements_se)$conc < 0] <- 0
-# Maximum/minimum concentration after trimming out of each chemical
+# Maximum/minimum concentration after trimming out of each feature
 maxmin_conc <- SumExp::row_df(calcurve_se)[c("max_conc", "min_conc")]
 stopifnot(rownames(maxmin_conc) == rownames(calcurve_se))
 SumExp::row_df(measurements_se) <- cbind(SumExp::row_df(measurements_se), maxmin_conc)
@@ -1330,23 +1330,23 @@ Any negative concentration is adjusted to zero.
 #| purl: true
 
 # Table of the samples to show in the calibration curve
-data_to_show_tbl <- tibble::as_tibble(measurements_se[i_9chem_to_show, ]) |> 
+data_to_show_tbl <- tibble::as_tibble(measurements_se[i_9feature_to_show, ]) |> 
   tidyr::drop_na(conc)
 # Table about the selected calibration curve models
-models_to_show_tbl <- purrr::imap_dfr(calcurve_models, \(m, chem_id) {
+models_to_show_tbl <- purrr::imap_dfr(calcurve_models, \(m, feature_id) {
   tibble::tibble(
-    chem_id = chem_id,
+    feature_id = feature_id,
     best_model_name = m$best_model_name,
     R2 = max(m$R2s),
     model_r2 = paste0(best_model_name, "\nR2=", round(R2, 2)),
     
-    chem_name = SumExp::row_df(calcurve_se)[chem_id, ]$chem_name,
-    lloq = SumExp::row_df(calcurve_se)[chem_id, ]$lloq,
+    feature_name = SumExp::row_df(calcurve_se)[feature_id, ]$feature_name,
+    lloq = SumExp::row_df(calcurve_se)[feature_id, ]$lloq,
   )
 }) |> 
-  dplyr::slice(i_9chem_to_show)
+  dplyr::slice(i_9feature_to_show)
 
-# Plot the calibration curve for each chemical with the samples in the calibration curve
+# Plot the calibration curve for each feature with the samples in the calibration curve
 ggplot_calcurve_samples_facet <- function(data) {
   ggplot(data, aes(x = conc, y = loess_norm)) +
     geom_point(aes(x = c_conc), data = calcurve_to_show_df) +     # Remaining calibration samples
@@ -1356,7 +1356,7 @@ ggplot_calcurve_samples_facet <- function(data) {
       x = "Concentration (ng/ml)",
       y = "Peak area (Normalized)"
     ) +  
-    facet_wrap(~ chem_name, scales = "free", ncol = 3) +
+    facet_wrap(~ feature_name, scales = "free", ncol = 3) +
     geom_rect(         # Shade the region below the LLOQ
       aes(xmin = 0, xmax = Inf, ymin = 0, ymax = lloq),
       data = models_to_show_tbl,
@@ -1369,7 +1369,7 @@ ggplot_calcurve_samples_facet <- function(data) {
 
 ### All measurement samples
 
-The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each feature.
 
 #### Linear scale
 
@@ -1398,14 +1398,14 @@ data_to_show_tbl |>
 ```{r}
 classes_excl_qc_blank <- local({
   df <- col_df(measurements_se)
-  unique(df$Class[!df$proc_cat %in% c("QC", "Blank")])
+  unique(df$Class[!df$contr_cat %in% c("QC", "Blank")])
 })
 ```
 
 The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.
 
 The best model name is displayed at the bottom right corner of each plot.
-The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each feature.
 
 #### Linear scale
 
@@ -1464,14 +1464,14 @@ ggplot(measurements_se) +
 ```
 
 ```{r}
-#| label: 'concentration-distribution-by-chemical'
+#| label: 'concentration-distribution-by-feature'
 #| fig-width: 12
 #| fig-height: 20
 ggplot(measurements_se) +
-  geom_boxplot(aes(x = chem_name, y = conc)) +
+  geom_boxplot(aes(x = feature_name, y = conc)) +
   labs(
-    title = "Concentration distribution by chemical", 
-    x = "Chemical",
+    title = "Concentration distribution by feature", 
+    x = "Feature",
     y = "Concentration (ng/ml)",
   ) +
   # Turn the x-axis title to vertical
@@ -1484,12 +1484,12 @@ ggplot(measurements_se) +
 #| label: 'write-concentration-table'
 # Write the concentration table
 write_concentration_tsv <- function(sumexp, file) {
-  # Prepare the chemical table
-  chem_columns <- SumExp::row_df(sumexp) |> 
+  # Prepare the feature table
+  feature_columns <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble() |> 
     dplyr::select(
       `Alignment ID` = alignment_id,
-      `Chemical name` = chem_name,
+      `Feature name` = feature_name,
       `Average Mz` = mz,
       `Average Rt(min)` = rt,
     )
@@ -1499,7 +1499,7 @@ write_concentration_tsv <- function(sumexp, file) {
     tibble::as_tibble()
   # Original sample ID
   colnames(conc_df) <- col_df(sumexp)$sample_name
-  readr::write_tsv(dplyr::bind_cols(chem_columns, conc_df), file)
+  readr::write_tsv(dplyr::bind_cols(feature_columns, conc_df), file)
 }
 write_concentration_tsv(measurements_se, FILE$o$conc)
 ```

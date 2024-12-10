@@ -12,7 +12,7 @@
 #' @return A list of SumExp objects divided by QC Classes
 #' @export
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, quote(proc_cat == "QC")]
+  se <- se[, quote(contr_cat == "QC")]
   qc_id <- SumExp::col_df(se)$Class
   # Column-wise split
   lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
@@ -59,9 +59,9 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
     kableExtra::kable_styling(full_width = FALSE)
 }
 
-#' Plot the RSD% of various data sets of chemicals
+#' Plot the RSD% of various data sets of features
 #'
-#' @param rsd_df A data frame with columns `chem_id` as well as all in `assay_ids`
+#' @param rsd_df A data frame with columns `feature_id` as well as all in `assay_ids`
 #' @param assay_ids A character vector of assay IDs to be plotted in the x-axis
 #' @return A ggplot object
 #' @export
@@ -84,13 +84,29 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
     dplyr::mutate(Data = factor(Data, levels = ids, labels = nms))
   ggplot2::ggplot(rsd_df) +
     ggplot2::aes(x = Data, y = `RSD%`) +
-    ggplot2::geom_line(ggplot2::aes(group = chem_id), alpha = 0.5)
+    ggplot2::geom_line(ggplot2::aes(group = feature_id), alpha = 0.5)
 }
 
-#' Plot the calibration curve for each chemical with the samples in the calibration curve
+
+
+
+#' Extract the label attribute of a variable if it has
+#'
+#' @param x An object that may have a label attribute
+#' @param default_lab A default label if the object does not have a label attribute
+#'
+#' @return A character of the label attribute or the default label
+#' @export
+label_if_has <- function(x, default_lab) {
+  lab <- labelled::get_label_attribute(x)
+  if (!is.null(lab)) return(lab)
+  default_lab
+}
+
+#' Plot the calibration curve for each feature with the samples in the calibration curve
 #'
 #' @param x_se A SumExp object with the samples to be plotted
-#' @param cc_se A SumExp object with the calibration curve samples. The chemicals in `x_se`
+#' @param cc_se A SumExp object with the calibration curve samples. The features in `x_se`
 #'   should be a subset of `cc_se`
 #' @param calcurve_models A list of the calibration curve models 
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
@@ -99,26 +115,23 @@ ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
 #' @export
 ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
   .chq_if_a_single_char(mat_id)
-  chem_ids <- rownames(x_se)           # Limited to those chemicals in the `x_se`
-  cc_se <- cc_se[chem_ids, ]
+  feature_ids <- rownames(x_se)           # Limited to those features in the `x_se`
+  cc_se <- cc_se[feature_ids, ]
   cc_df <- SumExp::as_tibble(cc_se) |> 
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
   # LLOQ, LLOD, max_c_conc
-  lim_df <- SumExp::row_df(cc_se)[, c("chem_name", "lloq", "llod", "max_c_conc")]
+  lim_df <- SumExp::row_df(cc_se)[, c("feature_name", "lloq", "llod", "max_c_conc")]
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
-  # X label from label attribute
-  xlab <- labelled::label_attribute(x_se[[mat_id]])
-  if (is.null(xlab)) xlab <- mat_id
   
   # Calibration curve lines
-  .geom_ccline <- function(chem_ids, lim_df, calcurve_models) {
-    chem_id_name <- tibble::rownames_to_column(lim_df, "chem_id")
-    chem_ids <- stats::setNames(nm = chem_ids)
-    conc_df <- sapply(chem_ids, \(chem_id) {
-      lims <- lim_df[chem_id, ]
+  .geom_ccline <- function(feature_ids, lim_df, calcurve_models) {
+    feature_id_name <- tibble::rownames_to_column(lim_df, "feature_id")
+    feature_ids <- stats::setNames(nm = feature_ids)
+    conc_df <- sapply(feature_ids, \(feature_id) {
+      lims <- lim_df[feature_id, ]
       lloq <- lims$lloq
       max_c_conc <- lims$max_c_conc
       sort(c(
@@ -127,17 +140,17 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
       ))
     }) |> 
       as.data.frame() |> 
-      tidyr::pivot_longer(tidyr::everything(), names_to = "chem_id", values_to = "conc") |> 
-      dplyr::left_join(chem_id_name, by = "chem_id")
+      tidyr::pivot_longer(tidyr::everything(), names_to = "feature_id", values_to = "conc") |> 
+      dplyr::left_join(feature_id_name, by = "feature_id")
     
     ccline_df <- conc_df |> 
       dplyr::mutate(
         .y_value = purrr::map2_dbl(
-          chem_id, conc, 
+          feature_id, conc, 
           ~stats::predict.lm(calcurve_models[[.x]]$inv_model, data.frame(conc = .y))
         )
       ) |> 
-      dplyr::arrange(chem_id, conc)
+      dplyr::arrange(feature_id, conc)
     ggplot2::geom_line(
       ggplot2::aes(x = conc, y = .y_value), data = ccline_df,
       color = "cadetblue",
@@ -146,14 +159,17 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
   }
   
   ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
-    .geom_ccline(chem_ids, lim_df, calcurve_models) +
+    .geom_ccline(feature_ids, lim_df, calcurve_models) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
     ggplot2::geom_point(ggplot2::aes(color = Class)) +
     # Density of points at the edges of the plot
     ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
-    ggplot2::labs(x = xlab) +  
+    ggplot2::labs(
+      x = label_if_has(x_df$conc, "Concentration"),
+      y = label_if_has(x_se[[mat_id]], mat_id),
+    ) +  
     ggplot2::geom_rect(         # Shade the region below the LLOQ
       ggplot2::aes(xmin = 0, xmax = lloq, ymin = 0, ymax = Inf),
       data = lim_df,
@@ -182,5 +198,5 @@ ggplot_calcurve_samples_facet <- function(x_se,
                                           ncol = 3,
                                           ...) {
   ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id) +
-    ggplot2::facet_wrap(~ chem_name, scales = scales, ncol = ncol, ...)
+    ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }

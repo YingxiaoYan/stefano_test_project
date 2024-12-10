@@ -155,6 +155,7 @@ get_sumexp_file_name <- function(params, suffix = '') {
 #' @return A SumExp object
 #' @export
 read_parsed_msdial_data <- function(params) {
+  has_required_params(params, "input_file")
   sumexp_file <- get_sumexp_file_name(params)
   stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
   # Load the parsed data
@@ -181,20 +182,18 @@ read_parsed_msdial_data <- function(params) {
   max(0, -floor(m) + 4)
 }
 
-#' Export data with the chemical table to a tab-separated file
+#' Export data with the feature table to a tab-separated file
 #'
 #' @param sumexp A SumExp object
 #' @param mat_id The name of the data in `sumexp` (or assay) to be exported
-#' @param in_file Path to the MS-DIAL output file that was used to create `sumexp`
+#' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
+#'   Unsaved feature information will be copied from this file.
 #' @param out_file Path to the output tab-separated file
 #' @export
-export_data_with_chem_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
-  # Prepare the chemical table
+export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
+  # Prepare the feature table
   i_sec <- get_three_section_indices(in_file)
-  intact_chem_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
-  stopifnot(
-    intact_chem_cols$"Alignment ID" == SumExp::row_df(sumexp)$alignment_id
-  )
+  intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
   # Prepare the data table
   mat_x <- sumexp[[mat_id]]
   df_x <- mat_x |>  
@@ -202,8 +201,10 @@ export_data_with_chem_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
     tibble::as_tibble()
   # Original sample ID
   colnames(df_x) <- SumExp::col_df(sumexp)$sample_name
-  df_x <- dplyr::bind_cols(intact_chem_cols, df_x)
-  readr::write_tsv(df_x, file = out_file)
+  df_x <- df_x |> 
+    dplyr::mutate("Alignment ID" = SumExp::row_df(sumexp)$alignment_id, .before = 1) |> 
+    dplyr::right_join(intact_feature_cols, y = _, by = "Alignment ID")
+  readr::write_tsv(df_x, file = out_file, na = "")
 }
 
 #' Export the concentration table
@@ -212,12 +213,27 @@ export_data_with_chem_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
 #' @param file Path to the output tab-separated file
 #' @export
 export_concentration_tsv <- function(sumexp, file) {
-  # Prepare the chemical table
-  chem_columns <- SumExp::row_df(sumexp) |> 
+  methods::validObject(sumexp)     # Check consistency between elements, eg row_df, col_df, conc
+  # The first three rows are the sample information
+  s_rows <- SumExp::col_df(sumexp) |> 
+    dplyr::select(
+      "Class" = "Class",
+      "Sample Type" = "sample_type",
+      "Injection Order" = "injection_order",
+    )
+  s_rows_tr <- data.frame(
+    matrix(nrow = ncol(s_rows), ncol = 4),    # Feature columns
+    t(s_rows)
+  )
+  s_rows_tr[4] <- colnames(s_rows)
+  readr::write_tsv(s_rows_tr, file, append = FALSE, col_names = FALSE, na = "")
+  
+  # Prepare the feature table
+  feature_columns <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble() |> 
     dplyr::select(
       `Alignment ID` = alignment_id,
-      `Chemical name` = chem_name,
+      `Feature name` = feature_name,
       `Average Mz` = mz,
       `Average Rt(min)` = rt,
     )
@@ -228,6 +244,6 @@ export_concentration_tsv <- function(sumexp, file) {
     tibble::as_tibble()
   # Original sample ID
   colnames(conc_df) <- SumExp::col_df(sumexp)$sample_name
-  conc_df <- dplyr::bind_cols(chem_columns, conc_df)
-  readr::write_tsv(conc_df, file)
+  conc_df <- dplyr::bind_cols(feature_columns, conc_df)
+  readr::write_tsv(conc_df, file, append = TRUE, col_names = TRUE, na = "")
 }

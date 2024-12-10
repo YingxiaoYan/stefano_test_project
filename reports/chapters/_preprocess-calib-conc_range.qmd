@@ -35,20 +35,20 @@ Similarly, the LLOQ is set at ten times the mean of the zero concentration sampl
 If the calibration samples at the LLOQ concentration exhibit high variability (relative standard deviation, RSD, > 20%), the LLOQ is adjusted to the lowest higher concentration that satisfies RSD ≤ 20%.
 Concentrations below this LLOQ are excluded from the calibration curve.
 
-Quite a few concentrations in the calibration curve samples of a chemical can be too far from the range observed in the samples for measurement. 
+Quite a few concentrations in the calibration curve samples of a feature can be too far from the range observed in the samples for measurement. 
 When there are sufficient data points (≥ 5 concentrations), the maximum concentration of the calibration curve is accordingly adjusted. 
 Concentrations that produce peak areas after normalization exceeding ten times the **highest** peak area of non-`CalCurve` and non-`QC` sample categories are excluded.
 
-If the LLOQ is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve.
-As a result, `r english::Words(sum(limit_df$to_exclude))` chemicals have been removed from the calibration curve.
+If the LLOQ is set so high that fewer than three concentration points remain, that feature is excluded from the calibration curve.
+As a result, `r english::Words(sum(limit_df$to_exclude))` features have been removed from the calibration curve.
 
-The concentration range for each chemical is detailed below.
+The concentration range for each feature is detailed below.
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
 show_df <- limit_df |> 
-  tibble::as_tibble(rownames = "chem_id") |> 
+  tibble::as_tibble(rownames = "feature_id") |> 
   dplyr::mutate(
     Note = dplyr::case_when(
       to_exclude ~ "Excluded", 
@@ -60,8 +60,8 @@ show_df <- limit_df |>
     max_c_conc = ifelse(is.na(max_c_conc), "Not enough range", scales::number(max_c_conc)) |> 
       labelled::copy_labels_from(max_c_conc)
   ) |>
-  dplyr::left_join(chem_id_name_tbl, by = "chem_id") |> 
-  dplyr::select(chem_name, LLOD, LLOQ, max_c_conc, Note)
+  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
+  dplyr::select(feature_name, LLOD, LLOQ, max_c_conc, Note)
 
 knitr::kable(
   show_df,

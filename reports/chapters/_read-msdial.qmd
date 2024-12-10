@@ -1,7 +1,7 @@
 
 Given file: `` `r SumExp::metadata(overall_sumexp)$file_name` `` 
 
-The given file contains data of `r nrow(overall_sumexp)` chemicals and `r ncol(overall_sumexp)` samples.
+The given file contains data of `r nrow(overall_sumexp)` features and `r ncol(overall_sumexp)` samples.
 
 ## Samples
 
@@ -16,12 +16,12 @@ show$kable_number_of(SumExp::col_df(overall_sumexp)$Class)
 
 ### Special categories for preprocessing
 
-There are `r length(table(SumExp::col_df(overall_sumexp)$proc_cat, exclude = ""))` special sample categories for in the data.
+There are `r length(table(SumExp::col_df(overall_sumexp)$contr_cat, exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::col_df(overall_sumexp)$proc_cat, exclude = "")
+show$kable_number_of(SumExp::col_df(overall_sumexp)$contr_cat, exclude = "")
 ```
 
 #### Calibration curve samples
@@ -36,7 +36,7 @@ Concentration is extracted from the numeric part in the format after the replace
 ```{r}
 # Present the sample IDs for the calibration curve
 df_show <- SumExp::col_df(overall_sumexp) |> 
-  dplyr::filter(proc_cat == "CalCurve") |> 
+  dplyr::filter(contr_cat == "CalCurve") |> 
   dplyr::arrange(c_conc) |> 
   dplyr::select(sample_name, c_conc)
 df_show |> 
@@ -75,22 +75,22 @@ show$extract_qc_samples_to_list(overall_sumexp) |>
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-## Chemicals
+## Features
 
-The data contained `r nrow(overall_sumexp)` chemicals.
-Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` chemicals were targeted. 
+The data contained `r nrow(overall_sumexp)` features.
+Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` features were targeted. 
 The rest were not targeted.
 
-For those targeted chemicals, the standard type was specified.
-The number of chemicals for each type is as follows:
+For those targeted features, the standard type was specified.
+The number of features for each type is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::row_df(overall_sumexp)$std_type, what = "Chemicals", exclude = "")
+show$kable_number_of(SumExp::row_df(overall_sumexp)$std_type, what = "Features", exclude = "")
 ```
 
 ## Distribution of the values
 
-* Overall samples and targeted chemicals
+* Overall samples and targeted features
 
 As shown below, the values are distributed in a skewed manner.
 

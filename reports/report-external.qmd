@@ -21,7 +21,7 @@ box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
   projlib/show,       # Functions to present data
-  projlib/io,       # Check input/output files
+  io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
@@ -40,13 +40,13 @@ FILE <- list(
 io$check_io_exist(FILE)
 
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
-chem_ids <- SumExp::rownames(concn_se)[1:2]
+FEATURE_IDS <- SumExp::rownames(concn_se)[1:2]
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessed"]])
+stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])
 # Conversion tables
 sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
-chem_id_name_tbl <- qc_steps[["chem_id_name_tbl"]]
+feature_id_name_tbl <- qc_steps[["feature_id_name_tbl"]]
 ```
 
 # Project Information
@@ -60,6 +60,11 @@ chem_id_name_tbl <- qc_steps[["chem_id_name_tbl"]]
 {{< pagebreak >}}
 
 # General overview
+
+* Number of samples: `r ncol(concn_se)`
+* Number of targeted features: `r nrow(concn_se)`
+
+{{< pagebreak >}}
 
 ## PCA
 
@@ -81,24 +86,26 @@ plot_pca <- function(se, mat_id) {
   ggplot2::autoplot(pca_res, data = se_df, colour = "Class") +
     labs(title = lab)
 }
-# plot_pca(concn_se[, quote(proc_cat != "QC")], "conc")
+# plot_pca(concn_se[, quote(contr_cat != "QC")], "conc")
 ```
 
 {{< pagebreak >}}
 
-## Chemical summary
+## Feature summary
 
 ```{r}
-#| label: 'chems'
+#| label: 'features-summary'
 
-chems <- SumExp::row_df(concn_se) |> 
-  tibble::as_tibble(rownames = "chem_id")
+# Information about the features
+features <- SumExp::row_df(concn_se) |> 
+  tibble::as_tibble(rownames = "feature_id")
+# Concentration
 mat <- concn_se[["conc"]]
 # Summary about the concentration ranges
 conc_summary <- tibble::tibble(
-  chem_id = chems$chem_id,
-  llod = chems$llod,
-  df_n = sapply(1:nrow(mat), \(i) sum(mat[i, ] > llod[i])),
+  feature_id = features$feature_id,
+  llod = features$llod,
+  df_n = sapply(1:nrow(mat), \(i) sum(mat[i, ] >= llod[i])),
   df_perc = df_n / ncol(mat) * 100,
   median = apply(mat, 1, median),
   mean = rowMeans(mat),
@@ -121,34 +128,31 @@ model_summary <- qc_steps[[DATA_ID]][["calcurve_models"]] |>
     n_conc <- m$n_conc
     data.frame(R2, type, n_conc) 
   }) |> 
-  purrr::list_rbind(names_to = "chem_id")
+  purrr::list_rbind(names_to = "feature_id")
 # Merge
 summary_tbl <- list(
-  chems[, c("chem_id", "chem_name")],
+  features[, c("feature_id", "feature_name")],
   conc_summary,
   model_summary
 ) |> 
-  purrr::reduce(dplyr::full_join, by = "chem_id") |> 
-  dplyr::select(-chem_id)
+  purrr::reduce(dplyr::full_join, by = "feature_id") |> 
+  dplyr::arrange(feature_name) |> 
+  dplyr::select(
+    "Feature" = feature_name,
+    "LLOD" = llod,
+    "DF (%)" = df_perc,
+    "Median" = median,
+    "Average" = mean,
+    "Min" = min,
+    "Max" = max,
+    "R2" = R2,
+    "Model" = type,
+    "N of points" = n_conc,
+  )
 
 # Summary table
 summary_tbl |> 
-  knitr::kable(
-    caption = "Summary of chemicals",
-    col.names = c(
-      "Chemical",
-      "LLOD",
-      "DF", 
-      "DF (%)",
-      "Median",
-      "Average",
-      "Min",
-      "Max",
-      "R2",
-      "Model",
-      "N of points"
-    ),
-  ) |> 
+  knitr::kable(caption = "Summary of Features") |> 
   kableExtra::kable_styling(
     latex_options = "striped", 
     full_width = FALSE, 
@@ -162,26 +166,80 @@ summary_tbl |>
 
 {{< pagebreak >}}
 
-# Invidual chemicals
+# Invidual features
 
 {{< pagebreak >}}
 
 ```{r}
+#| label: 'individual-features'
+#| fig-width: 15
+#| fig-height: 11
+#| out-height: '95%'
 calcurve_se <- qc_steps[[DATA_ID]][["calcurve_se within range"]]
 calcurve_models <- qc_steps[[DATA_ID]][["calcurve_models"]]
-for(chem_i in chem_ids) {
-  chem_name <- chem_id_name_tbl$chem_name[chem_id_name_tbl$chem_id == chem_i]
-  cat("\n\n## ", chem_name, "\n")
+for(feature_i in FEATURE_IDS) {
+  feature_name <- feature_id_name_tbl$feature_name[feature_id_name_tbl$feature_id == feature_i]
+  cat("\n\n## ", feature_name, "\n")
   
-  x_se <- concn_se[rownames(concn_se) == chem_i, quote(! proc_cat %in% c("QC", "Blank"))]
-  cc_se <- calcurve_se[rownames(calcurve_se) == chem_i, ]
-  # Calibration curve
+  x_se <- concn_se[rownames(concn_se) == feature_i, quote(! contr_cat %in% c("QC", "Blank"))]
+  cc_se <- calcurve_se[rownames(calcurve_se) == feature_i, ]
+  # Calibration curves
   p1 <- show$ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id = DATA_ID) +
-    labs(y = "Peak area (Normalized)")
-  print(p1)
-  print(p1 + scale_x_log10() + scale_y_log10())
-  cat("\n\n{{< pagebreak >}}\n\n")
+    labs(
+      title = "Linear scale",
+      y = "Peak area (Normalized)"
+    )
+  p2 <- p1 + scale_x_log10() + scale_y_log10() + 
+    labs(title = "Log10 scale")
+  # Distirbution of the concentration by class
+  x_df <- SumExp::as_tibble(x_se)
+  p3 <- ggplot(x_df) +
+    geom_boxplot(aes(x = Class, y = conc, color = Class, fill = Class)) +
+    labs(
+      x = show$label_if_has(x_df$Class, "Class"),
+      y = show$label_if_has(x_df$conc, "Concentration"),
+    ) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +    # Vertical x-axis
+    theme(legend.position = "none") +      # No legend
+    scale_y_log10()
+  # Text
+  mdl <- calcurve_models[[feature_i]]
+  fts <- SumExp::row_df(x_se)
+  conc <- x_se[["conc"]][1, ]
+  text_df <- tibble::tibble(
+    x = 0,
+    y = 0.5,
+    label = paste0(
+      "Best model: ", mdl$best_model_name, "\n\n",
+      "R2: ", round(summary(mdl$inv_model)$r.squared, 3), "\n\n",
+      "N of points: ", mdl$n_conc, "\n\n",
+      "DF (%): ", scales::percent(sum(conc >= fts$llod) / length(conc)), "\n\n",
+      "LLOD: ", fts$llod, "\n\n",
+      "LLOQ: ", fts$lloq, "\n\n",
+      ""         # For trailing comma
+    )
+  )
+  text1 <- ggplot(text_df) +
+    ggtext::geom_textbox(
+      aes(x, y, label = label),
+      box.color = "black",
+      width = unit(10, "cm"),
+      fill = NA,
+      hjust = 0,
+      vjust = 0.5,
+      size = 5
+    ) +
+    scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    theme_void()
+  
+  # Plot
+  design <- "
+    1122
+    1122
+    3#44
+  "
+  print(p1 + p2 + p3 + text1 + patchwork::plot_layout(design = design, guides = "collect"))
 }
 ```
-
 
