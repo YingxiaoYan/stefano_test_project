@@ -12,7 +12,7 @@ box::use(
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc,       # Preprocessing functions
 )
-# Read `params.yml` to get input file
+# Read `params.yml` to get various project parameters
 params <- yaml::read_yaml("params.yml")
 
 # Input/Output files

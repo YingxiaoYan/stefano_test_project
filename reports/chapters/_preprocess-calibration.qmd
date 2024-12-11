@@ -6,7 +6,8 @@ title: Calibration
 #| label: 'setup-calibration'
 #| purl: true
 #| eval: !expr '!knitr::opts_knit$get("child")'
-DATA_ID <- setNames("loess_norm", nm = "LOESS normalization")
+# The preprocessed data used for calibration. Default is `loess_norm`.
+if (!exists("DATA_ID")) DATA_ID <- "loess_norm"
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -56,10 +57,10 @@ i_9feature_to_show <- local({
   sample(ii, 9)
 })
 calcurve_to_show_df <- SumExp::as_tibble(calcurve_se[i_9feature_to_show, ]) |> 
-  tidyr::drop_na(all_of(unname(DATA_ID)))        # Drop concentrations outside the range
+  tidyr::drop_na(all_of(DATA_ID))        # Drop concentrations outside the range
 ```
 
-The peak areas were normalized by the internal standards applying the `r names(DATA_ID)`.
+The peak areas were normalized by the internal standards applying the `r show$label_if_has(calcurve_to_show_df[[DATA_ID]], DATA_ID)`.
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#concentration-ranges).
 
 ### Linear scale

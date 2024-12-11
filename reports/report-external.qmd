@@ -12,8 +12,8 @@ format:
 ```{r}
 #| label: 'setup'
 #| purl: true
-# The preprocessed data used for calibration
-DATA_ID <- setNames("loess_norm", nm = "LOESS normalization")
+# The preprocessed data used for calibration. Default is `loess_norm`.
+if (!exists("DATA_ID")) DATA_ID <- "loess_norm"
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -26,8 +26,8 @@ box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
-# Read `params.yml` if `params` not provided
-if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# Read `params.yml` to get various project parameters
+params <- yaml::read_yaml("params.yml")
 
 # Input/Output files
 FILE <- list(
@@ -189,8 +189,7 @@ for(feature_i in FEATURE_IDS) {
   p1 <- show$ggplot_calcurve_samples(x_se, 
                                      cc_se, 
                                      calcurve_models, 
-                                     mat_id = DATA_ID, 
-                                     colors_of_classes) +
+                                     mat_id = DATA_ID) +
     labs(
       title = "Linear scale",
       y = "Peak area (Normalized)"

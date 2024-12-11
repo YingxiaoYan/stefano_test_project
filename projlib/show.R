@@ -184,13 +184,12 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
     )
   }
   
-  ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
+  out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     .geom_ccline(feature_ids, lim_df, calcurve_models) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
     ggplot2::geom_point(ggplot2::aes(color = Class)) +
-    ggplot2::scale_color_manual(values = colors_of_classes) +
     # Density of points at the edges of the plot
     ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
     ggplot2::labs(
@@ -211,6 +210,8 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
       alpha = 0.5,
       inherit.aes = FALSE
     )
+  if (missing(colors_of_classes)) return(out)
+  out + ggplot2::scale_color_manual(values = colors_of_classes)
 }
 
 #' @inheritParams ggplot2::facet_wrap

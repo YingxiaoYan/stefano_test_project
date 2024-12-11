@@ -11,7 +11,7 @@ box::use(
   projlib/msdial,     # Handle MS-Dial files
   projlib/proc[subtract_blank_sumexp], 
 )
-# Read `params.yml` to get input file
+# Read `params.yml` to get various project parameters
 params <- yaml::read_yaml("params.yml")
 msdial$has_required_params(params, "input_file", "intermediate_dir", "table_dir")
 

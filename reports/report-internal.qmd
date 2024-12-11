@@ -1,12 +1,18 @@
 ---
 title: "Exploratory data analysis"
+format:
+  html: 
+    fig-width : 10
+    fig-height: 6
+    out-width: "100%"
+    fig-align: "default"
 ---
 
 ```{r}
 #| label: 'setup-read-msdial'
 #| purl: true
-# The preprocessed data used for calibration
-DATA_ID <- setNames("loess_norm", nm = "LOESS normalization")
+# The preprocessed data used for calibration. Default is `loess_norm`.
+if (!exists("DATA_ID")) DATA_ID <- "loess_norm"
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -20,8 +26,8 @@ box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
-# Read `params.yml` if `params` not provided
-if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# Read `params.yml` to get various project parameters
+params <- yaml::read_yaml("params.yml")
 # To keep constants consistent across reports
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
