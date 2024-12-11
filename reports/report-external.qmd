@@ -40,7 +40,7 @@ FILE <- list(
 io$check_io_exist(FILE)
 
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
-FEATURE_IDS <- SumExp::rownames(concn_se)[1:2]
+FEATURE_IDS <- SumExp::rownames(concn_se)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])
