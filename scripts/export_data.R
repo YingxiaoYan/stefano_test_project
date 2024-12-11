@@ -9,6 +9,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  projlib/proc[subtract_blank_sumexp], 
 )
 # Read `params.yml` to get input file
 params <- yaml::read_yaml("params.yml")
@@ -46,12 +47,13 @@ normalized_se <- qc_steps[["Normalized"]]
 measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
 
 for(mat_id in NORMALIZE_METHODS) {
-  msdial$export_data_with_feature_table_tsv(
-    sumexp = normalized_se, 
-    mat_id = mat_id,
-    in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
-    out_file = FILE$o$norm[[mat_id]]
-  )
+  subtract_blank_sumexp(normalized_se, contr_cat == "Blank", mat_id = mat_id) |> 
+    msdial$export_data_with_feature_table_tsv(
+      sumexp = _, 
+      mat_id = mat_id,
+      in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
+      out_file = FILE$o$norm[[mat_id]]
+    )
   msdial$export_concentration_tsv(
     sumexp = measurement_blank_substracted_lst[[mat_id]],
     file = FILE$o$conc[[mat_id]]
