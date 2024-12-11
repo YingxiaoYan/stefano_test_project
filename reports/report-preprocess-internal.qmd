@@ -22,6 +22,9 @@ box::use(
 )
 # Read `params.yml` if `params` not provided
 if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# To keep constants consistent across reports
+constants_yml <- yaml::read_yaml("code/constants.yml")
+COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 
 # Input/Output files
 FILE <- list(
@@ -35,6 +38,7 @@ io$check_io_exist(FILE)
 
 measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
 overall_sumexp <- msdial$read_parsed_msdial_data(params)
+colors_of_classes <- show$get_colors_of_classes(overall_sumexp, COLORS$contr_cat)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])

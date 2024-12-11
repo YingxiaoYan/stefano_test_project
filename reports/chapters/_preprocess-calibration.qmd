@@ -19,6 +19,11 @@ box::use(
 )
 # Read `params.yml` if `params` not provided
 if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# To keep constants consistent across reports
+constants_yml <- yaml::read_yaml("code/constants.yml")
+COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
+colors_of_classes <- msdial$read_parsed_msdial_data(params) |> 
+  show$get_colors_of_classes(COLORS$contr_cat)
 # Input/Output files
 FILE <- list(
   i = rlang::list2(
@@ -138,7 +143,11 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| label: 'calibration-curve-with-samples'
 #| fig-width: 12
 #| fig-height: 11
-show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
+show$ggplot_calcurve_samples_facet(to_show_se,
+                                   calcurve_se,
+                                   calcurve_models,
+                                   DATA_ID,
+                                   colors_of_classes) +
   labs(y = "Peak area (Normalized)")
 ```
 
@@ -148,7 +157,11 @@ show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DAT
 #| label: 'calibration-curve-with-samples-log'
 #| fig-width: 12
 #| fig-height: 11
-show$ggplot_calcurve_samples_facet(to_show_se, calcurve_se, calcurve_models, DATA_ID) +
+show$ggplot_calcurve_samples_facet(to_show_se,
+                                   calcurve_se,
+                                   calcurve_models,
+                                   DATA_ID,
+                                   colors_of_classes) +
   scale_x_log10() +
   scale_y_log10()
 ```
@@ -193,7 +206,7 @@ geom_best_model_name <- geom_text(         # Display the best model name
 )
 
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID, colors_of_classes) +
   geom_best_model_name
 ```
 
@@ -204,7 +217,7 @@ to_show_se[, quote(Class %in% classes_excl_qc_blank)] |>
 #| fig-width: 12
 #| fig-height: 11
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID, colors_of_classes) +
   geom_best_model_name +
   scale_x_log10() +
   scale_y_log10()

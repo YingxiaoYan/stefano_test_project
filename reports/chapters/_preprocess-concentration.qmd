@@ -24,6 +24,7 @@ for(df1 in show_df_by_feature) {
     ) +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +    # Vertical x-axis
     theme(legend.position = "none") +      # No legend
+    scale_fill_manual(values = colors_of_classes) + 
     scale_y_log10()
   print(p)
 }

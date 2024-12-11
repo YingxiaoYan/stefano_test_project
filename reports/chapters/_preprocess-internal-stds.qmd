@@ -85,6 +85,7 @@ box_scatter_plot_of_one_feature <- function(se, ii, widths) {
   # Box plot
   p1 <- ggplot(se_tbl) +
     geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
+    scale_fill_manual(values = colors_of_classes) + 
     labs(title = feature_name, y = "Peak area") +
     theme(legend.position = "none") +   # No legend for fill
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
@@ -92,6 +93,7 @@ box_scatter_plot_of_one_feature <- function(se, ii, widths) {
   # Scatter plot across injection order
   p2 <- ggplot(se_tbl) +
     geom_point(aes(x = injection_order, y = raw, color = Class)) +
+    scale_color_manual(values = colors_of_classes) + 
     labs(title = "",  y = "", x = "Injection order") +
     theme(legend.position = "none") +   # No legend for fill
     # No y-axis labels

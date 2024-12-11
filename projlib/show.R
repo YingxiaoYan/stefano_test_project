@@ -59,6 +59,31 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
     kableExtra::kable_styling(full_width = FALSE)
 }
 
+#' Get the colors of classes
+#'
+#' @param sumexp A [`SumExp`] object
+#' @param color_cat A named character vector of colors for each control category
+#'
+#' @return A named character vector of colors for each class
+#' @export
+get_colors_of_classes <- function(sumexp, color_cat) {
+  df1 <- SumExp::col_df(sumexp)
+  by_cat <- split(df1, df1$contr_cat) |> 
+    lapply(\(.x) unique(.x$Class))
+  # Fix the colors of the classes given in `color_cat`
+  color_given <- by_cat[names(by_cat) %in% names(color_cat)] |> 
+    purrr::imap(~ stats::setNames(rep(color_cat[[.y]], length(.x)), .x)) |> # Class = "color"
+    purrr::flatten()
+  # Remaining classes
+  rest <- unlist(by_cat[! names(by_cat) %in% names(color_cat)])
+  n <- length(rest)
+  # Use ggplot2 default colors excluding the first red, which is similar to 'red'
+  ggcolor <- grDevices::hcl(seq(15, 375, length.out = n + 2), 100, 65)[2:(n+1)]
+  names(ggcolor) <- rest
+  c(color_given, ggcolor) 
+}
+
+
 #' Plot the RSD% of various data sets of features
 #'
 #' @param rsd_df A data frame with columns `feature_id` as well as all in `assay_ids`
@@ -110,10 +135,11 @@ label_if_has <- function(x, default_lab) {
 #'   should be a subset of `cc_se`
 #' @param calcurve_models A list of the calibration curve models 
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
+#' @param colors_of_classes A named character vector of colors for each class
 #'
 #' @return A ggplot object
 #' @export
-ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
+ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors_of_classes) {
   .chq_if_a_single_char(mat_id)
   feature_ids <- rownames(x_se)           # Limited to those features in the `x_se`
   cc_se <- cc_se[feature_ids, ]
@@ -164,6 +190,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id) {
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
     ggplot2::geom_point(ggplot2::aes(color = Class)) +
+    ggplot2::scale_color_manual(values = colors_of_classes) +
     # Density of points at the edges of the plot
     ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
     ggplot2::labs(
@@ -194,9 +221,10 @@ ggplot_calcurve_samples_facet <- function(x_se,
                                           cc_se,
                                           calcurve_models,
                                           mat_id,
+                                          colors_of_classes,
                                           scales = "free",
                                           ncol = 3,
                                           ...) {
-  ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id) +
+  ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id, colors_of_classes) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }

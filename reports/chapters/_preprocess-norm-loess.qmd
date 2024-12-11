@@ -21,6 +21,12 @@ box::use(
 )
 # Read `params.yml` if `params` not provided
 if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# To keep constants consistent across reports
+constants_yml <- yaml::read_yaml("code/constants.yml")
+COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
+colors_of_classes <- msdial$read_parsed_msdial_data(params) |> 
+  show$get_colors_of_classes(COLORS$contr_cat)
+
 # Input/Output files
 FILE <- list(
   i = rlang::list2(
@@ -32,6 +38,7 @@ io$check_io_exist(FILE)
 
 qc_steps <- readRDS(FILE$i$qc)
 overall_sumexp <- qc_steps[["Normalized"]]
+
 
 sample_id_name_tbl <- SumExp::col_df(overall_sumexp) |> 
   tibble::rownames_to_column("sample_id") |> 
@@ -177,30 +184,32 @@ df_show |>
   geom_col(aes(x = injection_order, y = Value, fill = Class)) +
   labs(title = "Quantification standards", x = "Injection order") +
   facet_wrap(~ Data, scales = "free_y") + 
+  scale_fill_manual(values = colors_of_classes) +
   scale_y_log10()
 
 df1 <- df_show |> 
   dplyr::filter(std_type == "IS") |> 
   dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c(injection_order, Data))
 
-# plotly::ggplotly(
-ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = Class)) +
-  labs(title = "Internal standards", x = "Injection order") +
-  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-  facet_wrap(~ Data, scales = "free_y")
-# )
-# plotly::ggplotly(
-ggplot(df1, aes(x = injection_order)) +
-  geom_col(aes(y = Value, fill = feature_name)) +
-  labs(
-    title = "Internal standards", 
-    x = labelled::get_label_attribute(df1$injection_order),
-    fill = labelled::get_label_attribute(df1$feature_name),
-  ) +
-  geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-  facet_wrap(~ Data, scales = "free_y")
-# )
+plotly::ggplotly(
+  ggplot(df1, aes(x = injection_order)) +
+    geom_col(aes(y = Value, fill = Class)) +
+    labs(title = "Internal standards", x = "Injection order") +
+    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+    facet_wrap(~ Data, scales = "free_y") +
+    scale_fill_manual(values = colors_of_classes)
+)
+plotly::ggplotly(
+  ggplot(df1, aes(x = injection_order)) +
+    geom_col(aes(y = Value, fill = feature_name)) +
+    labs(
+      title = "Internal standards", 
+      x = labelled::get_label_attribute(df1$injection_order),
+      fill = labelled::get_label_attribute(df1$feature_name),
+    ) +
+    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
+    facet_wrap(~ Data, scales = "free_y")
+)
 ```
 
 Principal component analysis (PCA) is performed to evaluate the normalization.
@@ -221,8 +230,10 @@ pca_res <- lapply(mat_ids, \(.x) {
 se_df <- SumExp::col_df(se)
 # Plot
 p1 <- ggplot2::autoplot(pca_res$raw, data = se_df, colour = "Class") +
+  scale_color_manual(values = colors_of_classes) +
   labs(title = "Raw")
 p2 <- ggplot2::autoplot(pca_res$loess_norm, data = se_df, colour = "Class") +
+  scale_color_manual(values = colors_of_classes) +
   labs(title = "LOESS Normalized")
 # Requires patchwork package
 p1 + p2 + patchwork::plot_layout(ncol = 2)
