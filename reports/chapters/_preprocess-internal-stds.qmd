@@ -106,6 +106,7 @@ box_scatter_plot_of_one_feature <- function(se, ii, widths) {
 if (any(is_failed_istd)) {
   cat("The following internal standard features were identified as failed IS,",
       "which were removed.\n\n")
+  failed_istd <- internal_std_se[is_failed_istd, !is_outlier]
   # Table of failed internal standard features
   print(kable_internal_std(failed_istd))
   # Box and scatter plots of the failed internal standard features 
