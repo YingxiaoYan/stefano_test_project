@@ -40,7 +40,7 @@ FILE <- list(
 io$check_io_exist(FILE)
 
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
-FEATURE_IDS <- SumExp::rownames(concn_se)
+FEATURE_IDS <- SumExp::rownames(concn_se)[1:2]
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])
@@ -174,8 +174,8 @@ summary_tbl |>
 
 ```{r}
 #| label: 'individual-features'
-#| fig-width: 15
-#| fig-height: 11
+#| fig-width: 12
+#| fig-height: 8
 #| out-height: '95%'
 calcurve_se <- qc_steps[[DATA_ID]][["calcurve_se within range"]]
 calcurve_models <- qc_steps[[DATA_ID]][["calcurve_models"]]
