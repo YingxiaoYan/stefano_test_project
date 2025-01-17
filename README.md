@@ -49,6 +49,8 @@ conda create -n nbis -f code/envs/environment.yml
 conda activate nbis
 R CMD INSTALL code/envs/SumExp_0.1.0.tar.gz      # Install a local package
 quarto install tinytex               # Install LaTeX
+cd code/reports
+quarto install extension nmfs-opensci/quarto_titlepages
 ```
 
 If you are using Micromamba, replace `conda` with `micromamba` in the commands above.
@@ -80,21 +82,6 @@ quarto render report-external.qmd --output <output_report>.pdf
 
 Here are some descriptions on individual files.
 
-## In the root of `code`
-
 * `constants.yml` : Contants used in analyses and visualization
 * `LICENSE` : License for the code here
-
-## In `reports/` and `scripts/` sub-directories
-
-
-## R and Rmd scripts
-
-All R functions, except for those from the packages listed below, are primarily called with double colons (`::`) to specify the source package clearly. 
-
-* Packages in `R-core` (e.g. `base`, `stats`, `utils`, ...)
-* `ggplot2`  
-* Packages in `tidyverse` (e.g. `dplyr`, `tidyr`, `purrr`, ...)
-* Packages for S3 methods unable to specify them using `::` (e.g. `predict`, `autoplot`, ...) 
-
 
