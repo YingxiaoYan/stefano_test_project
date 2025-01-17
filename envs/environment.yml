@@ -2,7 +2,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - quarto=1.5.57
+  - quarto=1.6.40
 
   # bioconductor-tidysummarizedexperiment [1.10.0|1.12.0] would require
   # │  └─ r-base >=4.3,<4.4.0a0 , which can be installed;
