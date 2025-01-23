@@ -128,32 +128,38 @@ label_if_has <- function(x, default_lab) {
   default_lab
 }
 
-#' Plot the calibration curve for each feature with the samples in the calibration curve
+#' Plot the calibration curve with the samples
 #'
-#' @param x_se A SumExp object with the samples to be plotted
-#' @param cc_se A SumExp object with the calibration curve samples. The features in `x_se`
-#'   should be a subset of `cc_se`
-#' @param calcurve_models A list of the calibration curve models 
+#' @description
+#' Plot the calibration curve for each feature together with the samples. The X-axis is the
+#' concentration and the Y-axis is the peak area of the intensity.
+#' 
+#' @param x_se A SumExp object having the data of the samples to be plotted
+#' @param cc_se A SumExp object of the calibration curve samples. The features in `x_se` should
+#'   be a subset of `cc_se`.
+#' @param cc_models A list of the linear regression models of the calibration curve samples.
+#'   The names of the list should be the same as the `feature_id` in `x_se` and `cc_se`.
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
 #' @param colors_of_classes A named character vector of colors for each class
 #'
-#' @return A ggplot object
+#' @return A ggplot object. 
 #' @export
-ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors_of_classes) {
+ggplot_calcurve_samples <- function(x_se, cc_se, cc_models, mat_id, colors_of_classes) {
   .chq_if_a_single_char(mat_id)
   feature_ids <- rownames(x_se)           # Limited to those features in the `x_se`
   cc_se <- cc_se[feature_ids, ]
   cc_df <- SumExp::as_tibble(cc_se) |> 
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
-  # LLOQ, LLOD, max_c_conc
+  # LLOQ, LLOD, max_c_conc of each `feature_id`. `feature_name` is for the output ggplot
   lim_df <- SumExp::row_df(cc_se)[, c("feature_name", "lloq", "llod", "max_c_conc")]
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
   
   # Calibration curve lines
-  .geom_ccline <- function(feature_ids, lim_df, calcurve_models) {
+  .geom_ccline <- function(feature_ids, lim_df, cc_models) {
+    # `feature_name` is added to the data of the output ggplot for further usage
     feature_id_name <- tibble::rownames_to_column(lim_df, "feature_id")
     feature_ids <- stats::setNames(nm = feature_ids)
     conc_df <- sapply(feature_ids, \(feature_id) {
@@ -161,8 +167,8 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
       lloq <- lims$lloq
       max_c_conc <- lims$max_c_conc
       sort(c(
-        seq(lloq, max_c_conc, length.out = 100)[-c(1, 100)],             # Linear scale
-        expm1(seq(log1p(lloq), log1p(max_c_conc), length.out = 100))   # Log scale
+        seq(lloq, max_c_conc, length.out = 100),             # Linear scale
+        exp(seq(log(lloq), log(max_c_conc), length.out = 100))[-c(1, 100)]   # Log scale
       ))
     }) |> 
       as.data.frame() |> 
@@ -173,7 +179,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
       dplyr::mutate(
         .y_value = purrr::map2_dbl(
           feature_id, conc, 
-          ~stats::predict.lm(calcurve_models[[.x]]$inv_model, data.frame(conc = .y))
+          ~stats::predict.lm(cc_models[[.x]], data.frame(conc = .y))
         )
       ) |> 
       dplyr::arrange(feature_id, conc)
@@ -185,7 +191,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
   }
   
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
-    .geom_ccline(feature_ids, lim_df, calcurve_models) +
+    .geom_ccline(feature_ids, lim_df, cc_models) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
@@ -220,12 +226,12 @@ ggplot_calcurve_samples <- function(x_se, cc_se, calcurve_models, mat_id, colors
 #' @rdname ggplot_calcurve_samples
 ggplot_calcurve_samples_facet <- function(x_se,
                                           cc_se,
-                                          calcurve_models,
+                                          cc_models,
                                           mat_id,
                                           colors_of_classes,
                                           scales = "free",
                                           ncol = 3,
                                           ...) {
-  ggplot_calcurve_samples(x_se, cc_se, calcurve_models, mat_id, colors_of_classes) +
+  ggplot_calcurve_samples(x_se, cc_se, cc_models, mat_id, colors_of_classes) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }

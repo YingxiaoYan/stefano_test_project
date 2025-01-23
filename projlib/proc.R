@@ -77,7 +77,7 @@ identify_outliers <- function(x, times = 3) {
 #' @param times A numeric value for the threshold. mean +/- times * sd
 #' @return A numeric vector of the number of outlying internal standard features per sample
 #' @export
-count_outliers_per_sample <- function(se, mat_id = "raw", times = 3) {
+count_outliers_per_sample <- function(se, mat_id, times = 3) {
   x <- se[[mat_id]]
   x <- log1p(x)              # Log-transform the data
   outlying <- apply(x, 1, identify_outliers, times = times)
@@ -94,7 +94,7 @@ count_outliers_per_sample <- function(se, mat_id = "raw", times = 3) {
 #' @param rt The name of the retention time column 
 #' @return A numeric matrix of the values of the closest internal standard features
 #' @export
-get_value_of_closest_istd <- function(se, istd_se, mat_id = "raw", rt = "rt") {
+get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
   rt_x <- SumExp::row_df(se)[[rt]]
   rt_istd <- SumExp::row_df(istd_se)[[rt]]
   # Find the closest internal standard feature
@@ -118,7 +118,7 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id = "raw", rt = "rt") {
 #'
 #' @return A list of the LOESS fit models
 #' @export
-get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id = "raw", rt = "rt") {
+get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt = "rt") {
   # Log-transform the data
   istd_log <- log(istd_se[[mat_id]])
   rt_istd <- SumExp::row_df(istd_se)[[rt]]
@@ -175,6 +175,41 @@ calc_rsd_qstd <- function(qc_se, mat_ids) {
     # `QC` has the name of the QC samples
     dplyr::bind_rows(.id = "QC")
 }
+
+
+#' Subtract the average values of the blank samples from the samples
+#'
+#' @param x_se A [`SumExp`] object of the samples
+#' @param condition_blank A condition to select the blank samples. Evaluated in the context of
+#'   the columns of `x_se`
+#' @param mat_ids The names of matrices in `x_se`, from which the blank values are subtracted
+#' @param out_mat_ids The names of the output matrices in the returned object. These should be
+#'   the same size as `mat_ids` in the same order.
+#'
+#' @return A [`SumExp`] object with the blank values subtracted. The columns of the blanks are
+#'   removed from the `x_se`.
+#' @export
+subtract_blank_sumexp <- function(x_se, condition_blank, mat_ids, out_mat_ids = mat_ids) {
+  stopifnot(length(mat_ids) == length(out_mat_ids))
+  is_blank <- eval(substitute(condition_blank), SumExp::col_df(x_se), parent.frame())
+  blank_se <- x_se[, is_blank]
+  x_se <- x_se[, !is_blank]
+  for(ii in seq(mat_ids)) {
+    mat_id <- mat_ids[ii]
+    x_mat <- x_se[[mat_id]]
+    x_lab <- labelled::get_label_attribute(x_mat)
+    blank_mean <- rowMeans(blank_se[[mat_id]])
+    r_nm <- paste0(mat_id, "_blank_mean")   # Save to the row_df of x_se
+    SumExp::row_df(x_se)[[r_nm]] <- blank_mean |> 
+      labelled::set_label_attribute(paste("Blank mean of", x_lab))
+    mat_subt <- x_mat - blank_mean      # <<---- Subtract the blank average
+    mat_subt[mat_subt < 0] <- 0
+    x_se[[ out_mat_ids[ii] ]] <- mat_subt |> 
+      labelled::set_label_attribute(paste(x_lab, "(blank adjusted)"))
+  }
+  x_se
+}
+
 
 
 # Calibration ----------------------------------------------------------------------------
@@ -407,8 +442,9 @@ quadratic_calcurve_model <- function(conc, value, weights) {
   cc <- beta[["(Intercept)"]]
   model <- function(x) {
     det <- b ^ 2 - 4 * a * (cc - x)
-    conc <- suppressWarnings((-b + sqrt(det)) / (2 * a))      # det < 0
-    conc[conc < 0 | conc < 0] <- 0
+    det <- ifelse(det < 0, 0, det)       # det < 0
+    conc <- (-b + sqrt(det)) / (2 * a)
+    conc[conc < 0] <- 0
     conc
   }
   list(model = model, inv_mod = lmfit)
@@ -452,18 +488,17 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
 #' Replace the values below the LLOQ and LLOD with half of the LLOQ and 1/4 of the LLOQ
 #' 
 #' @param conc A matrix of concentrations
-#' @param signal A matrix of signal values
 #' @param limits A list with the LLOQ and LLOD values and signal values. The required columns
-#'   are `lloq`, `llod`, `lloq_signal`, and `llod_signal`
+#'   are `lloq` and `llod`
 #' 
 #' @return A matrix with the values below the LLOQ and LLOD replaced
 #' @export
-replace_below_lloq_llod <- function(conc, signal, limits) {
+replace_below_lloq_llod <- function(conc, limits) {
   lab <- labelled::get_label_attribute(conc)
   # Replace the values below LLOQ with half of the LLOQ
-  conc <- ifelse(signal < limits$lloq_signal, limits$lloq / 2, conc)
+  conc <- ifelse(conc < limits$lloq, limits$lloq / 2, conc)
   # Replace the values below LLOD with 1/4 of the LLOQ
-  conc <- ifelse(signal < limits$llod_signal, limits$lloq / 4, conc)
+  conc <- ifelse(conc < limits$llod, limits$lloq / 4, conc)
   conc <- labelled::set_label_attribute(conc, lab)
   conc
 }
@@ -489,28 +524,5 @@ replace_outside_concentration_range_with_na <- function(cc_mat, concs, min_conc,
   cc_mat[to_na] <- NA_real_
   cc_mat
 }
-
-
-#' Subtract the average values of the blank samples from the samples
-#'
-#' @param x_se A [`SumExp`] object of the samples
-#' @param condition_blank A condition to select the blank samples. Evaluated in the context of
-#'   the columns of `x_se`
-#' @param mat_id The name of a matrix in `x_se`
-#'
-#' @return A [`SumExp`] object with the blank values subtracted
-#' @export
-subtract_blank_sumexp <- function(x_se, condition_blank, mat_id) {
-  is_blank <- eval(substitute(condition_blank), SumExp::col_df(x_se), parent.frame())
-  blank_se <- x_se[, is_blank]
-  x_se <- x_se[, !is_blank]
-  blank_mean_conc <- rowMeans(blank_se[[mat_id]])
-  conc <- x_se[[mat_id]] - blank_mean_conc
-  conc[conc < 0] <- 0
-  x_se[[mat_id]] <- conc |> 
-    labelled::copy_labels_from(x_se[[mat_id]])
-  x_se
-}
-
 
 

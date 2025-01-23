@@ -12,23 +12,31 @@ chq_all_files_exist <- function(fns) {
   invisible(TRUE)
 }
 
-#' Make directory if not exists
+#' Make directories if not exist
+#' 
+#' If the directories do not exist, it will be created with the specified mode.
+#' Write permission is required to the parent directories.
 #' 
 #' @param dirs directory names, or list of list of ... directories
+#' @param mode The mode of the creating directories, when they do not exist
+#' @return The directory paths
 #' @export
-mkdir_if_not_exist <- function(dirs) {
+mkdir_if_not_exist <- function(dirs, mode = "0777") {
   dirs <- unique(unlist(dirs))   # Remove duplicates
+  stopifnot(is.character(dirs))
   missing <- !dir.exists(dirs)
-  if(any(missing)) {
-    warning(paste("These directories are not exist. Creating them.\n", dirs[missing]))
-    was_successful <- sapply(dirs[missing], \(.x) dir.create(.x, recursive = TRUE))
-    return(invisible(all(was_successful)))
+  if (any(missing)) {
+    warning(paste("These directories are not exist. Creating them now.\n", dirs[missing]))
+    are_created <- sapply(dirs[missing], \(.x) {
+      dir.create(.x, showWarnings = FALSE, recursive = TRUE, mode = mode)
+    })
+    stopifnot("The directories could not be created" = all(are_created))
   } else {
     for(dir in dirs) {
       if (file.access(dir, 2L) != 0) stop("Write permission is required to", dir)
     }
-    return(invisible(TRUE))
   }
+  invisible(dirs)
 }
 
 #' Check input files and output directories
@@ -42,10 +50,9 @@ check_io_exist <- function(FILE) {
   } else {
     TRUE
   }
-  o <- if (!is.null(FILE$o)) {
+  if (!is.null(FILE$o)) {
     mkdir_if_not_exist(dirname(unlist(FILE$o)))
-  } else {
-    TRUE
   }
+  o <- TRUE
   invisible(c(i, o))
 }

@@ -1,7 +1,84 @@
+# Project Parameters ---------------------------------------------------------------------
+
+#' Find the `userin` has the required inputs
+#'
+#' @param userin A list of user input 
+#' @param ... The required parameters in a character vector
+#'
+#' @return TRUE if all required inputs are provided
+.stop_unless_has_required_inputs <- function(userin, ...) {
+  for (p in c(...)) {
+    if(is.null(userin[[p]])) stop(paste(p, "is required, but not provided."))
+  } 
+  invisible(TRUE)
+}
+
+#' Get the required input from the user
+#'
+#' @param ... The required parameters in a character vector
+#' @return A list of user input
+#' @export
+get_user_input <- function(...) {
+  userin <- yaml::read_yaml("params.yml")
+  cat("User input has been read from 'params.yml'.\n")
+  .stop_unless_has_required_inputs(userin, ...)
+  userin
+}
+
+
+box::use(io = ./check_io_exist)
+
+#' Get the file name of the parsed data
+#' 
+#' The file name has the same name as the `input_file` in the `user_inputs` with a `suffix`
+#' and `.rds` added to it on the directory `intermediate_dir`.
+#'
+#' @param user_inputs A list of user inputs including `input_file` and `intermediate_dir`.
+#' @param suffix A suffix to add to the file name to distinguish between data at different
+#'   stages, such as raw and processed data.
+#'
+#' @return A text string of the file name
+#' @export
+get_raw_data_file_name <- function(user_inputs, suffix = '') {
+  .stop_unless_has_required_inputs(user_inputs, "input_file", "intermediate_dir")
+  file <- user_inputs$input_file
+  dir <- io$mkdir_if_not_exist(user_inputs$intermediate_dir)
+  # Expected output file name from `read-msdial.R`
+  path <- file.path(dir, basename(file)) |> 
+    tools::file_path_sans_ext(compression = TRUE)
+  paste0(path, suffix, ".rds")
+}
+
+#' Read the parsed MS-DIAL data
+#'
+#' @param user_inputs A list of user inputs including `input_file` and `intermediate_dir`.
+#'
+#' @return A SumExp object
+#' @export
+read_parsed_msdial_data <- function(user_inputs) {
+  .stop_unless_has_required_inputs(user_inputs, "input_file")
+  sumexp_file <- get_raw_data_file_name(user_inputs, suffix = '')
+  stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
+  # Load the parsed data
+  sumexp <- readRDS(sumexp_file)
+  # Confirm the input file is the same as the one used in the parsing
+  m5_f <- digest::digest(user_inputs$input_file, algo = "md5", file = TRUE)
+  m5_se <- SumExp::metadata(sumexp)$file_md5    # Saved by `read-msdial.R`
+  if (m5_f != m5_se) {
+    stop("The input file is different from the one used in the parsing.",
+         "Please re-run `read-msdial.R` first.")
+  }
+  return(sumexp)
+}
+
 
 # Read MS-DIAL Files ---------------------------------------------------------------------
 
-#' Identify three column sections in the MS-DIAL output file
+#' Identify three column sections in a MS-DIAL output file
+#' 
+#' MS-DIAL output files have three sections in columns. Information about "features",
+#' "samples", and "group-wise summary" are stored in these sections. The 2nd section is
+#' identified by the columns that have no NA values in the second row.
 #' 
 #' @param msdial_file Path to the MS-DIAL output file
 #' 
@@ -12,24 +89,25 @@ get_three_section_indices <- function(msdial_file) {
   file_type_line <- utils::read.delim(
     msdial_file, header = FALSE, nrow = 5L, na.strings = c("NA", "")
   )[2, ]
-  i_2nd <- which(! is.na(file_type_line))    # Not NA is the 2nd column sections
+  i_2nd <- range(which(! is.na(file_type_line)))    # Not NA is the 2nd column sections
   stopifnot(file_type_line[i_2nd[1L]] == "File type")    # As expected
   list(
     "1st" = 1L:i_2nd[1L],
-    "2nd" = (i_2nd[1L] + 1L):max(i_2nd),         # "+ 1L" for the title column of the rows
-    "3rd" = (max(i_2nd) + 1L):length(file_type_line)
+    "2nd" = (i_2nd[1L] + 1L):i_2nd[2L],         # "+ 1L" for the title column of the rows
+    "3rd" = (i_2nd[2L] + 1L):length(file_type_line)
   )
 }
 
 #' Fetch sample information from the first 5 lines
 #'
 #' @param msdial_file Path to the MS-DIAL output file
-#' @param indices The indices of the columns that contain sample information
+#' @param indices The indices of the columns that contain sample information. If it not
+#'   provided, the 2nd section identified by `get_three_section_indices` will be used.
 #' 
 #' @return A data frame with sample information
 #' @export
 fetch_sample_info <- function(msdial_file, indices) {
-  if (missing(indices)) indices <- get_three_section_indices(msdial_file)[[2]]
+  if (missing(indices)) indices <- get_three_section_indices(msdial_file)[["2nd"]]
   # Read sample information lines (first 5 lines)
   sample_lines <- utils::read.delim(
     msdial_file, 
@@ -41,7 +119,7 @@ fetch_sample_info <- function(msdial_file, indices) {
   
   # Extract sample information  
   sinfo <- sample_lines[, indices, drop = FALSE] |> 
-    t() |> 
+    t() |>     # It is provided in rows
     as.data.frame()
   colnames(sinfo) <- header          # There was no header in `sinfo` before
   stopifnot(
@@ -52,18 +130,18 @@ fetch_sample_info <- function(msdial_file, indices) {
       )
   )
   colnames(sinfo)[5] <- "sample_name"
-  # Syntactically valid for variable name in R
+  # Syntactically valid names in R of sample names as `sample_id`s in row names
   rownames(sinfo) <- make.names(sinfo$sample_name, unique = TRUE)
   sinfo <- sinfo |> 
-    dplyr::select(
+    dplyr::select(   # Syntactically valid column names in R
       Class,
       sample_type = "File type",
       injection_order = "Injection order",
       sample_name,
     )
-  # For plot and table
+  # For plots and tables
   sinfo <- sinfo |> 
-    labelled::set_variable_labels(
+    labelled::set_variable_labels(  
       Class = "Class",
       sample_type = "Sample Type",
       injection_order = "Injection Order",
@@ -72,108 +150,44 @@ fetch_sample_info <- function(msdial_file, indices) {
   sinfo
 }
 
-#' Fetch data of the selected columns of the MS-DIAL output file
-#'
+#' Fetch data of the selected columns of a MS-DIAL output file
+#' 
 #' @param msdial_file Path to the MS-DIAL output file
 #' @param indices The indices of the selected columns
+#' @param skip The number of lines to skip before reading the data. The default is 4. The data
+#'   in MS_DIAL files starts from the 5th line.
 #' 
 #' @return A tibble 
+#' @seealso `get_three_section_indices` `fetch_sample_info`
 #' @export
-fetch_data_of_columns <- function(msdial_file, indices) {
+fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   stopifnot(!missing(indices))
   # Count total number of columns in the file
-  l1 <- readr::read_tsv(msdial_file, skip = 4L, n_max = 1L, col_names = FALSE, col_types = "c")
+  l1 <- readr::read_tsv(
+    msdial_file,
+    skip = skip,
+    n_max = 1L,
+    col_names = FALSE,
+    col_types = "c"
+  )
   coltypes <- rep("-", ncol(l1))      # Skip the rest columns
   coltypes[indices] <- "c"
   # Read lines of the selected columns
   readr::read_tsv(
     msdial_file, 
-    skip = 4L,      # Data starts from the 5th line
+    skip = skip,
     col_types = paste0(coltypes, collapse = ""),
     name_repair = "unique_quiet"
   )
 }
 
 
-
-
-#' Confirm the `params` list has the required parameters
-#' 
-#' @param params A list of parameters
-#' @param ... The required parameters in a character vector
-#' @return TRUE if the required parameters are present
-#' @export
-has_required_params <- function(params, ...) {
-  for (p in c(...)) {
-    if(is.null(params[[p]])) stop(paste(p, "is required"))
-  } 
-}
-
-#' Make directory if not exists
-#' 
-#' If the directory does not exist, it will be created with the specified mode.
-#' Write permission is required to the directory.
-#' 
-#' @param dir A directory path
-#' @param mode The mode of the creating directory, when it does not exist
-#' @return The directory path
-#' @export
-mkdir_if_not_exist <- function(dir, mode = "0777") {
-  stopifnot(is.character(dir) && length(dir) == 1L)
-  dir_q <- deparse1(substitute(dir))
-  if(!dir.exists(dir)) {
-    warning(paste("The directory", dir_q, "(", dir, ") does not exist. Creating it now."))
-    is_created <- dir.create(dir, showWarnings = FALSE, recursive = TRUE, mode = mode)
-    stopifnot("The directory could not be created" = is_created)
-  }
-  if (file.access(dir, 2L) != 0) stop("Write permission is required to", dir_q, "(", dir, ")")
-  invisible(dir)
-}
-
-#' Get the file name of the parsed data
-#'
-#' @param params A list of parameters including `input_file` and `intermediate_dir`.
-#' @param suffix A suffix to add to the file name to distinguish between data at different
-#'   stages, such as raw and processed data.
-#'
-#' @return A text string of the file name
-#' @export
-get_sumexp_file_name <- function(params, suffix = '') {
-  has_required_params(params, "input_file", "intermediate_dir")
-  file <- params$input_file
-  dir <- mkdir_if_not_exist(params$intermediate_dir)
-  # Expected output file name from `read-msdial.R`
-  file.path(dir, basename(file)) |> 
-    tools::file_path_sans_ext(compression = TRUE) |> 
-    paste0(suffix, ".rds")
-}
-
-#' Read the parsed MS-DIAL data
-#'
-#' @param params A list of parameters including `input_file` and `intermediate_dir`.
-#'
-#' @return A SumExp object
-#' @export
-read_parsed_msdial_data <- function(params) {
-  has_required_params(params, "input_file")
-  sumexp_file <- get_sumexp_file_name(params)
-  stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
-  # Load the parsed data
-  sumexp <- readRDS(sumexp_file)
-  # Confirm the input file is the same as the one used in the parsing
-  m5_f <- digest::digest(params$input_file, algo = "md5", file = TRUE)
-  m5_se <- SumExp::metadata(sumexp)$file_md5    # Saved by `read-msdial.R`
-  if (m5_f != m5_se) {
-    stop("The input file is different from the one used in the parsing.",
-         "Please re-run `read-msdial.R` first.")
-  }
-  return(sumexp)
-}
-
-
 # Export Data ----------------------------------------------------------------------------
 
 #' Find the number of decimal places for rounding
+#' 
+#' The number of decimal places is determined by the median of the log10 of the absolute
+#' values. The maximum number of decimal places is 4.
 .find_rounding_decimal_places <- function(x) {
   x <- abs(x)
   x[x == 0] <- NA
@@ -181,6 +195,24 @@ read_parsed_msdial_data <- function(params) {
   m <- stats::median(logx, na.rm = TRUE)
   max(0, -floor(m) + 4)
 }
+
+#' Get the first three rows for sample information
+.get_sample_info_rows <- function(sumexp, n_empty_cols) {
+  s_rows <- SumExp::col_df(sumexp) |> 
+    dplyr::select(
+      "Class" = "Class",
+      "Sample Type" = "sample_type",
+      "Injection Order" = "injection_order",
+    )
+  # In rows
+  out <- data.frame(
+    matrix(data = NA, nrow = ncol(s_rows), ncol = n_empty_cols),    # Feature columns
+    t(s_rows)
+  )
+  out[n_empty_cols] <- colnames(s_rows)
+  out
+}
+
 
 #' Export data with the feature table to a tab-separated file
 #'
@@ -194,6 +226,11 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
   # Prepare the feature table
   i_sec <- get_three_section_indices(in_file)
   intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
+  
+  # The first three rows are the sample information
+  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(intact_feature_cols))
+  readr::write_tsv(sinfo, out_file, append = FALSE, col_names = FALSE, na = "")
+  
   # Prepare the data table
   mat_x <- sumexp[[mat_id]]
   df_x <- mat_x |>  
@@ -204,7 +241,7 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
   df_x <- df_x |> 
     dplyr::mutate("Alignment ID" = SumExp::row_df(sumexp)$alignment_id, .before = 1) |> 
     dplyr::right_join(intact_feature_cols, y = _, by = "Alignment ID")
-  readr::write_tsv(df_x, file = out_file, na = "")
+  readr::write_tsv(df_x, file = out_file, append = TRUE, col_names = TRUE, na = "")
 }
 
 #' Export the concentration table
@@ -215,18 +252,8 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
 export_concentration_tsv <- function(sumexp, file) {
   methods::validObject(sumexp)     # Check consistency between elements, eg row_df, col_df, conc
   # The first three rows are the sample information
-  s_rows <- SumExp::col_df(sumexp) |> 
-    dplyr::select(
-      "Class" = "Class",
-      "Sample Type" = "sample_type",
-      "Injection Order" = "injection_order",
-    )
-  s_rows_tr <- data.frame(
-    matrix(nrow = ncol(s_rows), ncol = 4),    # Feature columns
-    t(s_rows)
-  )
-  s_rows_tr[4] <- colnames(s_rows)
-  readr::write_tsv(s_rows_tr, file, append = FALSE, col_names = FALSE, na = "")
+  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = 4)
+  readr::write_tsv(sinfo, file, append = FALSE, col_names = FALSE, na = "")
   
   # Prepare the feature table
   feature_columns <- SumExp::row_df(sumexp) |> 

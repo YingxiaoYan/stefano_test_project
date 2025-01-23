@@ -57,8 +57,8 @@ The initial set of columns contains information about features.
   These six columns must have exact names as specified. All other columns will be ignored.
 
 * **Comment Column Values**:
-  The `Comment` column contains information about the type of standards and can have one of the following values: 
-  `"Quant"` (standard for calibration curve),`"IS"` (Internal standard), or `""` (non-targeted feature).
+  The `Comment` column contains information about the type of standards and can have one of the following case-sensitive values: 
+  `"Quant"` (standard for calibration curve),`"IS"` (Internal standard), and "vIS" (volumetric IS). Feature with all other variants will be considered as non-targeted.
 
 ### Sample Information Columns (2nd section)
 
