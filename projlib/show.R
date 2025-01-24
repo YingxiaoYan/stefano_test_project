@@ -30,6 +30,48 @@ extract_quant_qc <- function(sumexp) {
   })
 }
 
+#' Calculate RSD%
+#'
+#' @param x A numeric vector
+#' @param na.rm A logical value indicating whether to remove NA values
+#' @return A numeric value of RSD%
+#' @export
+rsd_perc <- function(x, na.rm = FALSE) {
+  100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
+}
+
+#' Calculate RSD of the quantification standard samples
+#'
+#' @param qc_se_lst A list of SumExp objects with quantitative standards in QC samples
+#' @param mat_ids A character vector of the matrix IDs
+#' @return A tibble with RSD% of the quantification standard samples. The first two columns are
+#'   `QC` and `feature_id`.
+#' @export
+calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
+  out <- lapply(qc_se_lst, \(qc_se) {
+    sapply(stats::setNames(nm = mat_ids), function(nm) {
+      apply(qc_se[[nm]], 1, rsd_perc)
+    }) |>    # Rows are features, columns are matrix IDs
+      tibble::as_tibble(rownames = "feature_id")
+  }) |> 
+    # `QC` has the name of the QC samples
+    dplyr::bind_rows(.id = "QC")
+  for(ii in mat_ids) {
+    out[[ii]] <- labelled::copy_labels(qc_se_lst[[1]][[ii]], out[[ii]])
+  }
+  out   
+}
+
+#' RSD% across all samples
+#'
+#' @param mat A numeric matrix
+#' @return A numeric vector of RSD% across the samples in columns
+#' @export
+compute_rsd_per_feature <- function(mat) {
+  apply(mat, 1, rsd_perc) |> 
+    labelled::set_label_attribute("RSD%")
+}
+
 #' Make a frequency `kable` table by factor level
 #'
 #' @param x A factor or character variable
@@ -86,13 +128,16 @@ get_colors_of_classes <- function(sumexp, color_cat) {
 
 #' Plot the RSD% of various data sets of features
 #'
-#' @param rsd_df A data frame with columns `feature_id` as well as all in `assay_ids`
-#' @param assay_ids A character vector of assay IDs to be plotted in the x-axis
+#' @param rsd_df A data frame with columns `feature_id` as well as all in `mat_ids`
+#' @param mat_ids A character vector of assay IDs to be plotted in the x-axis
 #' @return A ggplot object
 #' @export
-ggplot_rsdp_metab <- function(rsd_df, assay_ids) {
-  nms <- names(assay_ids)
-  ids <- unname(assay_ids)    # Duplicated by `dplyr::all_of`
+ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
+  nms <- names(mat_ids)
+  if (is.null(nms)) {
+    nms <- labelled::get_variable_labels(rsd_df[mat_ids])
+  }
+  ids <- unname(mat_ids)    # Duplicated by `dplyr::all_of`
   rsd_df <- rsd_df |> 
     dplyr::mutate(
       # NA was generated when all values were zero

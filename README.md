@@ -45,7 +45,7 @@ The commands below will restore the same environment and reproduce all the prima
 Make sure you are in the `<project>` directory before running the command below.
 
 ```sh
-conda create -n nbis -f code/envs/environment.yml
+conda env create -n nbis -f code/envs/environment.yml
 conda activate nbis
 R CMD INSTALL code/envs/SumExp_0.1.0.tar.gz      # Install a local package
 quarto install tinytex               # Install LaTeX

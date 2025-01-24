@@ -56,7 +56,6 @@ get_raw_data_file_name <- function(user_inputs, suffix = '') {
 #' @return A SumExp object
 #' @export
 read_parsed_msdial_data <- function(user_inputs) {
-  .stop_unless_has_required_inputs(user_inputs, "input_file")
   sumexp_file <- get_raw_data_file_name(user_inputs, suffix = '')
   stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
   # Load the parsed data

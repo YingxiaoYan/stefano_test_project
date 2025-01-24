@@ -12,40 +12,44 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
-  projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
   io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
-# Read `params.yml` if `params` not provided
-if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# Get the input file name provided by the user if `user_inputs` not inherited from the parent
+if (! exists("user_inputs")) user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
-colors_of_classes <- msdial$read_parsed_msdial_data(params) |> 
-  show$get_colors_of_classes(COLORS$contr_cat)
+# For consistency throughout the report
+raw_se <- msdial$read_parsed_msdial_data(user_inputs)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+# Feature intensity to be used for normalization
+is_vIS <- SumExp::row_df(raw_se)$std_type == "vIS"
+mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
 
-# Input/Output files
+# Input files
 FILE <- list(
   i = rlang::list2(
-    qc = msdial$get_sumexp_file_name(params, "qc_steps"),   # Intermediate state of the data
+    # Intermediate status of the data
+    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
   )
 )
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
 qc_steps <- readRDS(FILE$i$qc)
-overall_sumexp <- qc_steps[["Normalized"]]
+norm_se <- qc_steps[["normalized"]]
 
-
-sample_id_name_tbl <- SumExp::col_df(overall_sumexp) |> 
+# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
+sample_id_name_tbl <- SumExp::col_df(norm_se) |> 
   tibble::rownames_to_column("sample_id") |> 
   dplyr::select(sample_id, sample_name)
 
 # Find the range of RT values
-all_rts <- SumExp::row_df(overall_sumexp)$rt
+all_rts <- SumExp::row_df(norm_se)$rt
 overall_rt_range <- range(all_rts)
 ```
 
@@ -69,9 +73,9 @@ Randomly selected 3 samples are shown below.
 
 # Plot the normalized and original data for randomly selected 3 samples excluding those not
 # used in normalization
-to_excl <- SumExp::col_df(overall_sumexp)$contr_cat %in% excl_cat
-i_sel <- sample(c(1:ncol(overall_sumexp))[!to_excl], 3)
-i_sel <- setNames(i_sel, colnames(overall_sumexp)[i_sel])
+to_excl <- SumExp::col_df(norm_se)$contr_cat %in% excl_cat
+i_sel <- sample(c(1:ncol(norm_se))[!to_excl], 3)
+i_sel <- setNames(i_sel, colnames(norm_se)[i_sel])
 
 # To include LOESS smooth line
 loess_curve_df <- local({
@@ -92,25 +96,32 @@ loess_curve_df <- local({
 # Deviation from the mean
 dev_from_mean <- local({
   # Log-transform the data
-  mat <- log(se[["raw"]][, !to_excl, drop = FALSE])
+  mat <- log(se[[mat_id_for_norm]][, !to_excl, drop = FALSE])
   mat[!is.finite(mat)] <- NA    # nan = -Inf - -Inf. Replace -Inf by `log` with NA
   # Overall mean of every feature
   mean_log <- rowMeans(mat, na.rm = TRUE)
   out_se <- se[, i_sel]
-  for (ii in c("raw", "loess_norm")) {
+  for (ii in c(mat_id_for_norm, "loess_norm")) {
     out_se[[ii]] <- sweep(log(out_se[[ii]]), 1, mean_log, FUN = "-")
   }
   out_se
-}, list(se = overall_sumexp, i_sel = i_sel, to_excl = to_excl))
+}, list(se = norm_se, i_sel = i_sel, to_excl = to_excl))
 
 df_to_show <- SumExp::as_tibble(dev_from_mean) |>
-  dplyr::rename(Raw = raw, Normalized = loess_norm) |>
-  tidyr::pivot_longer(cols = c(Raw, Normalized), names_to = "Data", values_to = "Value") |> 
+  tidyr::pivot_longer(cols = c(dplyr::all_of(mat_id_for_norm), loess_norm), 
+                      names_to = "Data", 
+                      values_to = "Value") |> 
   dplyr::mutate(
     Type = ifelse(std_type == "", "non-target", std_type),
     Type = factor(Type, levels = c("IS", "Quant", "non-target"))
   ) |> 
-  dplyr::arrange(desc(Type)) # To show IS on top
+  dplyr::arrange(desc(Type)) |>  # To show IS on top
+  dplyr::mutate(
+    Data = dplyr::case_when(
+      Data == mat_id_for_norm ~ labelled::get_label_attribute(norm_se[[mat_id_for_norm]]),
+      Data == "loess_norm" ~ "LOESS Normalized"
+    )
+  )
 
 # Plot the normalized and original data
 ggplot(df_to_show, aes(x = rt, y = Value)) + 
@@ -139,18 +150,18 @@ The normalized data are evaluated by the changes of relative standard deviation 
 #| out-width: '80%'
 
 # Quantification standard features of QC samples
-qc_se <- show$extract_quant_qc(overall_sumexp)
+qc_se <- show$extract_quant_qc(norm_se)
 # Calculate RSD of the quantification standard samples
-labs <- SumExp::name_labs(overall_sumexp)
-labs <- labs[labs %in% c("raw", "loess_norm")]
-
-rsd_qstd <- proc$calc_rsd_qstd(qc_se, labs) |> 
+mat_ids <- c(mat_id_for_norm, "loess_norm")
+rsd_qstd <- show$calc_rsd_qstd(qc_se, mat_ids)
+rsd_qstd <- rsd_qstd |> 
   dplyr::mutate(
-    sign = ifelse(raw > loess_norm, "↓", "↑"),
+    sign = .data[[mat_id_for_norm]] > loess_norm,
+    sign = ifelse(sign, "↓", "↑"),
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))
   ) 
-show$ggplot_rsdp_metab(rsd_qstd, labs) +
+show$ggplot_rsdp_metab(rsd_qstd, mat_ids) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)
@@ -172,10 +183,12 @@ Bar charts of the values of standard features are compared for raw and normalize
 #| out-width: '100%'
 #| results: 'markup'
 
-labs <- SumExp::name_labs(overall_sumexp)
-df_show <- overall_sumexp[quote(std_type %in% c("Quant", "IS")), ] |> 
+labs <- SumExp::name_labs(norm_se)
+df_show <- norm_se[quote(std_type %in% c("Quant", "IS")), ] |> 
   SumExp::as_tibble() |> 
-  tidyr::pivot_longer(cols = c(raw, loess_norm), names_to = "Data", values_to = "Value") |> 
+  tidyr::pivot_longer(cols = c(dplyr::all_of(mat_id_for_norm), loess_norm), 
+                      names_to = "Data", 
+                      values_to = "Value") |> 
   dplyr::mutate(Data = factor(Data, levels = labs, labels = names(labs)))
 
 df_show |> 
@@ -184,7 +197,7 @@ df_show |>
   geom_col(aes(x = injection_order, y = Value, fill = Class)) +
   labs(title = "Quantification standards", x = "Injection order") +
   facet_wrap(~ Data, scales = "free_y") + 
-  scale_fill_manual(values = colors_of_classes) +
+  scale_fill_manual(values = COLORS_OF_CLASSES) +
   scale_y_log10()
 
 df1 <- df_show |> 
@@ -197,7 +210,7 @@ plotly::ggplotly(
     labs(title = "Internal standards", x = "Injection order") +
     geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
     facet_wrap(~ Data, scales = "free_y") +
-    scale_fill_manual(values = colors_of_classes)
+    scale_fill_manual(values = COLORS_OF_CLASSES)
 )
 plotly::ggplotly(
   ggplot(df1, aes(x = injection_order)) +
@@ -221,21 +234,20 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| out-width: '100%'
 # PCA
 
-se <- overall_sumexp[quote(std_type == "IS"), ]
-mat_ids <- setNames(nm = c("raw", DATA_ID))
-pca_res <- lapply(mat_ids, \(.x) {
-  mat <- se[[.x]]
-  stats::prcomp(t(mat), scale. = TRUE)
-})
+se <- norm_se[quote(std_type == "IS"), ]
+mat_ids <- c(mat_id_for_norm, "loess_norm")
 se_df <- SumExp::col_df(se)
 # Plot
-p1 <- ggplot2::autoplot(pca_res$raw, data = se_df, colour = "Class") +
-  scale_color_manual(values = colors_of_classes) +
-  labs(title = "Raw")
-p2 <- ggplot2::autoplot(pca_res$loess_norm, data = se_df, colour = "Class") +
-  scale_color_manual(values = colors_of_classes) +
-  labs(title = "LOESS Normalized")
+p_lst <- lapply(mat_ids, \(.x) {
+  mat <- se[[.x]]
+  lab <- labelled::get_label_attribute(mat)
+  mat <- mat[rowSums(mat > 0) > 0, ]    # Remove all-zero rows
+  pca_res <- stats::prcomp(t(mat), scale. = TRUE)
+  ggplot2::autoplot(pca_res, data = se_df, colour = "Class") +
+    scale_color_manual(values = COLORS_OF_CLASSES) +
+    labs(title = lab)
+})
 # Requires patchwork package
-p1 + p2 + patchwork::plot_layout(ncol = 2)
+p_lst[[1]] + p_lst[[2]] + patchwork::plot_layout(ncol = 2)
 ```
 

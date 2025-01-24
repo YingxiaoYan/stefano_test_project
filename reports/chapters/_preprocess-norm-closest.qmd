@@ -9,16 +9,18 @@ The measured peak area of each feature will be divided by the peak area of the c
 #| out-width: '80%'
 
 # Quantification standard samples
-qc_se <- show$extract_quant_qc(overall_sumexp)
+qc_se <- show$extract_quant_qc(norm_se)
 
-assay_ids <- setNames(c("raw", "closest_norm"), nm = c("Raw", "Closest IS Normalized"))
-rsd_qstd <- proc$calc_rsd_qstd(qc_se, assay_ids) |> 
+mat_ids <- c(mat_id_for_norm, "closest_norm")
+rsd_qstd <- show$calc_rsd_qstd(qc_se, mat_ids)
+rsd_qstd <- rsd_qstd |> 
   dplyr::mutate(
-    sign = ifelse(raw > closest_norm, "↓", "↑"),
+    sign = .data[[mat_id_for_norm]] > closest_norm,
+    sign = ifelse(sign, "↓", "↑"),
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))
   ) 
-show$ggplot_rsdp_metab(rsd_qstd, assay_ids) +
+show$ggplot_rsdp_metab(rsd_qstd, mat_ids) +
   aes(color = sign) +
   scale_color_manual(values = c("#00BFC4", "#F8766D", "#7f7f7f")) +
   facet_grid(~ QC)
@@ -31,3 +33,4 @@ The number of features with higher/lower RSD after normalization is counted belo
 rsd_qstd |> 
   janitor::tabyl(QC, sign)
 ```
+

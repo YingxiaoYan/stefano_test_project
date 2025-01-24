@@ -9,7 +9,7 @@ The number of samples in the calibration curve after outlier removal is presente
 ```{r}
 #| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-v <- SumExp::col_df(overall_sumexp)$c_conc
+v <- SumExp::col_df(norm_se)$c_conc
 v <- v[!is.na(v)] |> 
   labelled::copy_labels_from(v)
 table(v) |> 
@@ -25,7 +25,7 @@ table(v) |>
 
 ```{r}
 #| purl: true
-limit_df <- qc_steps[[DATA_ID]][["calcurve conc ranges"]]
+limit_df <- qc_steps$calibration[[DATA_ID]][["calcurve conc ranges"]]
 ```
 
 

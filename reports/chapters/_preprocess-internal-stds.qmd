@@ -1,6 +1,7 @@
+
 ```{r}
 #| purl: true
-internal_std_se <- qc_steps[["internal std. raw"]]
+internal_std_se <- qc_steps[["internal std. before norm"]]
 ```
 
 There are `r nrow(internal_std_se)` internal standard (IS) features in the data.
@@ -10,8 +11,8 @@ Those features are listed below, in the order of average retention time.
 #| purl: true
 SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
   dplyr::mutate(
-    num_zeros = proc$count_zeros_per_feature(internal_std_se[["raw"]]),
-    rsd = proc$compute_rsd_per_feature(internal_std_se[["raw"]]),
+    num_zeros = proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
+    rsd = show$compute_rsd_per_feature(internal_std_se[[mat_id_for_norm]]),
   )
 # Table of internal standard features
 kable_internal_std <- function(se) {
@@ -85,15 +86,16 @@ box_scatter_plot_of_one_feature <- function(se, ii, widths) {
   # Box plot
   p1 <- ggplot(se_tbl) +
     geom_boxplot(aes(x = Class, y = raw, fill = Class)) +
-    scale_fill_manual(values = colors_of_classes) + 
+    scale_fill_manual(values = COLORS_OF_CLASSES) + 
     labs(title = feature_name, y = "Peak area") +
     theme(legend.position = "none") +   # No legend for fill
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Rotate x-axis labels
+    # Rotate x-axis labels
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
     scale_y_log10()
   # Scatter plot across injection order
   p2 <- ggplot(se_tbl) +
     geom_point(aes(x = injection_order, y = raw, color = Class)) +
-    scale_color_manual(values = colors_of_classes) + 
+    scale_color_manual(values = COLORS_OF_CLASSES) + 
     labs(title = "",  y = "", x = "Injection order") +
     theme(legend.position = "none") +   # No legend for fill
     # No y-axis labels
@@ -123,8 +125,8 @@ if (any(is_outlier) || any(is_failed_istd)) {
   internal_std_se <- internal_std_se[!is_failed_istd, !is_outlier]
   SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
     dplyr::mutate(
-      num_zeros = proc$count_zeros_per_feature(internal_std_se[["raw"]]),
-      rsd = proc$compute_rsd_per_feature(internal_std_se[["raw"]]),
+      num_zeros = proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
+      rsd = show$compute_rsd_per_feature(internal_std_se[[mat_id_for_norm]]),
     )
   # Update the table of internal standard features
   cat("\n\nAfter excluding the outliers and failed internal standards,", 
@@ -160,7 +162,7 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 # Divide the internal standard features by quality control sample
 # Calculate RSD% per internal standard feature and per quality control sample
 df1 <- show$extract_qc_samples_to_list(internal_std_se) |> 
-  sapply(\(se) apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2)))
+  sapply(\(se) apply(se[[mat_id_for_norm]], 1, \(.x) round(show$rsd_perc(.x), 2)))
 stopifnot(identical(rownames(df1), rownames(internal_std_se)))
 rownames(df1) <- SumExp::row_df(internal_std_se)$feature_name
 knitr::kable(df1, caption = "RSD% of internal standard features by quality control sample") |> 
@@ -173,7 +175,7 @@ knitr::kable(df1, caption = "RSD% of internal standard features by quality contr
 se <- internal_std_se[, quote(contr_cat != "QC")]
 df1 <- sapply(setNames(nm = unique(SumExp::col_df(se)$Class)), function(cls) {
   se <- se[, SumExp::col_df(se)$Class == cls]
-  apply(se[["raw"]], 1, \(.x) round(proc$rsd_perc(.x), 2))
+  apply(se[[mat_id_for_norm]], 1, \(.x) round(show$rsd_perc(.x), 2))
 })
 stopifnot(identical(rownames(df1), rownames(se)))
 rownames(df1) <- SumExp::row_df(se)$feature_name

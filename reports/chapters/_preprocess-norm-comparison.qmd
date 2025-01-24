@@ -5,10 +5,10 @@ The RSD% of the quantification standard samples is calculated for the raw data a
 #| label: 'norm-method-comparison'
 #| out-width: '80%'
 
-labs <- SumExp::name_labs(overall_sumexp)
+labs <- SumExp::name_labs(norm_se)
 names(labs) <- gsub(" .*", "", names(labs))    # First word only
-df_to_show <- show$extract_quant_qc(overall_sumexp) |> 
-  proc$calc_rsd_qstd(labs) |> 
+df_to_show <- show$extract_quant_qc(norm_se) |> 
+  show$calc_rsd_qstd(labs) |> 
   dplyr::mutate(
     sign = ifelse(loess_norm <= closest_norm, "↓ LOESS", "↓ Closest"),
     sign = ifelse(is.na(sign), "All 0s", sign),
@@ -34,6 +34,7 @@ The number of compounds above or below 20 RSD% is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count-20'
+n_cols <- ncol(df_to_show) - 3
 df_to_show |> 
   dplyr::summarize(
     dplyr::across(
@@ -53,7 +54,7 @@ df_to_show |>
     col.names = c("QC", rep(names(labs), 2))
   ) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE) |> 
-  kableExtra::add_header_above(c(" " = 1, "RSD > 20%" = 3, "RSD ≤ 20%" = 3)) 
+  kableExtra::add_header_above(c(" " = 1, "RSD > 20%" = n_cols, "RSD ≤ 20%" = n_cols)) 
 ```
 
 The RSD% values are presented in the table below.

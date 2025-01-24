@@ -11,8 +11,8 @@ format:
 ```{r}
 #| label: 'setup-read-msdial'
 #| purl: true
-# The preprocessed data used for calibration. Default is `loess_norm`.
-if (!exists("DATA_ID")) DATA_ID <- "loess_norm"
+# The preprocessed data used for calibration. Default is `loess_norm_blk`.
+if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -26,31 +26,40 @@ box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
-# Read `params.yml` to get various project parameters
-params <- yaml::read_yaml("params.yml")
+# Get the input file name provided by the user
+user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
+raw_se <- msdial$read_parsed_msdial_data(user_inputs)
+IS_NON_TARGET_MODE <- SumExp::metadata(raw_se)$is_non_target_mode
+# For consistency throughout the report
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
 
 # Input/Output files
 FILE <- list(
   i = rlang::list2(
-    proc = msdial$get_sumexp_file_name(params, "proc"),
-    qc = msdial$get_sumexp_file_name(params, "qc_steps"),   # Intermediate state of the data
+    # Processed data
+    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
+    # Intermediate status of the data
+    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
   )
 )
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
-measurement_blank_substracted_lst <- readRDS(FILE$i$proc)
-overall_sumexp <- msdial$read_parsed_msdial_data(params)
-colors_of_classes <- show$get_colors_of_classes(overall_sumexp, COLORS$contr_cat)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing was not completed." = qc_steps[["Preprocessing Completed"]])
-# Conversion tables
-sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
-feature_id_name_tbl <- qc_steps[["feature_id_name_tbl"]]
+stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+
+# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
+# These are used for presenting tables and figures in reports
+sample_id_name_tbl <- SumExp::col_df(raw_se) |> 
+  tibble::rownames_to_column("sample_id") |> 
+  dplyr::select(sample_id, sample_name)
+feature_id_name_tbl <- SumExp::row_df(raw_se) |> 
+  tibble::rownames_to_column("feature_id") |> 
+  dplyr::select(feature_id, feature_name)
 set.seed(7579)
 ```
 
@@ -61,6 +70,29 @@ set.seed(7579)
 --------------------------------------------
 
 # Normalization using internal standards
+
+## Volumetric internal standard
+
+```{r}
+#| purl: true
+is_vIS <- SumExp::row_df(raw_se)$std_type == "vIS"
+# Feature intensity to be used for normalization
+mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
+```
+
+```{r}
+if (any(is_vIS)) {
+  cat(
+    "The data contains volumetric internal standards (vIS).\n",
+    "All values of all other features are normalized by the value of the vIS feature",
+    "for each sample.\n\n",
+    "(individual value of each feature and each sample) / (vIS value of each sample) *", 
+    "(average of vIS values of all samples)\n"
+  )
+} else {
+  cat("There is no volumetric internal standard (vIS) in the data.\n")
+}
+```
 
 ## Internal standard (IS) features
 
@@ -73,10 +105,11 @@ The data is normalized using the internal standard features.
 ```{r}
 #| purl: true
 # Find the range of RT values
-all_rts <- SumExp::row_df(overall_sumexp)$rt
+wo_vIS_df <- SumExp::row_df(raw_se[!is_vIS, ])
+all_rts <- wo_vIS_df$rt
 overall_rt_range <- range(all_rts)
-targetted_rt_range <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "Quant"])
-rt <- range(all_rts[SumExp::row_df(overall_sumexp)$std_type == "IS"])
+targetted_rt_range <- range(all_rts[wo_vIS_df$std_type == "Quant"])
+rt <- range(all_rts[wo_vIS_df$std_type == "IS"])
 ```
 
 The range of RT values of overall features is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
@@ -87,7 +120,7 @@ the range of internal standard features is `r range(rt)[1]` to `r range(rt)[2]`.
 
 ```{r}
 #| purl: true
-overall_sumexp <- qc_steps[["Normalized"]]
+norm_se <- qc_steps[["normalized"]]
 ```
 
 {{< include chapters/_preprocess-norm-closest.qmd >}}
@@ -103,33 +136,22 @@ overall_sumexp <- qc_steps[["Normalized"]]
 
 {{< include chapters/_preprocess-norm-comparison.qmd >}}
 
-# Calibration
 
-{{< include chapters/_preprocess-calib-conc_range.qmd >}}
+### Blank subtraction
 
-```{r}
-#| child: code/reports/chapters/_preprocess-calibration.qmd
-
-```
-
-# Concentration
-
-## Computed concentrations
+The normalized values were subtracted by the average of blank samples to remove the background signals.
+As calibration samples were prepared differently from all the other samples including the blank samples, blank subtraction was not applied to the calibration samples.
+Any values below 0 are replaced with 0 to avoid any negative values. 
 
 ```{r}
-#| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_se with conc"]]     # Used in the following 
+#| label: target_mode
+if (!IS_NON_TARGET_MODE) {
+  cat("\n\n# Calibration\n\n")
+  cat(knitr::knit_child("code/reports/chapters/_preprocess-calib-conc_range.qmd", quiet = TRUE))
+  cat(knitr::knit_child("code/reports/chapters/_preprocess-calibration.qmd", quiet = TRUE))
+  cat("\n\n# Concentration\n\n")
+  cat(knitr::knit_child("code/reports/chapters/_preprocess-concentration.qmd", quiet = TRUE))
+}
 ```
-
-{{< include chapters/_preprocess-concentration.qmd >}}
-
-## Blank subtraction
-
-```{r}
-#| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_minus_blk_se"]]     # Used in the following 
-```
-
-{{< include chapters/_preprocess-concentration.qmd >}}
 
 # References

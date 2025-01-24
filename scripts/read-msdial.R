@@ -69,7 +69,7 @@ colnames(raw_df) <- rownames(sample_info)     # Update with syntactically valid 
 raw_mat <- lapply(raw_df, as.numeric) |> 
   as.data.frame(row.names = rownames(features)) |> 
   as.matrix()
-labelled::label_attribute(raw_mat) <- "Peak area"
+labelled::label_attribute(raw_mat) <- "Raw"
 
 cat("From the given file:", FILE$i, "\n",
     "Number of samples:", ncol(raw_mat), "\n",

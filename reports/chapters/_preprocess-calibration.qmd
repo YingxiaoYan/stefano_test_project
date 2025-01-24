@@ -6,39 +6,51 @@ title: Calibration
 #| label: 'setup-calibration'
 #| purl: true
 #| eval: !expr '!knitr::opts_knit$get("child")'
-# The preprocessed data used for calibration. Default is `loess_norm`.
-if (!exists("DATA_ID")) DATA_ID <- "loess_norm"
+# The preprocessed data used for calibration. Default is `loess_norm_blk`.
+if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
-  projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
   ggplot2[...],        # Too long to write and usually specific enough
+  io = projlib/check_io_exist,       # Check input/output files
 )
-# Read `params.yml` if `params` not provided
-if (! exists("params")) params <- yaml::read_yaml("params.yml")
+# Get the input file name provided by the user
+user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
-colors_of_classes <- msdial$read_parsed_msdial_data(params) |> 
-  show$get_colors_of_classes(COLORS$contr_cat)
+# For consistency throughout the report
+raw_se <- msdial$read_parsed_msdial_data(user_inputs)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+
 # Input/Output files
 FILE <- list(
   i = rlang::list2(
-    qc = msdial$get_sumexp_file_name(params, "qc_steps"),   # Intermediate state of the data
+    # Processed data
+    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
+    # Intermediate status of the data
+    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
   )
 )
 # Check if input files and output directories exist
-box::use(io = projlib/check_io_exist)
 io$check_io_exist(FILE)
 
+# Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-# Conversion tables
-sample_id_name_tbl <- qc_steps[["sample_id_name_tbl"]]
-feature_id_name_tbl <- qc_steps[["feature_id_name_tbl"]]
+stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+
+# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
+# These are used for presenting tables and figures in reports
+sample_id_name_tbl <- SumExp::col_df(raw_se) |> 
+  tibble::rownames_to_column("sample_id") |> 
+  dplyr::select(sample_id, sample_name)
+feature_id_name_tbl <- SumExp::row_df(raw_se) |> 
+  tibble::rownames_to_column("feature_id") |> 
+  dplyr::select(feature_id, feature_name)
 ```
 
 ## Calibration curve per feature
@@ -47,7 +59,7 @@ The calibration curve of each of randomly selected 9 features is presented below
 
 ```{r}
 #| purl: true
-calcurve_se <- qc_steps[[DATA_ID]][["calcurve_se within range"]]
+calcurve_se <- qc_steps$calibration[[DATA_ID]][["calcurve_se within range"]]
 
 set.seed(7579)
 # Randomly selected 9 features to present in calibration curve plots
@@ -100,7 +112,7 @@ The distribution of $R^2$ values by different models for the calibration curves 
 
 ```{r}
 #| purl: true
-calcurve_models <- qc_steps[[DATA_ID]][["calcurve_models"]]
+calcurve_models <- qc_steps$calibration[[DATA_ID]][["calcurve_models"]]
 ```
 
 ```{r}
@@ -125,9 +137,11 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 
 ```{r}
 #| purl: true
-concn_se <- qc_steps[[DATA_ID]][["concn_se with conc"]]
+concn_se <- qc_steps$calibration[[DATA_ID]][["concn_se with conc"]]
 # Table of the samples to show with the calibration curve
 to_show_se <- concn_se[i_9feature_to_show, ]
+# Models to be used for the calibration curve
+cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
 ```
 
 The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(concn_se)$Class), before = "\x60")`,
@@ -146,9 +160,9 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-height: 11
 show$ggplot_calcurve_samples_facet(to_show_se,
                                    calcurve_se,
-                                   calcurve_models,
+                                   cc_models,
                                    DATA_ID,
-                                   colors_of_classes) +
+                                   COLORS_OF_CLASSES) +
   labs(y = "Peak area (Normalized)")
 ```
 
@@ -160,18 +174,18 @@ show$ggplot_calcurve_samples_facet(to_show_se,
 #| fig-height: 11
 show$ggplot_calcurve_samples_facet(to_show_se,
                                    calcurve_se,
-                                   calcurve_models,
+                                   cc_models,
                                    DATA_ID,
-                                   colors_of_classes) +
+                                   COLORS_OF_CLASSES) +
   scale_x_log10() +
   scale_y_log10()
 ```
 
-### All except `QC` and `Blank` samples
+### All except `QC` samples
 
 ```{r}
 classes_excl_qc_blank <- local({
-  unique(df$Class[!df$contr_cat %in% c("QC", "Blank")])
+  unique(df$Class[!df$contr_cat %in% c("QC")])
 }, list(df = SumExp::col_df(concn_se)))
 ```
 
@@ -207,7 +221,7 @@ geom_best_model_name <- geom_text(         # Display the best model name
 )
 
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID, colors_of_classes) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
   geom_best_model_name
 ```
 
@@ -218,8 +232,18 @@ to_show_se[, quote(Class %in% classes_excl_qc_blank)] |>
 #| fig-width: 12
 #| fig-height: 11
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, calcurve_models, DATA_ID, colors_of_classes) +
+  show$ggplot_calcurve_samples_facet(calcurve_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
   geom_best_model_name +
   scale_x_log10() +
   scale_y_log10()
 ```
+
+## Remove the features with no measurement samples
+
+```{r}
+concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
+```
+
+If all values of non-QC samples are below LLOQ, the feature is removed from the data.
+After the removal, the number of remaining features is `r nrow(concn_se)`.
+

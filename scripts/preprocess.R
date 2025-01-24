@@ -40,6 +40,7 @@ if (any(is_vIS)) {
   v <- as.vector(vol_internal_std_se[["raw"]])
   mat <- t(replicate(nrow(overall_sumexp), v))  # Column-wise normalization
   overall_sumexp[["vol_norm"]] <- overall_sumexp[["raw"]] / mat * mean(v, na.rm = TRUE)
+  labelled::label_attribute(overall_sumexp[["vol_norm"]]) <- "Volumetric Normalized" 
   mat_id_for_norm <- "vol_norm"        # Feature intensity to be used for normalization
   # Store intermediate data during quality control steps
   proc$append_to_qc_steps("volumetric internal std. raw" = vol_internal_std_se, file = FILE$qc)
@@ -122,6 +123,7 @@ overall_sumexp_before_blank <- overall_sumexp
 overall_sumexp <- proc$subtract_blank_sumexp(
   x_se = overall_sumexp,
   contr_cat == "Blank", 
+  contr_cat == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
@@ -204,10 +206,16 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
         paste0("Concentration [", user_inputs$concentration_unit, "]")
       ) |> 
       proc$replace_below_lloq_llod(llodq)
+    labelled::label_attribute(concn_se) <- norm_lab
     # Maximum/minimum concentration after trimming out of each feature
     interm_data[["concn_se with conc"]] <- concn_se
     
-    labelled::label_attribute(concn_se) <- norm_lab
+    # Exclude the features with no quantification
+    lloq <- SumExp::row_df(concn_se)$lloq
+    non_qc_conc <- concn_se[, quote(! contr_cat %in% "QC")][["conc"]]
+    any_above_lloq <- non_qc_conc > lloq
+    concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
+      
     list("conc" = concn_se, "interm_data" = interm_data)
   })
   # Store the intermediate data as a list

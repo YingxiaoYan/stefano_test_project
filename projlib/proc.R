@@ -24,17 +24,6 @@ initialize_qc_steps <- function(file) {
   saveRDS(list(), file)
 }
 
-#' Calculate RSD%
-#'
-#' @param x A numeric vector
-#' @param na.rm A logical value indicating whether to remove NA values
-#' @return A numeric value of RSD%
-#' @export
-rsd_perc <- function(x, na.rm = FALSE) {
-  100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
-}
-
-
 # Clean ----------------------------------------------------------------------------------
 
 #' Count zeros per feature
@@ -45,16 +34,6 @@ rsd_perc <- function(x, na.rm = FALSE) {
 count_zeros_per_feature <- function(mat) {
   rowSums(mat == 0) |> 
     labelled::set_label_attribute("Number of zeros")
-}
-
-#' RSD% across all samples
-#'
-#' @param mat A numeric matrix
-#' @return A numeric vector of RSD% across the samples in columns
-#' @export
-compute_rsd_per_feature <- function(mat) {
-  apply(mat, 1, rsd_perc) |> 
-    labelled::set_label_attribute("RSD%")
 }
 
 #' Identify outliers
@@ -159,29 +138,12 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
   loess_fit
 }
 
-#' Calculate RSD of the quantification standard samples
-#'
-#' @param qc_se A list of SumExp objects with quantitative standards in QC samples
-#' @param mat_ids A character vector of the matrix IDs
-#' @return A tibble with RSD% of the quantification standard samples
-#' @export
-calc_rsd_qstd <- function(qc_se, mat_ids) {
-  lapply(qc_se, \(qc1) {
-    sapply(stats::setNames(nm = mat_ids), function(nm) {
-      apply(qc1[[nm]], 1, rsd_perc)
-    }) |>    # Rows are features, columns are matrix IDs
-      tibble::as_tibble(rownames = "feature_id")
-  }) |> 
-    # `QC` has the name of the QC samples
-    dplyr::bind_rows(.id = "QC")
-}
-
-
 #' Subtract the average values of the blank samples from the samples
 #'
 #' @param x_se A [`SumExp`] object of the samples
 #' @param condition_blank A condition to select the blank samples. Evaluated in the context of
 #'   the columns of `x_se`
+#' @param condition_no_change A condition to select the samples that should not be changed.
 #' @param mat_ids The names of matrices in `x_se`, from which the blank values are subtracted
 #' @param out_mat_ids The names of the output matrices in the returned object. These should be
 #'   the same size as `mat_ids` in the same order.
@@ -189,21 +151,29 @@ calc_rsd_qstd <- function(qc_se, mat_ids) {
 #' @return A [`SumExp`] object with the blank values subtracted. The columns of the blanks are
 #'   removed from the `x_se`.
 #' @export
-subtract_blank_sumexp <- function(x_se, condition_blank, mat_ids, out_mat_ids = mat_ids) {
+subtract_blank_sumexp <- function(x_se, 
+                                  condition_blank, 
+                                  condition_no_change,
+                                  mat_ids, 
+                                  out_mat_ids = mat_ids) {
   stopifnot(length(mat_ids) == length(out_mat_ids))
   is_blank <- eval(substitute(condition_blank), SumExp::col_df(x_se), parent.frame())
+  is_no_chg <- eval(substitute(condition_no_change), SumExp::col_df(x_se), parent.frame())
   blank_se <- x_se[, is_blank]
   x_se <- x_se[, !is_blank]
-  for(ii in seq(mat_ids)) {
+  is_no_chg <- is_no_chg[!is_blank]     # Used with updated `x_se`
+  for(ii in seq(mat_ids)) {      # Paired `mat_ids` and `out_mat_ids`
     mat_id <- mat_ids[ii]
     x_mat <- x_se[[mat_id]]
     x_lab <- labelled::get_label_attribute(x_mat)
-    blank_mean <- rowMeans(blank_se[[mat_id]])
-    r_nm <- paste0(mat_id, "_blank_mean")   # Save to the row_df of x_se
+    blank_mean <- rowMeans(blank_se[[mat_id]])      # Mean per feature
+    # Blank means are saved in the row_df of x_se with this name
+    r_nm <- paste0(mat_id, "_blank_mean")
     SumExp::row_df(x_se)[[r_nm]] <- blank_mean |> 
       labelled::set_label_attribute(paste("Blank mean of", x_lab))
     mat_subt <- x_mat - blank_mean      # <<---- Subtract the blank average
     mat_subt[mat_subt < 0] <- 0
+    mat_subt[, is_no_chg] <- x_mat[, is_no_chg]
     x_se[[ out_mat_ids[ii] ]] <- mat_subt |> 
       labelled::set_label_attribute(paste(x_lab, "(blank adjusted)"))
   }
@@ -313,6 +283,15 @@ identify_llox_signal <- function(cc_0_se, mat_id, times, na.rm = FALSE) {
   m * times 
 }
 
+#' Calculate RSD%
+#'
+#' @param x A numeric vector
+#' @param na.rm A logical value indicating whether to remove NA values
+#' @return A numeric value of RSD%
+.rsd_perc <- function(x, na.rm = FALSE) {
+  100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
+}
+
 #' Identify the lower limit of detection (LLOD) and quantification (LLOQ)
 #'
 #' @param cc_se A [`SumExp`] object of the calibration curve samples
@@ -346,7 +325,7 @@ identify_lloq <- function(cc_se, lloq_signal, mat_id, concs) {
   lloq <- apply(lloq_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
   
   # Find minimum concentration that pass the condition RSD% < 20%
-  rsdp <- sapply(cc_lst, apply, 1, rsd_perc, na.rm = TRUE)
+  rsdp <- sapply(cc_lst, apply, 1, .rsd_perc, na.rm = TRUE)
   rsdp <- rsdp < 20
   rsdp[m == 0] <- FALSE
   # Minimum concentration that satisfies the condition

@@ -1,27 +1,27 @@
 
-Given file: `` `r SumExp::metadata(overall_sumexp)$file_name` `` 
+Given file: `` `r SumExp::metadata(raw_se)$file_name` `` 
 
-The given file contains data of `r nrow(overall_sumexp)` features and `r ncol(overall_sumexp)` samples.
+The given file contains data of `r nrow(raw_se)` features and `r ncol(raw_se)` samples.
 
 ## Samples
 
 ### By class
 
-There are `r dplyr::n_distinct(SumExp::col_df(overall_sumexp)$Class)` classes of samples in the data.
+There are `r dplyr::n_distinct(SumExp::col_df(raw_se)$Class)` classes of samples in the data.
 The number of samples for each class is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::col_df(overall_sumexp)$Class)
+show$kable_number_of(SumExp::col_df(raw_se)$Class)
 ```
 
 ### Special categories for preprocessing
 
-There are `r length(table(SumExp::col_df(overall_sumexp)$contr_cat, exclude = ""))` special sample categories for in the data.
+There are `r length(table(SumExp::col_df(raw_se)$contr_cat, exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.
 The number of samples for each category is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::col_df(overall_sumexp)$contr_cat, exclude = "")
+show$kable_number_of(SumExp::col_df(raw_se)$contr_cat, exclude = "")
 ```
 
 #### Calibration curve samples
@@ -35,7 +35,7 @@ Concentration is extracted from the numeric part in the format after the replace
 
 ```{r}
 # Present the sample IDs for the calibration curve
-df_show <- SumExp::col_df(overall_sumexp) |> 
+df_show <- SumExp::col_df(raw_se) |> 
   dplyr::filter(contr_cat == "CalCurve") |> 
   dplyr::arrange(c_conc) |> 
   dplyr::select(sample_name, c_conc)
@@ -69,7 +69,7 @@ Aliquots of some samples were measured as technical replicates for quality contr
 The number of the replicates were as below.
 
 ```{r}
-show$extract_qc_samples_to_list(overall_sumexp) |> 
+show$extract_qc_samples_to_list(raw_se) |> 
   sapply(ncol) |> 
   knitr::kable(col.names = c("Class", "Number of Replicates")) |> 
   kableExtra::kable_styling(full_width = FALSE)
@@ -77,15 +77,15 @@ show$extract_qc_samples_to_list(overall_sumexp) |>
 
 ## Features
 
-The data contained `r nrow(overall_sumexp)` features.
-Among them, `r sum(SumExp::row_df(overall_sumexp)$std_type != "")` features were targeted. 
+The data contained `r nrow(raw_se)` features.
+Among them, `r sum(SumExp::row_df(raw_se)$std_type != "")` features were targeted. 
 The rest were not targeted.
 
 For those targeted features, the standard type was specified.
 The number of features for each type is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::row_df(overall_sumexp)$std_type, what = "Features", exclude = "")
+show$kable_number_of(SumExp::row_df(raw_se)$std_type, what = "Features", exclude = "")
 ```
 
 ## Distribution of the values
@@ -100,7 +100,7 @@ As shown below, the values are distributed in a skewed manner.
 #| fig-height: 6
 #| out-width: '100%'
 
-p <- SumExp::ggplot(overall_sumexp) +
+p <- SumExp::ggplot(raw_se) +
     geom_histogram(aes(x = raw), bins = 50)
 gridExtra::grid.arrange(   # Two ggplots next to each other
   p + labs(title = "Linear scale", x = "Values"),
