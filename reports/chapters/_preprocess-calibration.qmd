@@ -146,7 +146,12 @@ cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
 
 The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(concn_se)$Class), before = "\x60")`,
 are computed using the calibration curve.
-Any negative concentration is adjusted to zero.
+After the computation, the following steps are applied to the data:
+
+* Any negative concentration is adjusted to zero.
+* Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
+* Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
+* Any feature with zeros only is removed from the data.
 
 ### All measurement samples
 
