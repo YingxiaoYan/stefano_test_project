@@ -310,7 +310,7 @@ identify_llod <- function(cc_se, llod_signal, mat_id, concs) {
   # Calculate the mean signal values of the calibration samples
   m <- sapply(cc_lst, rowMeans, na.rm = TRUE)
   # LLOD for each feature in spiked concentrations
-  out <- apply(llod_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
+  out <- apply(m > 0 & llod_signal <= m, 1, get_min_value_satisfy_cond, colnames(m))
   out <- labelled::set_label_attribute(out, "LLOD")
   stopifnot(identical(names(out), rownames(cc_se)))
   out
@@ -464,24 +464,24 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
 
 
 
-#' Replace the values below the LLOQ and LLOD with half of the LLOQ and 1/4 of the LLOQ
+#' Replace the values below the LLOQ and LLOD
 #' 
 #' @param conc A matrix of concentrations
+#' @param signal A matrix of signal values
 #' @param limits A list with the LLOQ and LLOD values and signal values. The required columns
-#'   are `lloq` and `llod`
+#'   are `lloq`, `llod` and `llod_signal`
 #' 
 #' @return A matrix with the values below the LLOQ and LLOD replaced
 #' @export
-replace_below_lloq_llod <- function(conc, limits) {
+replace_below_lloq_llod <- function(conc, signal, limits) {
+  stopifnot(identical(dim(conc), dim(signal)))
   lab <- labelled::get_label_attribute(conc)
-  dplyr::case_when(
-    # Replace the values below LLOD with 1/4 of the LLOQ
-    conc < limits$llod ~ limits$lloq / 4,
-    # Replace the values below LLOQ with half of the LLOQ
-    conc < limits$lloq ~ limits$lloq / 2,
-    TRUE ~ conc
-  ) |> 
-    labelled::set_label_attribute(lab)
+  out <- conc
+  # Replace the values below LLOQ with half of the LLOQ
+  out <- ifelse(conc < limits$lloq, limits$lloq / 2, out)
+  # Replace the values below LLOD with 1/4 of the LLOQ
+  out <- ifelse(conc < limits$llod | signal < limits$llod_signal, limits$lloq / 4, out)
+  labelled::set_label_attribute(out, lab)
 }
 
 

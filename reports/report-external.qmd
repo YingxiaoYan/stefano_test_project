@@ -199,7 +199,8 @@ summary_tbl |>
 
 * The unit of concentration is `r user_inputs$concentration_unit`.
 * The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using zero concentration samples.
-The LLOD is defined as the lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration samples. 
+The LLOD is defined as the lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration samples.
+If the mean of the zeros is zero, LLOD is the lowest concentration having non-zero value. 
 Similarly, the LLOQ is set at ten times the mean of the zero concentration samples.
 If the calibration samples at the LLOQ concentration exhibit high variability (relative standard deviation, RSD, > 20%), the LLOQ is adjusted to the lowest higher concentration that satisfies RSD ≤ 20%.
 

@@ -11,6 +11,7 @@ format:
 ```{r}
 #| label: 'setup-read-msdial'
 #| purl: true
+#| output: false
 # The preprocessed data used for calibration. Default is `loess_norm_blk`.
 if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
 

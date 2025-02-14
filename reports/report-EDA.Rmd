@@ -678,7 +678,7 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
 The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'evaluation-normalization-closest-istd-count'
-#| results: 'markup'
+#| output: true
 rsd_qstd |> 
   janitor::tabyl(QC, sign)
 ```
@@ -839,7 +839,7 @@ ggplot_rsdp_metab(rsd_qstd, assay_ids) +
 The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'rsd-count'
-#| results: 'markup'
+#| output: true
 rsd_qstd |> 
   janitor::tabyl(QC, sign)
 ```
@@ -907,7 +907,7 @@ The number of features with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
-#| results: 'markup'
+#| output: true
 # Count the number of features with lower RSD
 df_to_show |> 
   janitor::tabyl(QC, sign)
@@ -1298,7 +1298,7 @@ The count of features favoring each model is shown below.
 
 ```{r}
 #| label: 'present-model-count-by-feature'
-#| results: 'markup'
+#| output: true
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
 
@@ -1507,7 +1507,7 @@ write_concentration_tsv(measurements_se, FILE$o$conc)
 
 ```{r}
 #| echo: false
-#| results: 'asis'
+#| output: 'asis'
 # Avoid duplication of the bibliography when this is called as a child.
 if(! knitr::opts_knit$get("child")) cat('\n\n# References\n\n')
 ```

@@ -198,14 +198,14 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
     
     # Compute the concentration of the samples using the calibration curve
     llodq <- SumExp::row_df(concn_se) |> 
-      dplyr::select(lloq, llod)
+      dplyr::select(lloq, llod, llod_signal)
     concn_se[["conc"]] <- proc$compute_concentration(
       concn_se, calcurve_se, calcurve_models, mat_id
     ) |> 
       labelled::set_label_attribute(
         paste0("Concentration [", user_inputs$concentration_unit, "]")
       ) |> 
-      proc$replace_below_lloq_llod(llodq)
+      proc$replace_below_lloq_llod(concn_se[[mat_id]], llodq)
     labelled::label_attribute(concn_se) <- norm_lab
     # Maximum/minimum concentration after trimming out of each feature
     interm_data[["concn_se with conc"]] <- concn_se

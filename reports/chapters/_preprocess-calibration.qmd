@@ -131,7 +131,7 @@ The count of features favoring each model is shown below.
 
 ```{r}
 #| label: 'present-model-count-by-feature'
-#| results: 'markup'
+#| output: true
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
 

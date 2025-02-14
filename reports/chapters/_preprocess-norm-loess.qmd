@@ -170,7 +170,7 @@ show$ggplot_rsdp_metab(rsd_qstd, mat_ids) +
 The number of features with higher/lower RSD after normalization is counted below.
 ```{r}
 #| label: 'rsd-count'
-#| results: 'markup'
+#| output: true
 rsd_qstd |> 
   janitor::tabyl(QC, sign)
 ```
@@ -181,7 +181,7 @@ Bar charts of the values of standard features are compared for raw and normalize
 #| fig-width: 14
 #| fig-height: 6
 #| out-width: '100%'
-#| results: 'markup'
+#| output: true
 
 labs <- SumExp::name_labs(norm_se)
 df_show <- norm_se[quote(std_type %in% c("Quant", "IS")), ] |> 
