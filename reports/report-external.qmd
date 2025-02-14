@@ -203,6 +203,14 @@ The LLOD is defined as the lowest concentration at which the average signal of c
 Similarly, the LLOQ is set at ten times the mean of the zero concentration samples.
 If the calibration samples at the LLOQ concentration exhibit high variability (relative standard deviation, RSD, > 20%), the LLOQ is adjusted to the lowest higher concentration that satisfies RSD ≤ 20%.
 
+* After the computation of concentration, the following steps are applied to the data:
+
+  * Any negative concentration is adjusted to zero.
+  * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
+  * Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
+  * Any feature with values below LLOQ in all samples is removed from the data.
+
+
 {{< pagebreak >}}
 
 # Invidual chemicals

@@ -25,7 +25,6 @@ get_user_input <- function(...) {
   userin
 }
 
-
 box::use(io = ./check_io_exist)
 
 #' Get the file name of the parsed data
