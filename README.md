@@ -59,8 +59,20 @@ We could use a container system called [Docker](https://www.docker.com/) to enca
 The Docker image can be built using the `Dockerfile` provided in the `code/envs/` directory, but not
 tested yet.
 
-## Running the scripts
+## Shiny app
 
+At the project directory, run the following command to start the Shiny app.
+
+```sh
+R -e "shiny::runApp('code')"
+```
+
+It will indicate the URL to access the Shiny app.
+Copy and paste the URL to a web browser to access the Shiny app.
+
+## Running scripts without the Shiny app
+
+As an alternative way, you can also run the individual scripts in the command line.
 First, find the **`params.yml`** file in the `<project>/` directory and modify the parameters as needed.
 
 The scripts are written in R and qmd, and can be run in the following way.
