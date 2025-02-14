@@ -161,7 +161,7 @@ server <- function(input, output) {
       ) 
       quarto::quarto_render(
         "report-external.qmd",
-        output_file = fn_lst
+        output_file = fn_lst$o
       )
       paste0("Reports generated on reports/: ", fn_lst$i, " and ", fn_lst$e)
     },

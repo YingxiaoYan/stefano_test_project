@@ -474,12 +474,14 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
 #' @export
 replace_below_lloq_llod <- function(conc, limits) {
   lab <- labelled::get_label_attribute(conc)
-  # Replace the values below LLOQ with half of the LLOQ
-  conc <- ifelse(conc < limits$lloq, limits$lloq / 2, conc)
-  # Replace the values below LLOD with 1/4 of the LLOQ
-  conc <- ifelse(conc < limits$llod, limits$lloq / 4, conc)
-  conc <- labelled::set_label_attribute(conc, lab)
-  conc
+  dplyr::case_when(
+    # Replace the values below LLOD with 1/4 of the LLOQ
+    conc < limits$llod ~ limits$lloq / 4,
+    # Replace the values below LLOQ with half of the LLOQ
+    conc < limits$lloq ~ limits$lloq / 2,
+    TRUE ~ conc
+  ) |> 
+    labelled::set_label_attribute(lab)
 }
 
 
