@@ -197,7 +197,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, cc_models, mat_id, colors_of_cl
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
   # LLOQ, LLOD, max_c_conc of each `feature_id`. `feature_name` is for the output ggplot
-  lim_df <- SumExp::row_df(cc_se)[, c("feature_name", "lloq", "llod", "max_c_conc")]
+  lim_df <- SumExp::row_df(x_se)[, c("feature_name", "lloq", "llod", "max_c_conc")]
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)

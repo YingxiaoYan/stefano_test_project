@@ -59,9 +59,10 @@ io$check_io_exist(FILE)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+calib_interm_data <- qc_steps$calibration[[DATA_ID]]
 
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
-CHEMICAL_IDS <- SumExp::rownames(concn_se)#[1:2]
+CHEMICAL_IDS <- stringr::str_sort(SumExp::rownames(concn_se))
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports
@@ -134,7 +135,7 @@ conc_summary <- tibble::tibble(
   chem_id = chemicals$chem_id,
   llod = chemicals$llod,
   lloq = chemicals$lloq,
-  df_n = sapply(1:nrow(mat), \(i) sum(mat[i, ] >= llod[i])),
+  df_n = sapply(1:nrow(mat), \(i) sum(mat[i, ] >= lloq[i])),
   df_perc = df_n / ncol(mat) * 100,
   median = apply(mat, 1, median),
   mean = rowMeans(mat),
@@ -144,13 +145,10 @@ conc_summary <- tibble::tibble(
 conc_summary <- conc_summary |> 
   dplyr::mutate(
     df_perc = scales::percent(df_perc / 100),
-    median = round(median, 2),
-    mean = round(mean, 2),
-    min = round(min, 2),
-    max = round(max, 2)
+    across(c(median, mean, min, max, llod, lloq), ~ round(.x, 2))
   )
 # Summary about the calibration curve models
-model_summary <- qc_steps$calibration[[DATA_ID]][["calcurve_models"]] |> 
+model_summary <- calib_interm_data[["calcurve_models"]] |> 
   lapply(\(m) {
     type <- m$best_model_name
     R2 <- round(m$R2s[[type]], 3)
@@ -165,7 +163,9 @@ summary_tbl <- list(
   model_summary
 ) |> 
   purrr::reduce(dplyr::left_join, by = "chem_id") |> 
-  dplyr::arrange(chem_name) |> 
+  dplyr::mutate(chem_id = factor(chem_id, CHEMICAL_IDS)) |> 
+  dplyr::arrange(chem_id) |> 
+  dplyr::mutate(chem_name = stringr::str_trunc(chem_name, 40)) |> 
   dplyr::select(
     "Chemical" = chem_name,
     "DF (%)" = df_perc,
@@ -197,19 +197,33 @@ summary_tbl |>
 
 **Note**
 
-* The unit of concentration is `r user_inputs$concentration_unit`.
-* The lower-limit of quantification (LLOQ) and lower-limit of detection (LLOD) are calculated using zero concentration samples.
-The LLOD is defined as the lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration samples.
-If the mean of the zeros is zero, LLOD is the lowest concentration having non-zero value. 
-Similarly, the LLOQ is set at ten times the mean of the zero concentration samples.
-If the calibration samples at the LLOQ concentration exhibit high variability (relative standard deviation, RSD, > 20%), the LLOQ is adjusted to the lowest higher concentration that satisfies RSD ≤ 20%.
+The unit of concentration is `r user_inputs$concentration_unit`.
 
-* After the computation of concentration, the following steps are applied to the data:
+In order to fit a calibration curve to a meaningful range of concentration, the range is adjusted.
+The lower-limit of the range is chosen following the process described below. 
+Concentration points below the limit are excluded from the calibration curve.
+
+1. Begin with the lowest concentration point (e.g. `Cal_0`) in the calibration sample set with a detected signal (or peak area) greater than zero.
+2. Examine the signal corresponding to the next highest concentration point to determine if it is statistically greater than the lowest non-zero signal, using a t-test for significance.
+3. If no significant difference is found, continue to test the next higher concentration point sequentially until a significant increase in signal is identified.
+4. If the calibration samples at the concentration with significantly higher signal exhibit high variability (relative standard deviation, RSD, > 20%), the lower-limit is adjusted to the lowest higher concentration point that satisfies RSD $\le$ 20%.
+
+As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
+When there are sufficient number (≥ 5) of concentration points, that concentrations that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
+
+If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
+
+The lower limit of detection (LLOD) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by three and then dividing this product by the slope of the chosen calibration curve model. 
+In the case of a quadratic model, the slope is computed at the lower-limit point included in the calibration curve fitting.
+
+Like the computation of LLOD, the lower limit of quantification (LLOQ) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by ten and then dividing this product by the slope of the chosen calibration curve model.
+
+After the computation of concentration, the following steps are applied to the data:
 
   * Any negative concentration is adjusted to zero.
   * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
   * Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
-  * Any feature with values below LLOQ in all samples is removed from the data.
+  * Any chemicals with values below LLOQ in all samples is removed from the data.
 
 
 {{< pagebreak >}}
@@ -223,18 +237,23 @@ If the calibration samples at the LLOQ concentration exhibit high variability (r
 #| fig-width: 12
 #| fig-height: 6
 #| out-width: '100%'
-calcurve_se <- qc_steps$calibration[[DATA_ID]][["calcurve_se within range"]]
-calcurve_models <- qc_steps$calibration[[DATA_ID]][["calcurve_models"]]
+calcurve_se <- calib_interm_data[["calcurve_se within range"]]
+calcurve_models <- calib_interm_data[["calcurve_models"]]
 cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
-for(chem_i in stringr::str_sort(CHEMICAL_IDS)) {
+for(chem_i in CHEMICAL_IDS) {
   chem_name <- chem_id_name_tbl$chem_name[chem_id_name_tbl$chem_id == chem_i]
   cat("\n\n## ", chem_name, "\n")
   
   x_se <- concn_se[rownames(concn_se) == chem_i, quote(! contr_cat %in% c("QC", "Blank"))]
   cc_se <- calcurve_se[rownames(calcurve_se) == chem_i, ]
   # Calibration curves
-  p1 <- show$ggplot_calcurve_samples(x_se, 
-                                     calcurve_se, 
+  x1_se <- x_se   # For the case, llod < 0 or lloq < 0
+  c_concs <- SumExp::col_df(cc_se)$c_conc
+  lowest_c <- min(c_concs[c_concs > 0])
+  SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 
+    dplyr::mutate(dplyr::across(c(llod, lloq), ~ ifelse(.x < 0, lowest_c / 10, .x)))
+  p1 <- show$ggplot_calcurve_samples(x1_se, 
+                                     cc_se, 
                                      cc_models, 
                                      mat_id = DATA_ID,
                                      COLORS_OF_CLASSES) + 
@@ -268,8 +287,8 @@ for(chem_i in stringr::str_sort(CHEMICAL_IDS)) {
       "Best model: ", mdl$best_model_name, "  \n",
       "R2: ", round(summary(mdl$inv_model)$r.squared, 3), "  \n",
       "N of points: ", mdl$n_conc, "  \n",
-      "DF: ", scales::percent(sum(conc >= fts$llod) / length(conc)), 
-      " (", sum(conc >= fts$llod), "/", length(conc), ")", "  \n",
+      "DF: ", scales::percent(sum(conc >= fts$lloq) / length(conc)), 
+      " (", sum(conc >= fts$lloq), "/", length(conc), ")", "  \n",
       "LLOD: ", fts$llod, "  \n",
       "LLOQ: ", fts$lloq, "  \n",
       ""         # For trailing comma

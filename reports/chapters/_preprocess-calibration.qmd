@@ -42,6 +42,7 @@ io$check_io_exist(FILE)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+calib_interm_data <- qc_steps$calibration[[DATA_ID]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports
@@ -53,23 +54,34 @@ feature_id_name_tbl <- SumExp::row_df(raw_se) |>
   dplyr::select(feature_id, feature_name)
 ```
 
-## Calibration curve per feature
+## Calibration curve per chemical
 
-The calibration curve of each of randomly selected 9 features is presented below.
+The calibration curve of each of randomly selected 9 chemicals is presented below.
 
 ```{r}
 #| purl: true
-calcurve_se <- qc_steps$calibration[[DATA_ID]][["calcurve_se within range"]]
-
+cc_se <- calib_interm_data[["calcurve_se within range"]]
 set.seed(7579)
-# Randomly selected 9 features to present in calibration curve plots
-i_9feature_to_show <- local({
-  ii <- c(1:nrow(calcurve_se))
-  ii <- ii[SumExp::row_df(calcurve_se)$std_type != "IS"]
+# Randomly selected 9 chemicals to present in calibration curve plots
+i_9chemical_to_show <- local({
+  ii <- c(1:nrow(cc_se))
+  ii <- ii[SumExp::row_df(cc_se)$std_type != "IS"]
   sample(ii, 9)
 })
-calcurve_to_show_df <- SumExp::as_tibble(calcurve_se[i_9feature_to_show, ]) |> 
-  tidyr::drop_na(all_of(DATA_ID))        # Drop concentrations outside the range
+calcurve9_se <- cc_se[i_9chemical_to_show, ]
+
+calcurve_to_show_df <- local({
+  cc9_se <- calib_interm_data[["calcurve_se all range"]][i_9chemical_to_show, ]
+  SumExp::as_tibble(cc9_se) |> 
+    tidyr::drop_na(all_of(DATA_ID)) |>         # Drop concentrations outside the range
+    dplyr::mutate(
+      "c_type" = dplyr::case_when(
+        c_conc == non_zero_conc ~ "First non-zero",
+        c_conc >= min_c_conc & c_conc <= max_c_conc ~ "Within limits",
+        TRUE ~ "Out-of-range"
+      )
+    )
+})
 ```
 
 The peak areas were normalized by the internal standards applying the `r show$label_if_has(calcurve_to_show_df[[DATA_ID]], DATA_ID)`.
@@ -78,17 +90,23 @@ The concentration range was narrowed down to the range after the trimming step d
 ### Linear scale
 
 ```{r}
-#| label: 'calcurve-per-feature-linear'
+#| label: 'calcurve-per-chemical-linear'
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
 x <- "c_conc"
 p <- ggplot(calcurve_to_show_df, aes(x = .data[[x]], y = .data[[DATA_ID]])) +
-  geom_point() +
+  geom_point(aes(color = c_type)) +
   labs(
     x = labelled::label_attribute(calcurve_to_show_df[[x]]), 
-    y = "Peak area (Normalized)"
-  ) +  
+    y = "Peak area (Normalized)",
+    color = "Concentration"
+  ) + 
+  scale_color_manual(
+    values = c("First non-zero" = "red3", 
+               "Within limits" = "green4",
+               "Out-of-range" = "gray")
+  ) +
   facet_wrap(~ feature_name, scales = "free", ncol = 3)
 print(p)
 ```
@@ -96,50 +114,81 @@ print(p)
 ### Log scale
 
 ```{r}
-#| label: 'calcurve-per-feature-log'
+#| label: 'calcurve-per-chemical-log'
 #| fig-width: 12
 #| fig-height: 11
 p + scale_x_log10() + scale_y_log10()
 ```
 
-## Calibration of the features
+## Calibration of the chemicals
+
+```{r}
+#| purl: true
+calcurve_models <- calib_interm_data[["calcurve_models"]]
+concn_se <- calib_interm_data[["concn_se with conc"]]
+```
+
+### Calibration models
 
 The calibration curve is fitted to the [normalized data](#normalization) using 6 different models.
 Linear models and quadratic models are fitted to the data with three different weights, $1$, $\frac{1}{x}$ and $\frac{1}{x^2}$.
 The best model is selected based on the $R^2$ value.
+Preferring simpler models, the measures of explained variation of quadratic models were penalized by 0.01.
 
-The distribution of $R^2$ values by different models for the calibration curves is compared below.
-
-```{r}
-#| purl: true
-calcurve_models <- qc_steps$calibration[[DATA_ID]][["calcurve_models"]]
-```
+The distribution of $R^2$ values after penalty by different models for the calibration curves is compared below.
 
 ```{r}
 #| label: 'calibration-R2-by-mmodels'
-R2s <- lapply(calcurve_models, \(m) m$R2s)
-R2s <- R2s[!is.na(R2s)] |> 
+R2s_adj <- lapply(calcurve_models, \(m) m$R2s_adj)
+R2s_adj <- R2s_adj[!is.na(R2s_adj)] |> 
   dplyr::bind_rows(.id = "feature_id") |> 
   tidyr::pivot_longer(cols = -feature_id, names_to = "Model", values_to = "R2")
 
-ggplot(R2s) +
+ggplot(R2s_adj) +
   geom_boxplot(aes(x = Model, y = R2)) +
-  labs(y = expression(R^2))
+  labs(y = expression(paste(R^2, " with penalty")))
 ```
 
-The count of features favoring each model is shown below.
+The count of chemicals favoring each model is shown below.
 
 ```{r}
-#| label: 'present-model-count-by-feature'
-#| output: true
+#| label: 'present-model-count-by-chemical'
+#| results: 'markup'
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
 
+### LLOD/LLOQ
+
+The lower limit of detection (LLOD) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by three and then dividing this product by the slope of the chosen calibration curve model. 
+In the case of a quadratic model, the slope is computed at the lower-limit point included in the calibration curve fitting.
+
+Like the computation of LLOD, the lower limit of quantification (LLOQ) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by ten and then dividing this product by the slope of the chosen calibration curve model.
+
+The LLOD and LLOQ of each chemical is presented below.
+
+```{r}
+#| label: 'calcurve-llodq-table'
+
+show_df <- SumExp::row_df(concn_se) |> 
+  dplyr::mutate(dplyr::across(c(llod, lloq), ~ scales::number(.x))) |>
+  dplyr::select(`Chemical name` = feature_name, LLOD = llod, LLOQ = lloq)
+
+knitr::kable(
+  show_df,
+  caption = "LLOD and LLOQ of the chemicals",
+  align = "lrr",
+  row.names = FALSE
+) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "350px")
+```
+
+### Calibration curves - examples
+
 ```{r}
 #| purl: true
-concn_se <- qc_steps$calibration[[DATA_ID]][["concn_se with conc"]]
 # Table of the samples to show with the calibration curve
-to_show_se <- concn_se[i_9feature_to_show, ]
+to_show_se <- concn_se[i_9chemical_to_show, ]
 # Models to be used for the calibration curve
 cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
 ```
@@ -151,34 +200,34 @@ After the computation, the following steps are applied to the data:
 * Any negative concentration is adjusted to zero.
 * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
 * Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
-* Any feature with values below LLOQ in all samples is removed from the data.
+* Any chemical with values below LLOQ in all samples is removed from the data.
 
-### All measurement samples
+#### All measurement samples
 
-The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each feature.
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
-#### Linear scale
+##### Linear scale
 
 ```{r}
 #| label: 'calibration-curve-with-samples'
 #| fig-width: 12
 #| fig-height: 11
 show$ggplot_calcurve_samples_facet(to_show_se,
-                                   calcurve_se,
+                                   calcurve9_se,
                                    cc_models,
                                    DATA_ID,
                                    COLORS_OF_CLASSES) +
   labs(y = "Peak area (Normalized)")
 ```
 
-#### Log scale
+##### Log scale
 
 ```{r}
 #| label: 'calibration-curve-with-samples-log'
 #| fig-width: 12
 #| fig-height: 11
 show$ggplot_calcurve_samples_facet(to_show_se,
-                                   calcurve_se,
+                                   calcurve9_se,
                                    cc_models,
                                    DATA_ID,
                                    COLORS_OF_CLASSES) +
@@ -186,7 +235,7 @@ show$ggplot_calcurve_samples_facet(to_show_se,
   scale_y_log10()
 ```
 
-### All except `QC` samples
+#### All except `QC` samples
 
 ```{r}
 classes_excl_qc_blank <- local({
@@ -197,9 +246,9 @@ classes_excl_qc_blank <- local({
 The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.
 
 The best model name is displayed at the bottom right corner of each plot.
-The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each feature.
+The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
-#### Linear scale
+##### Linear scale
 
 ```{r}
 #| label: 'calibration-curve-with-normsample'
@@ -207,7 +256,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-height: 11
 
 # Table for the selected calibration curve models
-models_to_show_tbl <- purrr::imap_dfr(calcurve_models[i_9feature_to_show], \(m, feature_id) {
+models_to_show_tbl <- purrr::imap_dfr(calcurve_models[i_9chemical_to_show], \(m, feature_id) {
   tibble::tibble(
     feature_id = feature_id,
     best_model_name = m$best_model_name,
@@ -226,29 +275,29 @@ geom_best_model_name <- geom_text(         # Display the best model name
 )
 
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
+  show$ggplot_calcurve_samples_facet(calcurve9_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
   geom_best_model_name
 ```
 
-#### Log scale
+##### Log scale
 
 ```{r}
 #| label: 'calibration-curve-with-normsample-log'
 #| fig-width: 12
 #| fig-height: 11
 to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
+  show$ggplot_calcurve_samples_facet(calcurve9_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
   geom_best_model_name +
   scale_x_log10() +
   scale_y_log10()
 ```
 
-## Remove the features with no measurement samples
+## Remove the chemicals with no measurement samples
 
 ```{r}
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
 ```
 
-If all values of non-QC samples are below LLOQ, the feature is removed from the data.
-After the removal, the number of remaining features is `r nrow(concn_se)`.
+If all values of non-QC samples are below LLOQ, the chemical is removed from the data.
+After the removal, the number of remaining chemicals is `r nrow(concn_se)`.
 

@@ -24,7 +24,7 @@ The number of features with lower RSD after each normalization is counted below.
 
 ```{r}
 #| label: 'rsd-comparison-count'
-#| output: true
+#| results: 'markup'
 # Count the number of features with lower RSD
 df_to_show |> 
   janitor::tabyl(QC, sign)
