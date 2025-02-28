@@ -173,7 +173,7 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
     
     c_concs <- SumExp::col_df(calcurve_se)$c_conc   # Available concentrations
     limit_df <- proc$identify_limts_in_calibrations(    # Meaningful min and max
-      cc_se = calcurve_se, quant_se, mat_id, c_concs
+      cc_se = calcurve_se, concn_se, mat_id, c_concs
     )
     SumExp::row_df(calcurve_se) <- cbind(SumExp::row_df(calcurve_se), limit_df)
     SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), limit_df)
