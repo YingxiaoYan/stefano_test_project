@@ -280,3 +280,79 @@ ggplot_calcurve_samples_facet <- function(x_se,
   ggplot_calcurve_samples(x_se, cc_se, cc_models, mat_id, colors_of_classes) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }
+
+
+#' ggproto for zooming in by the calibration curve
+CoordZoomInByCC <- ggplot2::ggproto(
+  "CoordZoomInByCC", ggplot2::CoordCartesian, 
+  # Data for calibration points. Matched with `ggplot_calcurve_samples`
+  i_data = 3,
+  n_cc = 4,   # Number of calibration points
+  c_conc = "c_conc",       # Concentration column name
+  mat_id = NULL,           # Matrix ID column name
+  feat_id = ".row_id",     # Feature ID column name
+  facet_by = "feature_name",    # Facet by feature name
+  
+  # Set updated limits by the calibration points
+  setup_panel_params = function(self, scale_x, scale_y, params) {
+    # Iteratively run for each panel
+    self$panel_counter <- self$panel_counter + 1
+    df_cc <- self$df_cc
+    if (nrow(self$layout) > 1) {   # Multiple panels
+      f <- self$layout[[self$facet_by]][self$panel_counter]
+      df_cc <- df_cc[df_cc[[self$facet_by]] == f, , drop = FALSE]
+    }
+    xlim <- c(0, max(df_cc[[self$c_conc]], na.rm = TRUE))
+    ylim <- c(0, max(df_cc[[self$mat_id]], na.rm = TRUE))
+    # The same format as CoordCartesian$setup_panel_params
+    c(ggplot2:::view_scales_from_scale(scale_x, xlim, self$expand), 
+      ggplot2:::view_scales_from_scale(scale_y, ylim, self$expand))
+  },
+  
+  # Filter out the data above the upper-bound
+  setup_data = function(self, data, params) {
+    df_cc <- data[[self$i_data]]    # Data for calibration points
+    # Find upper-bound, which is the `n_cc`th lowest concentration
+    df_cc_range <- df_cc[, c(self$feat_id, self$c_conc)]
+    names(df_cc_range) <- c("feat_id", "c_conc")
+    df_cc_range <- dplyr::distinct(df_cc_range) |> 
+      dplyr::summarise(.ub = c_conc[order(c_conc)][self$n_cc], .by = feat_id)
+    # Filter out the concentration above the bound
+    df_cc <- dplyr::right_join(df_cc_range, df_cc, by = c(feat_id = self$feat_id)) |>
+      dplyr::filter(c_conc <= .ub) |> 
+      dplyr::select(-.ub)
+    # Save the filtered data and make it accessible to `setup_panel_params`
+    self$df_cc <- df_cc
+    data[[self$i_data]] <- df_cc
+    data
+  },
+
+  # Initialize the panel counter and save the layout for `setup_panel_params`
+  setup_layout = function(self, layout, params) {
+    self$panel_counter <- 0
+    self$layout <- layout
+    layout
+  }
+)
+
+#' Create a ggproto object for zooming in by the calibration curve points
+#'
+#' @param n_cc Number of calibration points to be presented
+#' @param mat_id Matrix ID column name
+#' @inheritParams ggplot2::coord_cartesian
+#' @export
+coord_zoom_in_by_cc <- function(n_cc = 4, 
+                                mat_id = NULL, 
+                                expand = TRUE, 
+                                default = FALSE, 
+                                clip = "on") {
+  ggplot2::ggproto(
+    NULL, CoordZoomInByCC, 
+    n_cc = n_cc,
+    mat_id = mat_id, 
+    expand = expand,
+    default = default,
+    clip = clip
+  )
+}
+

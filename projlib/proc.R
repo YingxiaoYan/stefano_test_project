@@ -7,7 +7,7 @@
 append_to_qc_steps <- function(..., file) {
   if (!file.exists(file)) stop("Run `initialize_qc_steps` first.")
   qc_steps <- readRDS(file)
-  dots <- list(...)
+  dots <- rlang::list2(...)
   nms <- names(dots)
   stopifnot(
     "Name of the intermediate data must be provided" = !any(sapply(nms, is.null)),
@@ -23,8 +23,35 @@ append_to_qc_steps <- function(..., file) {
 initialize_qc_steps <- function(file) {
   saveRDS(list(), file)
 }
+# Normalization using internal standards -------------------------------------------------
 
-# Clean ----------------------------------------------------------------------------------
+## Volumetric normalization -------------------
+
+#' Normalize the data by the volumetric internal standard
+#'
+#' @param se A [`SumExp`] object
+#' @param is_vIS A logical vector indicating the volumetric internal standard. Only one 
+#'   volumetric internal standard is allowed. The length of the vector should be the same as
+#'   the number of rows of `se`.
+#' @param mat_id The name of a matrix in `se` to be normalized
+#' @returns A [`SumExp`] object with the volumetric normalization. The normalized matrix is
+#'   added to the `se` with the name `vol_norm`.
+#' @export
+normalize_volumetric <- function(se, is_vIS, mat_id) {
+  stopifnot("Only one volumetric internal standard is allowed." = sum(is_vIS) == 1)
+  stopifnot(nrow(se) == length(is_vIS))
+  vIS_se <- se[is_vIS, ]
+  se <- se[!is_vIS, ]
+
+  v <- as.vector(vIS_se[[mat_id]])
+  mat <- t(replicate(nrow(se), v))  # Column-wise normalization
+  # <<---- Volumetric normalization ---->> #
+  se[["vol_norm"]] <- se[[mat_id]] / mat * mean(v, na.rm = TRUE)
+  labelled::label_attribute(se[["vol_norm"]]) <- "Volumetric normalized peak area"
+  se
+}
+
+## Clean ------------------
 
 #' Count zeros per feature
 #'
@@ -63,8 +90,6 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
   return(rowSums(outlying))     # Transposed by `apply` above
 }
 
-
-
 #' Get the values of the closest internal standard features
 #'
 #' @param se A [`SumExp`] object
@@ -83,7 +108,7 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
   return(out)
 }
 
-# Normalization --------------------------------------------------------------------------
+## Normalization models ------------------
 
 #' Get the LOESS fit model
 #'
@@ -137,6 +162,8 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
   names(loess_fit) <- colnames(fr_m_log)
   loess_fit
 }
+
+## Blank subtraction ------------------
 
 #' Subtract the average values of the blank samples from the samples
 #'

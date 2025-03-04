@@ -24,27 +24,22 @@ FILE <- rlang::list2(
 )
 # To store intermediate data during quality control steps. `append_to_qc_steps` will append
 proc$initialize_qc_steps(FILE$qc)
+append_to_qc_steps <- function(...) proc$append_to_qc_steps(..., file = FILE$qc)
 
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
 overall_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
 mat_id_for_norm <- "raw"  # `raw` or `vol_norm`
 cat("\nPreprocessing steps are started.\n")
+
 # Normalization using internal standards -------------------------------------------------
 
 # Volumetric normalization using volumetric internal standards (vIS)
 is_vIS <- SumExp::row_df(overall_sumexp)$std_type == "vIS"
-if (any(is_vIS)) {
-  stopifnot("Only one volumetric internal standard is allowed." = sum(is_vIS) == 1)
-  vol_internal_std_se <- overall_sumexp[is_vIS, ]
-  overall_sumexp <- overall_sumexp[!is_vIS, ]
-  
-  v <- as.vector(vol_internal_std_se[["raw"]])
-  mat <- t(replicate(nrow(overall_sumexp), v))  # Column-wise normalization
-  overall_sumexp[["vol_norm"]] <- overall_sumexp[["raw"]] / mat * mean(v, na.rm = TRUE)
-  labelled::label_attribute(overall_sumexp[["vol_norm"]]) <- "Volumetric Normalized" 
+if (any(is_vIS)) {      # This is optional
+  overall_sumexp <- proc$normalize_volumetric(overall_sumexp, is_vIS, "raw")
   mat_id_for_norm <- "vol_norm"  # `raw` or `vol_norm`
   # Store intermediate data during quality control steps
-  proc$append_to_qc_steps("volumetric internal std. raw" = vol_internal_std_se, file = FILE$qc)
+  append_to_qc_steps("volumetric internal std. raw" = overall_sumexp[is_vIS, ])
 } 
 
 # Extract internal standard features
@@ -56,18 +51,17 @@ internal_std_se <- local(
   }
 )
 # Store intermediate data during quality control steps
-proc$append_to_qc_steps("internal std. before norm" = internal_std_se, file = FILE$qc)
+append_to_qc_steps("internal std. before norm" = internal_std_se)
 
-# Outlier removal     ---------------
+## Outlier removal     ---------------
 # Number of outlying internal standard features per sample
 n_outlier <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, times = 3)
 n_feature <- nrow(internal_std_se)
 # Outlying samples
 is_outlier <- n_outlier > (0.2 * n_feature)
-proc$append_to_qc_steps(
+append_to_qc_steps(
   "internal std. number of outliers per sample" = n_outlier,
   "internal std. outlying samples" = is_outlier, 
-  file = FILE$qc
 )
 if (any(is_outlier)) {
   # Exclude the outlying samples
@@ -77,16 +71,16 @@ if (any(is_outlier)) {
   overall_sumexp <- overall_sumexp[, !is_outlier]
 }
 
-# Failed internal standards     ---------------
+## Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]])
 is_failed <- num_zeros > 0
-proc$append_to_qc_steps("internal std. failed IS" = is_failed, file = FILE$qc)
+append_to_qc_steps("internal std. failed IS" = is_failed)
 # Remove failed internal standard features
 internal_std_se <- internal_std_se[!is_failed, ]
 
 cat("Outliers and failed internal standards are removed.\n")
 
-# Normalize the data using closest internal standard features     ---------------
+## Normalize the data using closest internal standard features     ---------------
 closest_istd <- proc$get_value_of_closest_istd(
   se = overall_sumexp, 
   istd_se = internal_std_se, 
@@ -94,10 +88,10 @@ closest_istd <- proc$get_value_of_closest_istd(
   rt = "rt"
 )
 overall_sumexp[["closest_norm"]] <- (overall_sumexp[[mat_id_for_norm]] / closest_istd) |> 
-  labelled::set_variable_labels("Closest RT Normalized")
+  labelled::set_variable_labels("Closest RT normalized peak area")
 cat("Closest internal standard normalization is done.\n")
 
-# LOESS fit over RT normalization     ---------------
+## LOESS fit over RT normalization     ---------------
 overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)    # Fit for RT of all features
 excl_cat <- c("Blank", "CalCurve")
 
@@ -118,10 +112,10 @@ overall_sumexp[["loess_norm"]] <- sapply(
     exp(log(raw[, sample_id]) - norm_factor)     # Normalize in log scale
   }
 ) |> 
-  labelled::set_variable_labels("LOESS Normalized")
+  labelled::set_variable_labels("LOESS normalized peak area")
 cat("LOESS normalization is done.\n")
 
-# Blank subtraction     ---------------
+## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm")
 norm_blk_mat_ids <- paste0(norm_mat_ids, "_blk")
 overall_sumexp_before_blank <- overall_sumexp
@@ -133,14 +127,13 @@ overall_sumexp <- proc$subtract_blank_sumexp(
   out_mat_ids = norm_blk_mat_ids
 )
 
-proc$append_to_qc_steps(
+append_to_qc_steps(
   "excluded categories in normalization" = excl_cat, 
   "LOESS fit" = loess_fit,
   "normalized matrix ids" = norm_mat_ids,
   "normalized blank subtracted matrix ids" = norm_blk_mat_ids,
   "normalized" = overall_sumexp_before_blank, 
   "normalized - blank" = overall_sumexp, 
-  file = FILE$qc
 )
 cat("Blank subtraction is done.\n")
 
@@ -149,14 +142,15 @@ cat("Blank subtraction is done.\n")
 if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
   warning("NO CALIBRATION under non-target mode.")
 } else {
-  # Extract quantification standard data
+  # Limit to the samples to be calibrated (or quantified)
   quant_se <- overall_sumexp[quote(std_type == "Quant"), ]
   # Before excluding out-of-range calibration concentrations
   calcurve_se0 <- quant_se[, quote(contr_cat == "CalCurve")]
   stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
   
   # Per normalization method
-  per_norm_lst <- lapply(setNames(nm = norm_blk_mat_ids), \(mat_id) {
+  mat_ids_for_calib <- setNames(nm = norm_blk_mat_ids)    # Normalized and blank subtracted
+  per_norm_lst <- lapply(mat_ids_for_calib, \(mat_id) {
     # Store intermediate data during calibration. `append_to_qc_steps` takes too long to save
     interm_data <- list()
     
@@ -176,7 +170,7 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
       cc_se = calcurve_se, concn_se, mat_id, c_concs
     )
     SumExp::row_df(calcurve_se) <- cbind(SumExp::row_df(calcurve_se), limit_df)
-    SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), limit_df)
+    SumExp::row_df(concn_se)    <- cbind(SumExp::row_df(concn_se),    limit_df)
    
     # Exclude the features without the appropriate concentration range
     to_exclude <- with(
@@ -185,7 +179,7 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
     )
     interm_data[["calcurve conc ranges"]] <- cbind(limit_df, to_exclude)
     calcurve_se <- calcurve_se[! to_exclude, ]
-    concn_se <- concn_se[! to_exclude, ]
+    concn_se    <-    concn_se[! to_exclude, ]
     interm_data[["calcurve_se all range"]] <- calcurve_se
      
     # Replace the values outside the concentration range with NA
@@ -241,16 +235,13 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
     list("conc" = concn_se, "interm_data" = interm_data)
   })
   # Store the intermediate data as a list
-  proc$append_to_qc_steps(
-    "calibration" = lapply(per_norm_lst, \(.x) .x$interm_data), 
-    file = FILE$qc
-  )
+  append_to_qc_steps("calibration" = lapply(per_norm_lst, \(.x) .x$interm_data))
   
   # Save the processed data
   saveRDS(lapply(per_norm_lst, \(.x) .x$conc), file = FILE$proc)
   cat("The `SumExp` object after preprocessing saved to:", FILE$proc, "\n")
 }
 # Mark the preprocessing step as completed
-proc$append_to_qc_steps("Preprocessing Completed" = TRUE, file = FILE$qc)
+append_to_qc_steps("Preprocessing Completed" = TRUE)
 cat("The intermediate objects during preprocessing saved to:", FILE$qc, "\n")
 

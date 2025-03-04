@@ -258,11 +258,12 @@ for(chem_i in CHEMICAL_IDS) {
                                      mat_id = DATA_ID,
                                      COLORS_OF_CLASSES) + 
     labs(
-      title = "Linear scale",
+      title = "Full range",
       y = "Peak area (Normalized)"
     )
-  p2 <- p1 + scale_x_log10() + scale_y_log10() + 
-    labs(title = "Log10 scale")
+  p2 <- p1 + 
+    show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID) +
+    labs(title = "Zoom-in (3 cal. pts.")
   # Distirbution of the concentration by class
   x_df <- SumExp::as_tibble(x_se)
   p3 <- ggplot(x_df) +
