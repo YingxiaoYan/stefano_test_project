@@ -52,7 +52,7 @@ io$check_io_exist(FILE)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
-calib_interm_data <- qc_steps$calibration[[DATA_ID]]
+calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports

@@ -81,7 +81,8 @@ sample_info <- sample_info |>
   dplyr::mutate(
     # Control sample categories
     contr_cat = dplyr::case_when(
-      sample_type == "Standard" & Class == "CalCurve" ~ "CalCurve",
+      sample_type == "Standard" & 
+        stringr::str_detect(sample_name, "Cal_[[:digit:]-]") ~ "CalCurve",
       sample_type == "QC"    ~ "QC",
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
@@ -106,15 +107,14 @@ if (is_non_target_mode) {
       as.numeric()
   }
   # Known concentration of calibration curves, which have been saved into the `sample_info`
-  sample_info <- sample_info |> 
-    dplyr::mutate(
-      c_conc = ifelse(contr_cat == "CalCurve", catch_concentration(sample_name), NA_real_) |> 
-        labelled::set_label_attribute("Known Concentration"),
-    )
-  cc_conc <- sample_info$c_conc[sample_info$contr_cat == "CalCurve"]
+  nm <- msdial$CALCURVE_CONCENTRATION_COLNAME
+  sample_info[[nm]] <- ifelse(sample_info$contr_cat == "CalCurve", 
+                              catch_concentration(sample_info$sample_name), 
+                              NA_real_) |> 
+    labelled::set_label_attribute("Known Concentration"),
+  cc_conc <- sample_info[[nm]][sample_info$contr_cat == "CalCurve"]
   stopifnot(
     "Error in Calibration sample IDs" = all(!is.na(cc_conc)), 
-    "`Cal_0` samples are required." = any(cc_conc == 0),
     "Multiple curve samples per concentration are required." = all(table(cc_conc) > 1)
   )
 }

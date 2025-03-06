@@ -145,6 +145,7 @@ Those zeros were kept as zeros in the normalized data.
 #### Evaluation of normalization
 
 The normalized data are evaluated by the changes of relative standard deviation (RSD) of the quantification standard features of the QC samples.
+
 ```{r}
 #| label: 'rsd-eval'
 #| out-width: '80%'

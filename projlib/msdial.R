@@ -5,6 +5,7 @@
 #' @param userin A list of user input 
 #' @param ... The required parameters in a character vector
 #'
+#' @md
 #' @return TRUE if all required inputs are provided
 .stop_unless_has_required_inputs <- function(userin, ...) {
   for (p in c(...)) {
@@ -37,6 +38,7 @@ box::use(io = ./check_io_exist)
 #'   stages, such as raw and processed data.
 #'
 #' @return A text string of the file name
+#' @md
 #' @export
 get_raw_data_file_name <- function(user_inputs, suffix = '') {
   .stop_unless_has_required_inputs(user_inputs, "input_file", "intermediate_dir")
@@ -52,7 +54,8 @@ get_raw_data_file_name <- function(user_inputs, suffix = '') {
 #'
 #' @param user_inputs A list of user inputs including `input_file` and `intermediate_dir`.
 #'
-#' @return A SumExp object
+#' @return A [`SumExp::SumExp`] object
+#' @md
 #' @export
 read_parsed_msdial_data <- function(user_inputs) {
   sumexp_file <- get_raw_data_file_name(user_inputs, suffix = '')
@@ -103,6 +106,7 @@ get_three_section_indices <- function(msdial_file) {
 #'   provided, the 2nd section identified by `get_three_section_indices` will be used.
 #' 
 #' @return A data frame with sample information
+#' @md
 #' @export
 fetch_sample_info <- function(msdial_file, indices) {
   if (missing(indices)) indices <- get_three_section_indices(msdial_file)[["2nd"]]
@@ -147,6 +151,10 @@ fetch_sample_info <- function(msdial_file, indices) {
     )
   sinfo
 }
+
+#' The column name that contains the spiked concentrations of the calibration curve samples
+#' @export
+CALCURVE_CONCENTRATION_COLNAME <- "c_conc"
 
 #' Fetch data of the selected columns of a MS-DIAL output file
 #' 
@@ -214,11 +222,12 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
 
 #' Export data with the feature table to a tab-separated file
 #'
-#' @param sumexp A SumExp object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @param mat_id The name of the data in `sumexp` (or assay) to be exported
 #' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
 #'   Unsaved feature information will be copied from this file.
 #' @param out_file Path to the output tab-separated file
+#' @md
 #' @export
 export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
   # Prepare the feature table
@@ -244,8 +253,9 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
 
 #' Export the concentration table
 #'
-#' @param sumexp A SumExp object to be exported
+#' @param sumexp A [`SumExp::SumExp`] object to be exported
 #' @param file Path to the output tab-separated file
+#' @md
 #' @export
 export_concentration_tsv <- function(sumexp, file) {
   methods::validObject(sumexp)     # Check consistency between elements, eg row_df, col_df, conc

@@ -40,7 +40,7 @@ As quite a few concentration points in the calibration curve samples of a chemic
 When there are sufficient number (≥ 5) of concentration points, that concentrations that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
 
 If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
-As a result, `r english::Words(sum(limit_df$to_exclude))` chemicals have been excluded from the calibration.
+As a result, `r english::Words(sum(!limit_df$has_proper_range))` chemicals have been excluded from the calibration.
 
 The concentration range for each chemical is detailed below.
 
@@ -52,7 +52,7 @@ show_df <- limit_df |>
   dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
   dplyr::mutate(
     Note = dplyr::case_when(
-      to_exclude ~ "Excluded", 
+      !has_proper_range ~ "Excluded", 
       TRUE ~ ""
     ),
     non_zero_conc = scales::number(non_zero_conc),

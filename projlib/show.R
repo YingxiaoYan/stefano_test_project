@@ -7,7 +7,7 @@
 
 #' Extract QC samples into list
 #'
-#' @param se A [`SumExp`] object
+#' @param se A [`SumExp::SumExp`] object
 #'
 #' @return A list of SumExp objects divided by QC Classes
 #' @export
@@ -20,7 +20,7 @@ extract_qc_samples_to_list <- function(se) {
 
 #' Extract quantitative standards in QC samples
 #'
-#' @param sumexp A [`SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @return A list of SumExp objects with quantitative standards in QC samples
 #' @export
 extract_quant_qc <- function(sumexp) {
@@ -103,7 +103,7 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
 
 #' Get the colors of classes
 #'
-#' @param sumexp A [`SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @param color_cat A named character vector of colors for each control category
 #'
 #' @return A named character vector of colors for each class
@@ -208,12 +208,12 @@ ggplot_calcurve_samples <- function(x_se, cc_se, cc_models, mat_id, colors_of_cl
     feature_id_name <- tibble::rownames_to_column(lim_df, "feature_id")
     feature_ids <- stats::setNames(nm = feature_ids)
     conc_df <- sapply(feature_ids, \(feature_id) {
-      lims <- lim_df[feature_id, ]
+      lims <- lim_df[feature_id, , drop = TRUE]
       lloq <- lims$lloq
       max_c_conc <- lims$max_c_conc
       sort(c(
-        seq(lloq, max_c_conc, length.out = 100),             # Linear scale
-        exp(seq(log(lloq), log(max_c_conc), length.out = 100))[-c(1, 100)]   # Log scale
+        seq(lloq, max_c_conc, length.out = 100),
+        seq(lloq, min(lloq * 10, max_c_conc), length.out = 100)[-c(1, 100)]   # Zoom-in
       ))
     }) |> 
       as.data.frame() |> 

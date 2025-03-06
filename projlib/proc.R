@@ -3,6 +3,7 @@
 #' @param name A character string for the name of the intermediate data
 #' @param data The data to be stored with the `name`
 #' @param file A file name to store the intermediate data
+#' @md
 #' @export
 append_to_qc_steps <- function(..., file) {
   if (!file.exists(file)) stop("Run `initialize_qc_steps` first.")
@@ -23,19 +24,30 @@ append_to_qc_steps <- function(..., file) {
 initialize_qc_steps <- function(file) {
   saveRDS(list(), file)
 }
+
+#' Stop without showing error messages
+#'
+#' @export
+stop_quietly <- function() {
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop()
+}
+
 # Normalization using internal standards -------------------------------------------------
 
 ## Volumetric normalization -------------------
 
 #' Normalize the data by the volumetric internal standard
 #'
-#' @param se A [`SumExp`] object
+#' @param se A [`SumExp::SumExp`] object
 #' @param is_vIS A logical vector indicating the volumetric internal standard. Only one 
 #'   volumetric internal standard is allowed. The length of the vector should be the same as
 #'   the number of rows of `se`.
 #' @param mat_id The name of a matrix in `se` to be normalized
-#' @returns A [`SumExp`] object with the volumetric normalization. The normalized matrix is
-#'   added to the `se` with the name `vol_norm`.
+#' @returns A [`SumExp::SumExp`] object with the volumetric normalization. The normalized
+#'   matrix is added to the `se` with the name `vol_norm`.
+#' @md
 #' @export
 normalize_volumetric <- function(se, is_vIS, mat_id) {
   stopifnot("Only one volumetric internal standard is allowed." = sum(is_vIS) == 1)
@@ -51,7 +63,7 @@ normalize_volumetric <- function(se, is_vIS, mat_id) {
   se
 }
 
-## Clean ------------------
+## Data cleaning ------------------
 
 #' Count zeros per feature
 #'
@@ -78,10 +90,11 @@ identify_outliers <- function(x, times = 3) {
 
 #' Count outlying internal standard features per sample 
 #'
-#' @param se A [`SumExp`] object
+#' @param se A [`SumExp::SumExp`] object
 #' @param mat_id The name of a matrix in `se`
 #' @param times A numeric value for the threshold. mean +/- times * sd
 #' @returns A numeric vector of the number of outlying internal standard features per sample
+#' @md
 #' @export
 count_outliers_per_sample <- function(se, mat_id, times = 3) {
   x <- se[[mat_id]]
@@ -90,13 +103,16 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
   return(rowSums(outlying))     # Transposed by `apply` above
 }
 
+## Normalization methods ------------------
+
 #' Get the values of the closest internal standard features
 #'
-#' @param se A [`SumExp`] object
-#' @param istd_se A [`SumExp`] object of internal standard features
+#' @param se A [`SumExp::SumExp`] object
+#' @param istd_se A [`SumExp::SumExp`] object of internal standard features
 #' @param mat_id The name of a matrix in `se` 
 #' @param rt The name of the retention time column 
 #' @returns A numeric matrix of the values of the closest internal standard features
+#' @md
 #' @export
 get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
   rt_x <- SumExp::row_df(se)[[rt]]
@@ -108,11 +124,9 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
   return(out)
 }
 
-## Normalization models ------------------
-
 #' Get the LOESS fit model
 #'
-#' @param istd_se A [`SumExp`] object of internal standard features
+#' @param istd_se A [`SumExp::SumExp`] object of internal standard features
 #' @param excl_cat A character vector of the categories to exclude
 #' @param overall_rt_range A numeric vector of the overall retention time range, to which the
 #'   model is expanded
@@ -121,6 +135,7 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
 #' @param rt The name of the retention time column
 #'
 #' @returns A list of the LOESS fit models
+#' @md
 #' @export
 get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt = "rt") {
   # Log-transform the data
@@ -167,7 +182,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
 
 #' Subtract the average values of the blank samples from the samples
 #'
-#' @param x_se A [`SumExp`] object of the samples
+#' @param x_se A [`SumExp::SumExp`] object of the samples
 #' @param condition_blank A condition to select the blank samples. Evaluated in the context of
 #'   the columns of `x_se`
 #' @param condition_no_change A condition to select the samples that should not be changed.
@@ -175,8 +190,9 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
 #' @param out_mat_ids The names of the output matrices in the returned object. These should be
 #'   the same size as `mat_ids` in the same order.
 #'
-#' @returns A [`SumExp`] object with the blank values subtracted. The columns of the blanks are
-#'   removed from the `x_se`.
+#' @returns A [`SumExp::SumExp`] object with the blank values subtracted. The columns of the
+#'   blanks are removed from the `x_se`.
+#' @md
 #' @export
 subtract_blank_sumexp <- function(x_se, 
                                   condition_blank, 
@@ -188,17 +204,22 @@ subtract_blank_sumexp <- function(x_se,
   is_no_chg <- eval(substitute(condition_no_change), SumExp::col_df(x_se), parent.frame())
   blank_se <- x_se[, is_blank]
   x_se <- x_se[, !is_blank]
-  is_no_chg <- is_no_chg[!is_blank]     # Used with updated `x_se`
+  # Used with updated `x_se`
+  is_no_chg <- is_no_chg[!is_blank]
   for(ii in seq(mat_ids)) {      # Paired `mat_ids` and `out_mat_ids`
     mat_id <- mat_ids[ii]
     x_mat <- x_se[[mat_id]]
     x_lab <- labelled::get_label_attribute(x_mat)
-    blank_mean <- rowMeans(blank_se[[mat_id]])      # Mean per feature
+    # Mean per feature
+    blank_mean <- rowMeans(blank_se[[mat_id]])
     # Blank means are saved in the row_df of x_se with this name
     r_nm <- paste0(mat_id, "_blank_mean")
     SumExp::row_df(x_se)[[r_nm]] <- blank_mean |> 
       labelled::set_label_attribute(paste("Blank mean of", x_lab))
-    mat_subt <- x_mat - blank_mean      # <<---- Subtract the blank average
+    
+    # <<---- Subtract by blank average ---->> #
+    mat_subt <- x_mat - blank_mean
+    
     mat_subt[mat_subt < 0] <- 0
     mat_subt[, is_no_chg] <- x_mat[, is_no_chg]
     x_se[[ out_mat_ids[ii] ]] <- mat_subt |> 
@@ -207,9 +228,18 @@ subtract_blank_sumexp <- function(x_se,
   x_se
 }
 
-
-
 # Calibration ----------------------------------------------------------------------------
+
+#' Get the calibration curve concentrations
+#' 
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples
+#' @returns A numeric vector of the concentrations of the calibration curve samples
+#' @md
+#' @export
+get_calcurve_concentrations <- function(cc_se) {
+  box::use(./msdial[CALCURVE_CONCENTRATION_COLNAME])
+  SumExp::col_df(cc_se)[[CALCURVE_CONCENTRATION_COLNAME]]
+}
 
 #' Split a matrix column-wise by the values
 #'
@@ -219,6 +249,7 @@ subtract_blank_sumexp <- function(x_se,
 #'
 #' @returns A list of matrices split by the values column-wise. The list is sorted by the
 #'   values.
+#' @md
 #' @export
 split_column_and_sort_by <- function(x, value) {
   stopifnot(length(value) == ncol(x))
@@ -244,6 +275,7 @@ split_column_and_sort_by <- function(x, value) {
 #' \dontrun{
 #' get_min_value_satisfy_cond(c(1:3) > 1, c(5, 3, 9))        # Error because not sorted
 #' }
+#' @md
 get_min_value_satisfy_cond <- function(cond, values = names(cond), shift = 0) {
   values <- as.numeric(values)
   stopifnot("`values` are not sorted" = identical(sort(values), values))   # Already sorted 
@@ -305,6 +337,7 @@ idenfity_min_signif_diff_conc <- function(cc_lst, non_zero) {
 #'   the vector should be the same as the number of rows of the matrices in `cc_lst`.
 #'
 #' @returns A numeric vector of the minimum concentrations that satisfy the conditions.
+#' @md
 identify_min_conc_for_curve <- function(cc_lst, non_zero_conc) {
   # The minimum concentration having significant difference from the non-zero concentration
   sg_diff_conc <- idenfity_min_signif_diff_conc(cc_lst, non_zero_conc)
@@ -320,19 +353,20 @@ identify_min_conc_for_curve <- function(cc_lst, non_zero_conc) {
 
 #' Identify the maximum concentration point of the calibration samples
 #'
-#' @param cc_se A [`SumExp`] object of the calibration samples
-#' @param q_se A [`SumExp`] object of the samples to be calibrated
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration samples
+#' @param q_se A [`SumExp::SumExp`] object of the samples to be calibrated
 #' @param mat_id The name of a matrix in `cc_se` and `q_se`
 #' @param times A numeric value to multiply the maximum peak area of the samples for
 #'   measurement to get a margin for the maximum concentration
-#' @param conc A numeric vector of the concentrations of the calibration samples.
 #'
 #' @returns A numeric vector of the maximum concentration of the calibration samples. 
 #'   If all values of `q_se` are zero for a feature, the maximum concentration is zero. The
 #'   names of the returned vector are the features. They are the same as the rownames of
 #'   `cc_se`.
-identify_max_conc_for_curve <- function(cc_se, q_se, mat_id, times, conc) {
-  stopifnot(length(conc) == ncol(cc_se))
+#' @md
+identify_max_conc_for_curve <- function(cc_se, q_se, mat_id, times) {
+  # Concentrations of the curve samples
+  conc <- get_calcurve_concentrations(cc_se)
   stopifnot("Not identical features" = identical(rownames(q_se), rownames(cc_se)))
   # Find maximum peak area of the samples of the classes for measurement
   max_in_q_se <- apply(q_se[[mat_id]], 1, max, na.rm = TRUE)
@@ -361,6 +395,7 @@ identify_max_conc_for_curve <- function(cc_se, q_se, mat_id, times, conc) {
 #' @returns A numeric vector of the maximum concentrations that provide enough number of spiked
 #'   concentrations. The names are the same as the input vectors `max_conc`. If the number of
 #'   concentrations is less than `min_n`, the maximum concentration is set to `NA`
+#' @md
 make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc, min_n = 3, enough_n = 5) {
   uniq_conc <- sort(unique(conc))
   n_uniq_conc <- length(uniq_conc)
@@ -380,23 +415,32 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc, min_n = 
   out
 }
 
-#' Identify the limits in the calibration curve
+#' Limits in the calibration curve
 #'
-#' @param cc_se A [`SumExp`] object of the calibration curve samples
-#' @param quant_se A [`SumExp`] object of the quantification samples
+#' @name calibration_limit_pts
+#' 
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples
+#' @param quant_se A [`SumExp::SumExp`] object of the quantification samples
 #' @param mat_id The name of a matrix in `cc_se`, `cc_0_se`, and `quant_se` to use
-#' @param conc A vector of concentrations of the calibration curve samples
-#'
-#' @returns A data frame with the limits. The row names are the names of the calibration curve
+#' @md
+NULL
+#' @rdname calibration_limit_pts
+#' @aliases find_calibration_limit_pts
+#' @returns **`find_calibration_limit_pts`** & **`extract_calibration_limit_pts`** :
+#' 
+#'   A data frame with the limits. The row names are the names of the calibration curve
 #'   samples. The columns are `non_zero_conc`, `min_c_conc` and `max_c_conc` for the lowest
 #'   non-zero concentration, the lower and upper limits of the calibration curve, respectively.
 #'   Some values in the columns are set to have the following meanings:
-#'   min_c_conc = NA : No valid concentration even at the top of the calibration curve
-#'   max_c_conc = 0 : All concentrations are zero
-#'   max_c_conc = -9 : No valid maximum concentration
-#'   max_c_conc = NA : Not enough calibration curve samples to make a calibration curve
+#'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
+#'   * `max_c_conc` = 0 : All concentrations are zero
+#'   * `max_c_conc` = -9 : No valid maximum concentration
+#'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
+#' @md
 #' @export
-identify_limts_in_calibrations <- function(cc_se, quant_se, mat_id, conc) {
+find_calibration_limit_pts <- function(cc_se, quant_se, mat_id) {
+  # Concentrations of the curve samples
+  conc <- get_calcurve_concentrations(cc_se)
   mat <- cc_se[[mat_id]]
   # Split the matrix by the concentrations
   cc_lst <- split_column_and_sort_by(mat, conc)
@@ -406,7 +450,7 @@ identify_limts_in_calibrations <- function(cc_se, quant_se, mat_id, conc) {
   min_c_conc <- identify_min_conc_for_curve(cc_lst, non_zero_conc)
   # Calibration curve concentration upper limit
   quant_se <- quant_se[, quote(! contr_cat %in% c("QC"))]
-  max_c_conc <- identify_max_conc_for_curve(cc_se, quant_se, mat_id, times = 10, conc) |>
+  max_c_conc <- identify_max_conc_for_curve(cc_se, quant_se, mat_id, times = 10) |>
     make_sure_to_have_enough_calcurve(min_c_conc, conc, min_n = 3, enough_n = 5)
   
   stopifnot(identical(names(min_c_conc), names(max_c_conc)))
@@ -414,33 +458,164 @@ identify_limts_in_calibrations <- function(cc_se, quant_se, mat_id, conc) {
   stopifnot(identical(rownames(out), rownames(cc_se)))
   out
 }
+#' @description
+#'   **`extract_calibration_limit_pts`**: 
+#'   Extract the calibration curve limits from the output of [add_calibration_curve_limits()]
+#' @rdname calibration_limit_pts
+#' @aliases extract_calibration_limit_pts
+#' @md
+#' @export
+extract_calibration_limit_pts <- function(cc_se) {
+  SumExp::row_df(cc_se)[, c("non_zero_conc", "min_c_conc", "max_c_conc")]
+}
+#' @description
+#'   **`get_calibration_nonzero_pts`**: 
+#'   Extract the lowest non-zero concentration from the output of 
+#'   [add_calibration_curve_limits()]
+#' @rdname calibration_limit_pts
+#' @aliases get_calibration_nonzero_pts
+#' @md
+#' @export
+get_calibration_nonzero_pts <- function(cc_se) {
+  SumExp::row_df(cc_se)[["non_zero_conc"]]
+}
+#' @description
+#'   **`get_calibration_min_pts`**: 
+#'   Extract the minimum limits from the output of [add_calibration_curve_limits()]
+#' @rdname calibration_limit_pts
+#' @aliases get_calibration_min_pts
+#' @md
+#' @export
+get_calibration_min_pts <- function(cc_se) {
+  SumExp::row_df(cc_se)[["min_c_conc"]]
+}
+#' @description
+#'   **`get_calibration_max_pts`**: 
+#'   Extract the maximum limits from the output of [add_calibration_curve_limits()]
+#' @rdname calibration_limit_pts
+#' @aliases get_calibration_max_pts
+#' @md
+#' @export
+get_calibration_max_pts <- function(cc_se) {
+  SumExp::row_df(cc_se)[["max_c_conc"]]
+}
+#' @rdname calibration_limit_pts
+#' @aliases add_calibration_limit_pts
+#' @returns **`add_calibration_curve_limits`**:
+#'   A [`SumExp::SumExp`] object with the calibration curve samples and the limits
+#' @md
+#' @export
+add_calibration_curve_limits <- function(cc_se, quant_se, mat_id) {
+  l_df <- find_calibration_limit_pts(cc_se, quant_se, mat_id)
+  SumExp::row_df(cc_se) <- cbind(SumExp::row_df(cc_se), l_df)
+  cc_se
+}
+
+#' Check if the calibration curve has a proper calibration range
+#'
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples. The object should
+#'   have the calibration curve limits added by [add_calibration_curve_limits()]
+#'
+#' @returns A logical vector
+#' @md
+#' @export
+has_proper_calibration_range <- function(cc_se) {
+  min_c_conc <- get_calibration_min_pts(cc_se)
+  max_c_conc <- get_calibration_max_pts(cc_se)
+  # No valid concentration even at the top of the calibration curve
+  no_valid_conc <- is.na(min_c_conc)
+  # All concentrations are zero
+  all_zero <- max_c_conc == 0
+  # No valid maximum concentration
+  no_max_conc <- max_c_conc == -9
+  # Not enough calibration curve samples to make a calibration curve
+  not_enough <- is.na(max_c_conc)
+  !(no_valid_conc | all_zero | no_max_conc | not_enough)
+}
+
 
 #' Replace the values outside the concentration range with NA
 #'
-#' @param cc_mat A matrix of the calibration curve values
-#' @param conc A vector of concentrations of the calibration curve samples
-#' @param min_conc,max_conc A vector of minimum and maximum concentrations
+#' @param x [`SumExp::SumExp`] object or a matrix of the calibration curve samples
+#' @param ... Additional arguments. Not used. 
+#' @param mat_id The name of a matrix in `x` when `x` is a [`SumExp::SumExp`] object
+#' @param conc A vector of concentrations of the calibration curve samples (`matrix`) 
+#' @param min_conc,max_conc A vector of minimum and maximum valid concentrations (`matrix`)
 #'
-#' @returns A matrix with the values outside the concentration range replaced with NA
+#' @returns An object of the same class as `x` with the values outside the concentration range
+#'   replaced with NA
+#' @md
 #' @export
-replace_outside_concentration_range_with_na <- function(cc_mat, conc, min_conc, max_conc) {
-  stopifnot(
-    length(conc) == ncol(cc_mat),
-    length(min_conc) == nrow(cc_mat),
-    length(max_conc) == nrow(cc_mat)
+replace_outside_concentration_range_with_na <- function(x, ...) {
+  UseMethod("replace_outside_concentration_range_with_na")
+}
+#' @rdname replace_outside_concentration_range_with_na
+#' @method replace_outside_concentration_range_with_na SumExp
+#' @export
+replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
+  x[[mat_id]] <- replace_outside_concentration_range_with_na.matrix(
+    x = x[[mat_id]], 
+    conc = get_calcurve_concentrations(x),
+    min_conc = get_calibration_min_pts(x),
+    max_conc = get_calibration_max_pts(x)
   )
-  # Concentration values in a matrix, rows are features and columns are concentrations
-  conc_mat <- matrix(rep(conc, each = nrow(cc_mat)), nrow = nrow(cc_mat))
-  to_na <- conc_mat < min_conc | conc_mat > max_conc
-  cc_mat[to_na] <- NA_real_
-  cc_mat
+  x
+}
+#' @rdname replace_outside_concentration_range_with_na
+#' @method replace_outside_concentration_range_with_na matrix
+#' @export
+replace_outside_concentration_range_with_na.matrix <- 
+  function(x, conc, min_conc, max_conc) {
+    stopifnot(
+      length(conc) == ncol(x),
+      length(min_conc) == nrow(x),
+      length(max_conc) == nrow(x)
+    )
+    # Concentration values in a matrix, rows are features and columns are concentrations
+    conc_mat <- matrix(rep(conc, each = nrow(x)), nrow = nrow(x))
+    to_na <- conc_mat < min_conc | conc_mat > max_conc
+    x[to_na] <- NA_real_
+    x
+  }
+
+#' Get the signals of the calibration curve samples at the minimum valid concentration
+#' 
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples.
+#' @param mat_id The name of a matrix in `cc_se`
+#' 
+#' @returns A list of numeric vectors of the signals of the calibration curve samples at the
+#'   minimum valid concentration
+#' @md
+#' @export
+get_signals_of_calibration_nonzero_pts <- function(cc_se, mat_id) {
+  cc_mat <- cc_se[[mat_id]]
+  nonzero <- get_calibration_nonzero_pts(cc_se)
+  cc_conc <- get_calcurve_concentrations(cc_se)
+  stats::setNames(1:nrow(cc_se), nm = rownames(cc_se)) |>  # Through the rows
+    lapply(function(i) cc_mat[i, cc_conc == nonzero[i]])
+}
+
+#' Compute the LLO(Q/D) in signal
+#'
+#' @param v A numeric vector of the signal values of the samples that represent noise level. 
+#' @param times Multiplication factor to the standard deviation. Common values are 3 and 10 for
+#'   LLOD and LLOQ, respectively.
+#' @returns A numeric value of the LLO(Q/D) in signal. The LLO(Q/D) is calculated as the mean of
+#'   the signal values plus the standard deviation multiplied by `times`. 
+#' @md
+#' @export
+compute_llox_signal <- function(v, times) {
+  s <- stats::sd(v, na.rm = TRUE)
+  m <- mean(v, na.rm = TRUE)
+  # Calculate the LLOx in signal
+  s * times + m
 }
 
 
 #' Fit and test calibration curve models
 #'
 #' @param conc A vector of concentrations
-#' @param value A vector of signal values
+#' @param signal A vector of signal values
 #' @param penalty_quadratic The penalty for the quadratic models
 #'
 #' @returns A list with the best model, the name of it, the R2 values of all models, and the
@@ -448,14 +623,15 @@ replace_outside_concentration_range_with_na <- function(cc_mat, conc, min_conc, 
 #'   after applying the penalty to quadratic models. 
 #' @examples
 #' conc <- rep(c(0.1, 0.2, 0.5, 1, 2), 3)
-#' value <- conc * 5 + rnorm(length(conc))
-#' fit_and_test_calcurve_model(conc, value)
+#' signal <- conc * 5 + rnorm(length(conc))
+#' fit_and_test_calcurve_model(conc, signal)
 #' @name calcurve_model
+#' @md
 NULL
 #' @rdname calcurve_model
 #' @export
-fit_and_test_calcurve_model <- function(conc, value, penalty_quadratic = 0) {
-  if (all(is.na(value) | value == 0)) {
+fit_and_test_calcurve_model <- function(conc, signal, penalty_quadratic = 0) {
+  if (all(is.na(signal) | signal == 0)) {
     return(list(
       "best_model" = function(x) x,
       "R2s" = NA,
@@ -469,9 +645,9 @@ fit_and_test_calcurve_model <- function(conc, value, penalty_quadratic = 0) {
     "1/x2" = 1 / (conc ^ 2),
   )
   # Linear and quadratic models
-  lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, value, weights = w))
+  lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
   names(lmodels) <- paste("linear", names(lmodels), sep = "-")
-  qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, value, weights = w))
+  qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, signal, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
   models <- c(lmodels, qmodels)
   R2s <- sapply(models, \(x) summary(x$inv_mod)$r.squared)
@@ -485,14 +661,14 @@ fit_and_test_calcurve_model <- function(conc, value, penalty_quadratic = 0) {
     "best_model_name" = names(models)[i_best],
     "R2s" = R2s,
     "R2s_adj" = R2s_adj,
-    "n_conc" = length(unique(conc[!is.na(value)])),      # Number of unique concentrations
+    "n_conc" = length(unique(conc[!is.na(signal)])),      # Number of unique concentrations
     "inv_model" = models[[i_best]]$inv_mod,
   )
 }
 #' @param weights weights for linear model fit
 #' @rdname calcurve_model
-quadratic_calcurve_model <- function(conc, value, weights) {
-  lmfit <- stats::lm(value ~ conc + I(conc^2), weights = weights)
+quadratic_calcurve_model <- function(conc, signal, weights) {
+  lmfit <- stats::lm(signal ~ conc + I(conc^2), weights = weights)
   beta <- stats::coef(lmfit)
   a <- beta[["I(conc^2)"]]
   b <- beta[["conc"]]
@@ -507,8 +683,8 @@ quadratic_calcurve_model <- function(conc, value, weights) {
   list(model = model, inv_mod = lmfit)
 }
 #' @rdname calcurve_model
-linear_calcurve_model <- function(conc, value, weights) {
-  lmfit <- stats::lm(value ~ conc, weights = weights)
+linear_calcurve_model <- function(conc, signal, weights) {
+  lmfit <- stats::lm(signal ~ conc, weights = weights)
   beta <- stats::coef(lmfit)
   b1 <- beta[["conc"]]
   b0 <- beta[["(Intercept)"]]
@@ -528,6 +704,7 @@ linear_calcurve_model <- function(conc, value, weights) {
 #' @param times Multiplication factor to the mean of the peak area of the `min_conc`
 #'   concentration. Common values are 3 and 10 for LLOD and LLOQ, respectively. 
 #' @returns A numeric value of the LLO(Q/D)
+#' @md
 #' @export
 compute_llox <- function(v, conc, min_conc, calcurve_model, times) {
   stopifnot(length(conc) == length(v))       # Identical concentrations
@@ -550,12 +727,13 @@ compute_llox <- function(v, conc, min_conc, calcurve_model, times) {
 
 #' Compute the concentration of features
 #'
-#' @param x_se A [`SumExp`] object of the samples
-#' @param cc_se A [`SumExp`] object of the calibration samples
+#' @param x_se A [`SumExp::SumExp`] object of the samples
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration samples
 #' @param calcurve_models A list of calibration curve models
 #' @param mat_id The name of a matrix in `x_se`
 #'
 #' @returns A matrix of the concentration of features
+#' @md
 #' @export
 compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
   mat <- x_se[[mat_id]]
@@ -577,6 +755,7 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
 #'   have `lloq` and `llod`.
 #' 
 #' @returns A matrix with the values below the LLOQ and LLOD replaced
+#' @md
 #' @export
 replace_below_lloq_llod <- function(conc, limits) {
   stopifnot(nrow(conc) == nrow(limits))

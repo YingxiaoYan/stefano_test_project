@@ -42,7 +42,7 @@ io$check_io_exist(FILE)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
-calib_interm_data <- qc_steps$calibration[[DATA_ID]]
+calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports
@@ -163,10 +163,10 @@ table(sapply(calcurve_models, \(m) m$best_model_name))
 
 ### LLOD/LLOQ
 
-The lower limit of detection (LLOD) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by three and then dividing this product by the slope of the chosen calibration curve model. 
-In the case of a quadratic model, the slope is computed at the lower-limit point included in the calibration curve fitting.
+The lower limit of detection (LLOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
+The LLOD in terms of concentration is then derived using the chosen calibration curve model.
 
-Like the computation of LLOD, the lower limit of quantification (LLOQ) is calculated by multiplying the standard deviation of the signal of the lower-limit of concentration point of calibration curve by ten and then dividing this product by the slope of the chosen calibration curve model.
+In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LLOD determination.
 
 The LLOD and LLOQ of each chemical is presented below.
 

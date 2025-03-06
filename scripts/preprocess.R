@@ -139,109 +139,116 @@ cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
 
+#' Mark the expected preprocessing has been completed
+mark_completed <- function() {
+  append_to_qc_steps("Preprocessing Completed" = TRUE)
+  cat("The intermediate objects during preprocessing saved to:", FILE$qc, "\n")
+}
+# When the data is produced without any targets (no calibration points), skip calibration
 if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
   warning("NO CALIBRATION under non-target mode.")
-} else {
-  # Limit to the samples to be calibrated (or quantified)
-  quant_se <- overall_sumexp[quote(std_type == "Quant"), ]
-  # Before excluding out-of-range calibration concentrations
-  calcurve_se0 <- quant_se[, quote(contr_cat == "CalCurve")]
-  stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
-  
-  # Per normalization method
-  mat_ids_for_calib <- setNames(nm = norm_blk_mat_ids)    # Normalized and blank subtracted
-  per_norm_lst <- lapply(mat_ids_for_calib, \(mat_id) {
-    # Store intermediate data during calibration. `append_to_qc_steps` takes too long to save
-    interm_data <- list()
-    
-    # Data is divided into two parts.
-    # `calcurve_se` : calibration curve samples
-    # `concn_se` : samples to be calibrated
-    
-    calcurve_se <- calcurve_se0     # Keep the unmodified for the next normalized data
-    # Non-calcurve. `conc` will be added.
-    concn_se <- quant_se[, quote(! contr_cat %in% "CalCurve")]
-    # Non-calcurve doesn't have known concentration, which were all NAs. Removes the variable
-    SumExp::col_df(concn_se)$c_conc <- NULL
-    stopifnot(identical(rownames(calcurve_se), rownames(concn_se)))  # Identical features
-    
-    c_concs <- SumExp::col_df(calcurve_se)$c_conc   # Available concentrations
-    limit_df <- proc$identify_limts_in_calibrations(    # Meaningful min and max
-      cc_se = calcurve_se, concn_se, mat_id, c_concs
-    )
-    SumExp::row_df(calcurve_se) <- cbind(SumExp::row_df(calcurve_se), limit_df)
-    SumExp::row_df(concn_se)    <- cbind(SumExp::row_df(concn_se),    limit_df)
-   
-    # Exclude the features without the appropriate concentration range
-    to_exclude <- with(
-      limit_df, 
-      is.na(min_c_conc) | (max_c_conc == 0) | (max_c_conc == -9) | is.na(max_c_conc)
-    )
-    interm_data[["calcurve conc ranges"]] <- cbind(limit_df, to_exclude)
-    calcurve_se <- calcurve_se[! to_exclude, ]
-    concn_se    <-    concn_se[! to_exclude, ]
-    interm_data[["calcurve_se all range"]] <- calcurve_se
-     
-    # Replace the values outside the concentration range with NA
-    min_c <- SumExp::row_df(calcurve_se)$min_c_conc
-    max_c <- SumExp::row_df(calcurve_se)$max_c_conc
-    calcurve_se[[mat_id]] <- proc$replace_outside_concentration_range_with_na(
-      calcurve_se[[mat_id]], c_concs, min_c, max_c
-    )
-    interm_data[["calcurve_se within range"]] <- calcurve_se
-    
-    # Fit the calibration curve
-    rt_norm_mat <- calcurve_se[[mat_id]]
-    calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-      proc$fit_and_test_calcurve_model(c_concs, rt_norm_mat[ii, ], penalty_quadratic = 0.01)
-    })
-    interm_data[["calcurve_models"]] <- calcurve_models
-    
-    # Find the LLOQ and LLOD
-    llodq <- lapply(1:nrow(rt_norm_mat), \(ii) { 
-      compute_llox_times <- function(times) {
-        proc$compute_llox(rt_norm_mat[ii, ], c_concs, min_c[ii], calcurve_models[[ii]], times)
-      }
-      list(
-        rowname = rownames(rt_norm_mat)[ii],
-        llod = compute_llox_times(3), 
-        lloq = compute_llox_times(10)
-      )
-    })
-    llodq <- dplyr::bind_rows(llodq) |> 
-      tibble::column_to_rownames("rowname")
-    SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
-    
-    # Compute the concentration of the samples using the calibration curve
-    concn_se[["conc"]] <- proc$compute_concentration(
-      concn_se, calcurve_se, calcurve_models, mat_id
-    ) |> 
-      labelled::set_label_attribute(
-        paste0("Concentration [", user_inputs$concentration_unit, "]")
-      ) |> 
-      proc$replace_below_lloq_llod(llodq)
-    # Label for the normalized data. To label the output of this function
-    norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
-    labelled::label_attribute(concn_se) <- norm_lab
-    # Maximum/minimum concentration after trimming out of each feature
-    interm_data[["concn_se with conc"]] <- concn_se
-    
-    # Exclude the features with no quantification
-    non_qc_conc <- concn_se[, quote(! contr_cat %in% "QC")][["conc"]]
-    any_above_lloq <- non_qc_conc > llodq$lloq
-    concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
-    
-    cat("Calibration of", norm_lab, "data is done.\n")     # Progress message
-    list("conc" = concn_se, "interm_data" = interm_data)
-  })
-  # Store the intermediate data as a list
-  append_to_qc_steps("calibration" = lapply(per_norm_lst, \(.x) .x$interm_data))
-  
-  # Save the processed data
-  saveRDS(lapply(per_norm_lst, \(.x) .x$conc), file = FILE$proc)
-  cat("The `SumExp` object after preprocessing saved to:", FILE$proc, "\n")
-}
-# Mark the preprocessing step as completed
-append_to_qc_steps("Preprocessing Completed" = TRUE)
-cat("The intermediate objects during preprocessing saved to:", FILE$qc, "\n")
+  mark_completed()
+  proc$stop_quietly()
+} 
 
+# Limit to the samples to be calibrated (or quantified)
+quant_se <- overall_sumexp[quote(std_type == "Quant"), ]
+# Before excluding out-of-range calibration concentrations
+calcurve_se0 <- quant_se[, quote(contr_cat == "CalCurve")]
+stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
+
+# Per normalization method
+per_norm_lst <- list()       # Collect the output
+mat_ids_for_calib <- setNames(nm = norm_blk_mat_ids)
+for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
+  # Collect intermediate data during calibration.
+  # `append_to_qc_steps` takes too long to save
+  interm_data <- list()
+  
+  # Data is divided into two parts.
+  # `calcurve_se` : calibration curve samples
+  # `concn_se` : samples to be calibrated
+  
+  calcurve_se <- calcurve_se0     # Keep the unmodified for the next normalized data
+  # Non-calcurve. `conc` will be added.
+  concn_se <- quant_se[, quote(! contr_cat %in% "CalCurve")]
+  stopifnot(identical(rownames(calcurve_se), rownames(concn_se)))  # Identical features
+  
+  # Meaningful min and max calibration points
+  calcurve_se <- proc$add_calibration_curve_limits(calcurve_se, concn_se, mat_id)
+  limit_df <- proc$extract_calibration_limit_pts(calcurve_se)
+  SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), limit_df)   # Copy limits
+  
+  # Exclude the features having no appropriate concentration range
+  has_proper_range <- proc$has_proper_calibration_range(calcurve_se)
+  interm_data[["calcurve conc ranges"]] <- cbind(limit_df, has_proper_range)
+  calcurve_se <- calcurve_se[has_proper_range, ]
+  concn_se    <-    concn_se[has_proper_range, ]
+  interm_data[["calcurve_se all range"]] <- calcurve_se
+  
+  # Extract the signals of the lowest non-zero concentration points before replacing with NA
+  lst_s <- proc$get_signals_of_calibration_nonzero_pts(calcurve_se, mat_id)
+  llodq <- tibble::tibble(
+    feature_id = names(lst_s),
+    v = lst_s
+  )
+  
+  # Replace the values outside the concentration range with NA
+  calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
+  interm_data[["calcurve_se within range"]] <- calcurve_se
+ 
+  # Fit the calibration curve
+  cc_mat_norm <- calcurve_se[[mat_id]]
+  c_concs <- proc$get_calcurve_concentrations(calcurve_se)
+  calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
+    proc$fit_and_test_calcurve_model(c_concs, cc_mat_norm[ii, ], penalty_quadratic = 0.01)
+  })
+  interm_data[["calcurve_models"]] <- calcurve_models
+ 
+  # Find the LLOQ and LLOD
+  llodq <- llodq |>
+    dplyr::rowwise() |>
+    dplyr::mutate(
+      llod_signal = proc$compute_llox_signal(v, 3), 
+      lloq_signal = proc$compute_llox_signal(v, 10),
+      llod = calcurve_models[[feature_id]]$best_model(llod_signal),
+      lloq = calcurve_models[[feature_id]]$best_model(lloq_signal),
+    ) |> 
+    dplyr::select(-v) |> 
+    dplyr::ungroup() |> 
+    dplyr::mutate(dplyr::across(c(llod, lloq), ~ round(.x, 3)))
+  SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
+
+  # Compute the concentration of the samples using the calibration curve
+  concn_se[["conc"]] <- proc$compute_concentration(
+    concn_se, calcurve_se, calcurve_models, mat_id
+  ) |> 
+    labelled::set_label_attribute(
+      paste0("Concentration [", user_inputs$concentration_unit, "]")
+    ) |> 
+    proc$replace_below_lloq_llod(llodq)
+  # Label for the normalized data. To label the output of this function
+  norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
+  labelled::label_attribute(concn_se) <- norm_lab
+  # Maximum/minimum concentration after trimming out of each feature
+  interm_data[["concn_se with conc"]] <- concn_se
+  
+  # Exclude the features with no quantification
+  non_qc_conc <- concn_se[, quote(! contr_cat %in% "QC")][["conc"]]
+  any_above_lloq <- non_qc_conc > llodq$lloq
+  concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
+  
+  # Store the intermediate data in a file
+  do.call("append_to_qc_steps", 
+          setNames(list(interm_data), paste0("calibration/", mat_id)))
+  # Collect the output
+  per_norm_lst[[mat_id]] <- concn_se
+  # Progress message
+  cat("Calibration of", norm_lab, "data is done.\n")
+}
+# Save the processed data
+saveRDS(per_norm_lst, file = FILE$proc)
+cat("The `SumExp` object after preprocessing saved to:", FILE$proc, "\n")
+
+# Mark the preprocessing step as completed
+mark_completed()
