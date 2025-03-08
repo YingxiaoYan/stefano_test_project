@@ -36,10 +36,10 @@ cat("\nPreprocessing steps are started.\n")
 # Volumetric normalization using volumetric internal standards (vIS)
 is_vIS <- SumExp::row_df(overall_sumexp)$std_type == "vIS"
 if (any(is_vIS)) {      # This is optional
-  overall_sumexp <- proc$normalize_volumetric(overall_sumexp, is_vIS, "raw")
-  mat_id_for_norm <- "vol_norm"  # `raw` or `vol_norm`
   # Store intermediate data during quality control steps
   append_to_qc_steps("volumetric internal std. raw" = overall_sumexp[is_vIS, ])
+  overall_sumexp <- proc$normalize_volumetric(overall_sumexp, is_vIS, "raw")
+  mat_id_for_norm <- "vol_norm"  # `raw` or `vol_norm`
 } 
 
 # Extract internal standard features
@@ -213,6 +213,8 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
       lloq_signal = proc$compute_llox_signal(v, 10),
       llod = calcurve_models[[feature_id]]$best_model(llod_signal),
       lloq = calcurve_models[[feature_id]]$best_model(lloq_signal),
+      llod = ifelse(llod < 0, 0, llod),
+      lloq = ifelse(lloq < 0, 0, lloq)
     ) |> 
     dplyr::select(-v) |> 
     dplyr::ungroup() |> 

@@ -111,7 +111,7 @@ if (is_non_target_mode) {
   sample_info[[nm]] <- ifelse(sample_info$contr_cat == "CalCurve", 
                               catch_concentration(sample_info$sample_name), 
                               NA_real_) |> 
-    labelled::set_label_attribute("Known Concentration"),
+    labelled::set_label_attribute("Known Concentration")
   cc_conc <- sample_info[[nm]][sample_info$contr_cat == "CalCurve"]
   stopifnot(
     "Error in Calibration sample IDs" = all(!is.na(cc_conc)), 

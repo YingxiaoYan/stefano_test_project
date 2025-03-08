@@ -215,6 +215,7 @@ If the lower-limit is set so high that fewer than three concentration points rem
 
 The lower limit of detection (LLOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
 The LLOD in terms of concentration is then derived using the chosen calibration curve model.
+When the LLOD is below zero, it is adjusted to zero.
 
 In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LLOD determination.
 
@@ -315,9 +316,10 @@ for(chem_i in CHEMICAL_IDS) {
       "The gray areas in the calibration curve represent the regions below LLOD and LLOQ.  \n",
       "DF: Detection frequency (percentage of samples above LLOD)  \n",
       "LLOD: Lower limit of detection.\n",
-      "Lowest concentration at which the average signal of calibration samples exceeds three times the mean of the zero concentration sample  \n",
+      "Lowest concentration at which the signal is three times the standard deviation above the lowest non-zero calibration point, as determined by the calibration model.  \n",
       "LLOQ: Lower limit of quantification\n", 
-      "Ten times the mean of the zero concentration samples  \n",
+      "Ten times the standard deviation  \n",
+      "The details of LLOD and LLOQ are described in the text of the chemical summary table.  \n",
       ""         # For trailing comma
     )
   )
