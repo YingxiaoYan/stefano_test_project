@@ -161,25 +161,25 @@ The count of chemicals favoring each model is shown below.
 table(sapply(calcurve_models, \(m) m$best_model_name))
 ```
 
-### LLOD/LLOQ
+### LOD/LLOQ
 
-The lower limit of detection (LLOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
-The LLOD in terms of concentration is then derived using the chosen calibration curve model.
+The limit of detection (LOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
+The LOD in terms of concentration is then derived using the chosen calibration curve model.
 
-In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LLOD determination.
+In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LOD determination.
 
-The LLOD and LLOQ of each chemical is presented below.
+The LOD and LLOQ of each chemical is presented below.
 
 ```{r}
 #| label: 'calcurve-llodq-table'
 
 show_df <- SumExp::row_df(concn_se) |> 
-  dplyr::mutate(dplyr::across(c(llod, lloq), ~ scales::number(.x))) |>
-  dplyr::select(`Chemical name` = feature_name, LLOD = llod, LLOQ = lloq)
+  dplyr::mutate(dplyr::across(c(lod, lloq), ~ scales::number(.x))) |>
+  dplyr::select(`Chemical name` = feature_name, LOD = lod, LLOQ = lloq)
 
 knitr::kable(
   show_df,
-  caption = "LLOD and LLOQ of the chemicals",
+  caption = "LOD and LLOQ of the chemicals",
   align = "lrr",
   row.names = FALSE
 ) |> 
@@ -203,7 +203,7 @@ After the computation, the following steps are applied to the data:
 
 * Any negative concentration is adjusted to zero.
 * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
-* Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
+* Any concentration below the limit of detection (LOD) is adjusted to the 1/4 of LLOQ.
 * Any chemical with values below LLOQ in all samples is removed from the data.
 
 #### All measurement samples

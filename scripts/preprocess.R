@@ -205,20 +205,20 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   })
   interm_data[["calcurve_models"]] <- calcurve_models
  
-  # Find the LLOQ and LLOD
+  # Find the LLOQ and LOD
   llodq <- llodq |>
     dplyr::rowwise() |>
     dplyr::mutate(
-      llod_signal = proc$compute_llox_signal(v, 3), 
+      lod_signal = proc$compute_llox_signal(v, 3), 
       lloq_signal = proc$compute_llox_signal(v, 10),
-      llod = calcurve_models[[feature_id]]$best_model(llod_signal),
+      lod = calcurve_models[[feature_id]]$best_model(lod_signal),
       lloq = calcurve_models[[feature_id]]$best_model(lloq_signal),
-      llod = ifelse(llod < 0, 0, llod),
+      lod = ifelse(lod < 0, 0, lod),
       lloq = ifelse(lloq < 0, 0, lloq)
     ) |> 
     dplyr::select(-v) |> 
     dplyr::ungroup() |> 
-    dplyr::mutate(dplyr::across(c(llod, lloq), ~ round(.x, 3)))
+    dplyr::mutate(dplyr::across(c(lod, lloq), ~ round(.x, 3)))
   SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
 
   # Compute the concentration of the samples using the calibration curve

@@ -133,7 +133,7 @@ mat <- concn_se[["conc"]]
 # Summary about the concentration ranges
 conc_summary <- tibble::tibble(
   chem_id = chemicals$chem_id,
-  llod = chemicals$llod,
+  lod = chemicals$lod,
   lloq = chemicals$lloq,
   df_n = sapply(1:nrow(mat), \(i) sum(mat[i, ] >= lloq[i])),
   df_perc = df_n / ncol(mat) * 100,
@@ -145,7 +145,7 @@ conc_summary <- tibble::tibble(
 conc_summary <- conc_summary |> 
   dplyr::mutate(
     df_perc = scales::percent(df_perc / 100),
-    across(c(median, mean, min, max, llod, lloq), ~ round(.x, 2))
+    across(c(median, mean, min, max, lod, lloq), ~ round(.x, 2))
   )
 # Summary about the calibration curve models
 model_summary <- calib_interm_data[["calcurve_models"]] |> 
@@ -170,7 +170,7 @@ summary_tbl <- list(
     "Chemical" = chem_name,
     "DF (%)" = df_perc,
     "N of sampl." = df_n,
-    "LLOD" = llod,
+    "LOD" = lod,
     "LLOQ" = lloq,
     "Median" = median,
     "Average" = mean,
@@ -190,7 +190,7 @@ summary_tbl |>
     repeat_header_continued = TRUE,
   ) |> 
   kableExtra::footnote(
-    general = "DF: Detection frequency (percentage of samples above LLOD)",
+    general = "DF: Detection frequency (percentage of samples above LOD)",
     footnote_as_chunk = TRUE
   )
 ```
@@ -213,17 +213,17 @@ When there are sufficient number (≥ 5) of concentration points, that concentra
 
 If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
 
-The lower limit of detection (LLOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
-The LLOD in terms of concentration is then derived using the chosen calibration curve model.
-When the LLOD is below zero, it is adjusted to zero.
+The limit of detection (LOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
+The LOD in terms of concentration is then derived using the chosen calibration curve model.
+When the LOD is below zero, it is adjusted to zero.
 
-In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LLOD determination.
+In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LOD determination.
 
 After the computation of concentration, the following steps are applied to the data:
 
   * Any negative concentration is adjusted to zero.
   * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
-  * Any concentration below the lower limit of detection (LLOD) is adjusted to the 1/4 of LLOQ.
+  * Any concentration below the limit of detection (LOD) is adjusted to the 1/4 of LLOQ.
   * Any chemicals with values below LLOQ in all samples is removed from the data.
 
 
@@ -238,6 +238,25 @@ After the computation of concentration, the following steps are applied to the d
 #| fig-width: 12
 #| fig-height: 6
 #| out-width: '100%'
+
+#' Text box to describe a calibration curve model
+#' 
+textbox_of_a_width <- function(txt, width) {
+  ggplot() +
+    ggtext::geom_textbox(
+      aes(x = 0, y = 0.9, label = txt),
+      box.color = "black",
+      width = width,
+      fill = NA,
+      hjust = 0,
+      vjust = 1,
+      size = 4
+    ) +
+    scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    theme_void()
+}
+
 calcurve_se <- calib_interm_data[["calcurve_se within range"]]
 calcurve_models <- calib_interm_data[["calcurve_models"]]
 cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
@@ -248,11 +267,11 @@ for(chem_i in CHEMICAL_IDS) {
   x_se <- concn_se[rownames(concn_se) == chem_i, quote(! contr_cat %in% c("QC", "Blank"))]
   cc_se <- calcurve_se[rownames(calcurve_se) == chem_i, ]
   # Calibration curves
-  x1_se <- x_se   # For the case, llod < 0 or lloq < 0
+  x1_se <- x_se   # For the case, lod < 0 or lloq < 0
   c_concs <- SumExp::col_df(cc_se)$c_conc
   lowest_c <- min(c_concs[c_concs > 0])
   SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 
-    dplyr::mutate(dplyr::across(c(llod, lloq), ~ ifelse(.x < 0, lowest_c / 10, .x)))
+    dplyr::mutate(dplyr::across(c(lod, lloq), ~ ifelse(.x < 0, lowest_c / 10, .x)))
   p1 <- show$ggplot_calcurve_samples(x1_se, 
                                      cc_se, 
                                      cc_models, 
@@ -280,62 +299,38 @@ for(chem_i in CHEMICAL_IDS) {
     scale_fill_manual(values = COLORS_OF_CLASSES)
   # Text
   mdl <- calcurve_models[[chem_i]]
-  fts <- SumExp::row_df(x_se)
-  conc <- x_se[["conc"]][1, ]
-  text_df <- tibble::tibble(
-    x = 0,
-    y = 0.9,
-    label = paste0(
-      "Best model: ", mdl$best_model_name, "  \n",
-      "R2: ", round(summary(mdl$inv_model)$r.squared, 3), "  \n",
-      "N of points: ", mdl$n_conc, "  \n",
-      "DF: ", scales::percent(sum(conc >= fts$lloq) / length(conc)), 
-      " (", sum(conc >= fts$lloq), "/", length(conc), ")", "  \n",
-      "LLOD: ", fts$llod, "  \n",
-      "LLOQ: ", fts$lloq, "  \n",
-      ""         # For trailing comma
-    )
-  )
-  text1 <- ggplot(text_df) +
-    ggtext::geom_textbox(
-      aes(x, y, label = label),
-      box.color = "black",
-      width = unit(7, "cm"),
-      fill = NA,
-      hjust = 0,
-      vjust = 1,
-      size = 4
-    ) +
-    scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-    scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-    theme_void()
   
-  txt_legend <- tibble::tibble(
-    x = 0, y = 0.9, 
-    label = paste0(
-      "The gray areas in the calibration curve represent the regions below LLOD and LLOQ.  \n",
-      "DF: Detection frequency (percentage of samples above LLOD)  \n",
-      "LLOD: Lower limit of detection.\n",
-      "Lowest concentration at which the signal is three times the standard deviation above the lowest non-zero calibration point, as determined by the calibration model.  \n",
-      "LLOQ: Lower limit of quantification\n", 
-      "Ten times the standard deviation  \n",
-      "The details of LLOD and LLOQ are described in the text of the chemical summary table.  \n",
+  # Text in the box
+  text1 <- local(envir = list(mdl = mdl, x_se = x_se), {
+    model_r2 <- summary(mdl$inv_model)$r.squared    # conc <- `best_model`(signal)
+    fts <- SumExp::row_df(x_se)      # LLOQ, LOD
+    conc <- x_se[["conc"]][1, ]
+    perc_detf <- scales::percent(sum(conc >= fts$lloq) / length(conc))
+    n_det <- sum(conc >= fts$lloq)
+    n_samples <- length(conc)
+    paste0(
+      "Best model: ", mdl$best_model_name, "  \n",
+      "R2: ", round(model_r2, 3), "  \n",
+      "N of points: ", mdl$n_conc, "  \n",
+      "DF: ", perc_detf, " (", n_det, "/", n_samples, ")", "  \n",
+      "LOD: ", sprintf("%.2f", fts$lod), "  \n",
+      "LLOQ: ", sprintf("%.2f", fts$lloq), "  \n",
       ""         # For trailing comma
-    )
-  )
-  txt_legend <- ggplot(txt_legend) +
-    ggtext::geom_textbox(
-      aes(x, y, label = label),
-      box.color = "black",
-      width = unit(16, "cm"),
-      fill = NA,
-      hjust = 0,
-      vjust = 1,
-      size = 4
-    ) +
-    scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-    scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-    theme_void()
+    ) |> 
+      textbox_of_a_width(width = unit(7, "cm"))
+  })
+  
+  txt_legend <- paste0(
+    "The gray areas in the calibration curve represent the regions below LOD and LLOQ.  \n",
+    "DF: Detection frequency (percentage of samples above LOD)  \n",
+    "LOD: Limit of detection.\n",
+    "Lowest concentration at which the signal is three times the standard deviation above the lowest non-zero calibration point, as determined by the calibration model.  \n",
+    "LLOQ: Lower limit of quantification\n", 
+    "Ten times the standard deviation  \n",
+    "The details of LOD and LLOQ are described in the text of the chemical summary table.  \n",
+    ""         # For trailing comma
+  ) |>
+    textbox_of_a_width(width = unit(16, "cm"))
   
   # Plot
   design <- "

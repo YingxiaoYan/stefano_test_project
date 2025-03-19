@@ -599,7 +599,7 @@ get_signals_of_calibration_nonzero_pts <- function(cc_se, mat_id) {
 #'
 #' @param v A numeric vector of the signal values of the samples that represent noise level. 
 #' @param times Multiplication factor to the standard deviation. Common values are 3 and 10 for
-#'   LLOD and LLOQ, respectively.
+#'   LOD and LLOQ, respectively.
 #' @returns A numeric value of the LLO(Q/D) in signal. The LLO(Q/D) is calculated as the mean of
 #'   the signal values plus the standard deviation multiplied by `times`. 
 #' @md
@@ -702,7 +702,7 @@ linear_calcurve_model <- function(conc, signal, weights) {
 #' @param conc A numeric vector of the concentrations of the calibration samples. It should be
 #'   the same length as the `v`.
 #' @param times Multiplication factor to the mean of the peak area of the `min_conc`
-#'   concentration. Common values are 3 and 10 for LLOD and LLOQ, respectively. 
+#'   concentration. Common values are 3 and 10 for LOD and LLOQ, respectively. 
 #' @returns A numeric value of the LLO(Q/D)
 #' @md
 #' @export
@@ -748,13 +748,13 @@ compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
   conc
 }
 
-#' Replace the values below the LLOQ and LLOD
+#' Replace the values below the LLOQ and LOD
 #' 
 #' @param conc A matrix of concentrations
-#' @param limits A data frame of the LLOQ and LLOD. The names of the columns in `limits` should 
-#'   have `lloq` and `llod`.
+#' @param limits A data frame of the LLOQ and LOD. The names of the columns in `limits` should 
+#'   have `lloq` and `lod`.
 #' 
-#' @returns A matrix with the values below the LLOQ and LLOD replaced
+#' @returns A matrix with the values below the LLOQ and LOD replaced
 #' @md
 #' @export
 replace_below_lloq_llod <- function(conc, limits) {
@@ -763,8 +763,8 @@ replace_below_lloq_llod <- function(conc, limits) {
   out <- conc
   # Replace the values below LLOQ with half of the LLOQ
   out <- ifelse(conc < limits$lloq, limits$lloq / 2, out)
-  # Replace the values below LLOD with 1/4 of the LLOQ
-  out <- ifelse(conc < limits$llod, limits$lloq / 4, out)
+  # Replace the values below LOD with 1/4 of the LLOQ
+  out <- ifelse(conc < limits$lod, limits$lloq / 4, out)
   labelled::set_label_attribute(out, lab)
 }
 
