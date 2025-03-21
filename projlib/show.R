@@ -167,14 +167,14 @@ ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
 #' Extract the label attribute of a variable if it has
 #'
 #' @param x An object that may have a label attribute
-#' @param default_lab A default label if the object does not have a label attribute
+#' @param default A default label if the object does not have a label attribute
 #'
 #' @return A character of the label attribute or the default label
 #' @export
-label_if_has <- function(x, default_lab) {
+label_if_has <- function(x, default = deparse1(substitute(x))) {
   lab <- labelled::get_label_attribute(x)
   if (!is.null(lab)) return(lab)
-  default_lab
+  default
 }
 
 #' Calibration curve line
