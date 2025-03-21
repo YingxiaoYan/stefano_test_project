@@ -271,7 +271,7 @@ export_concentration_tsv <- function(sumexp, file) {
   # Prepare the chemical summary table
   chem_cols <- tbl_chemical_summary(sumexp) |> 
     dplyr::mutate(      # Tidy up the table
-      perc_detf = sprintf("%.1f%%", perc_detf),
+      perc_detf = round(perc_detf, 1),
       n_d_s = paste0("(", n_det, "/", n_samples, ")"),
       model_r2 = round(model_r2, 3),
       dplyr::across(c(lod, lloq), ~ round(.x, 2)),

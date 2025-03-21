@@ -120,13 +120,13 @@ p1 + p2 + patchwork::plot_layout(guides = "collect")
 summary_tbl <- show$tbl_chemical_summary(concn_se) |> 
   dplyr::mutate(      # Tidy up the table
     chem_name = stringr::str_trunc(chem_name, 40),
-    perc_detf = sprintf("%5.1f%%", perc_detf),
+    perc_detf = round(perc_detf, 1),
     model_r2 = round(model_r2, 3),
     dplyr::across(c(median, mean, min, max, lod, lloq), ~ round(.x, 2))
   ) |> 
   dplyr::select(
     "Chemical" = chem_name,
-    "DF (%)" = perc_detf,
+    "DF%" = perc_detf,
     "N of sampl." = n_det,
     "LOD" = lod,
     "LLOQ" = lloq,
@@ -214,21 +214,20 @@ textbox_of_a_width <- function(txt, width) {
 }
 
 calcurve_se <- calib_interm_data[["calcurve_se within range"]]
-for(i_chem in 1:nrow(concn_se)) {
+c_concs <- SumExp::col_df(calcurve_se)$c_conc
+lowest_c <- min(c_concs[c_concs > 0])
+
+for(i_chem in 1:nrow(concn_se)) {       # For each chemical
   chem_name <- SumExp::row_df(concn_se)$feature_name[i_chem]
   cat("\n\n## ", chem_name, "\n")
   
   x_se <- concn_se[i_chem, quote(! contr_cat %in% c("QC", "Blank"))]
-  chem_i <- rownames(concn_se)[i_chem]
-  cc_se <- calcurve_se[rownames(calcurve_se) == chem_i, ]
   # Calibration curves
   x1_se <- x_se   # For the case, lod < 0 or lloq < 0
-  c_concs <- SumExp::col_df(cc_se)$c_conc
-  lowest_c <- min(c_concs[c_concs > 0])
   SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 
     dplyr::mutate(dplyr::across(c(lod, lloq), ~ ifelse(.x < 0, lowest_c / 10, .x)))
   p1 <- show$ggplot_calcurve_samples(x1_se, 
-                                     cc_se, 
+                                     calcurve_se, 
                                      mat_id = DATA_ID,
                                      COLORS_OF_CLASSES) + 
     labs(

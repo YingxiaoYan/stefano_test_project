@@ -393,12 +393,14 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
 #'
-#' @returns A tibble with the summary of the chemical. The columns include: `chem_id`,
-#'   `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`, `median`, `mean`, `min`, `max`,
-#'   `best_model`, `model_r2`, `n_conc`
+#' @returns A tibble with the summary of the chemical for non-control samples only. 
+#'   The columns include: `chem_id`, `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`,
+#'   `median`, `mean`, `min`, `max`, `best_model`, `model_r2`, `n_conc`
 #' @md
 #' @export
 tbl_chemical_summary <- function(sumexp) {
+  # Non-control samples only
+  sumexp <- sumexp[, quote(contr_cat == "")]
   # Information about the chemicals
   chemicals <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble(rownames = "chem_id") |> 
