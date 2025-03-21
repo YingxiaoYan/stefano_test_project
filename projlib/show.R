@@ -1,3 +1,6 @@
+
+# Utils ----------------------------------------------------------------------------------
+
 #' Check if 
 .chq_if_a_single_char <- function(x) {
   x_chr <- deparse1(substitute(x))
@@ -5,31 +8,17 @@
   stop(paste("`", x_chr, "` should be a single character", sep = ""))
 }
 
-#' Extract QC samples into list
+#' Extract the label attribute of a variable if it has
 #'
-#' @param se A [`SumExp::SumExp`] object
+#' @param x An object that may have a label attribute
+#' @param default A default label if the object does not have a label attribute
 #'
-#' @return A list of SumExp objects divided by QC Classes
-#' @md
+#' @return A character of the label attribute or the default label
 #' @export
-extract_qc_samples_to_list <- function(se) {
-  se <- se[, quote(contr_cat == "QC")]
-  qc_id <- SumExp::col_df(se)$Class
-  # Column-wise split
-  lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
-}
-
-#' Extract quantitative standards in QC samples
-#'
-#' @param sumexp A [`SumExp::SumExp`] object
-#' @return A list of SumExp objects with quantitative standards in QC samples
-#' @md
-#' @export
-extract_quant_qc <- function(sumexp) {
-  se_lst <- extract_qc_samples_to_list(sumexp)
-  lapply(se_lst, \(se) {
-    se[quote(std_type == "Quant"), ]
-  })
+label_if_has <- function(x, default = deparse1(substitute(x))) {
+  lab <- labelled::get_label_attribute(x)
+  if (!is.null(lab)) return(lab)
+  default
 }
 
 #' Calculate RSD%
@@ -40,29 +29,6 @@ extract_quant_qc <- function(sumexp) {
 #' @export
 rsd_perc <- function(x, na.rm = FALSE) {
   100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
-}
-
-#' Calculate RSD of the quantification standard samples
-#'
-#' @param qc_se_lst A list of [`SumExp::SumExp`] objects with quantitative standards in QC samples
-#' @param mat_ids A character vector of the matrix IDs
-#' @return A tibble with RSD% of the quantification standard samples. The first two columns are
-#'   `QC` and `feature_id`.
-#' @md
-#' @export
-calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
-  out <- lapply(qc_se_lst, \(qc_se) {
-    sapply(stats::setNames(nm = mat_ids), function(nm) {
-      apply(qc_se[[nm]], 1, rsd_perc)
-    }) |>    # Rows are features, columns are matrix IDs
-      tibble::as_tibble(rownames = "feature_id")
-  }) |> 
-    # `QC` has the name of the QC samples
-    dplyr::bind_rows(.id = "QC")
-  for(ii in mat_ids) {
-    out[[ii]] <- labelled::copy_labels(qc_se_lst[[1]][[ii]], out[[ii]])
-  }
-  out   
 }
 
 #' RSD% across all samples
@@ -87,8 +53,7 @@ compute_rsd_per_feature <- function(mat) {
 #' @export
 kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
   if (missing(lab)) {
-    lab <- labelled::get_label_attribute(x)
-    if (is.null(lab)) lab <- deparse1(substitute(x))
+    lab <- label_if_has(x, default = deparse1(substitute(x)))
   } else {
     .chq_if_a_single_char(lab)
   }
@@ -129,6 +94,57 @@ get_colors_of_classes <- function(sumexp, color_cat) {
   c(color_given, ggcolor) 
 }
 
+# QC samples -----------------------------------------------------------------------------
+
+#' Extract QC samples into list
+#'
+#' @param se A [`SumExp::SumExp`] object
+#'
+#' @return A list of SumExp objects divided by QC Classes
+#' @md
+#' @export
+extract_qc_samples_to_list <- function(se) {
+  se <- se[, quote(contr_cat == "QC")]
+  qc_id <- SumExp::col_df(se)$Class
+  # Column-wise split
+  lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
+}
+
+#' Extract quantitative standards in QC samples
+#'
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @return A list of SumExp objects with quantitative standards in QC samples
+#' @md
+#' @export
+extract_quant_qc <- function(sumexp) {
+  se_lst <- extract_qc_samples_to_list(sumexp)
+  lapply(se_lst, \(se) {
+    se[quote(std_type == "Quant"), ]
+  })
+}
+
+#' Calculate RSD of the quantification standard samples
+#'
+#' @param qc_se_lst A list of [`SumExp::SumExp`] objects with quantitative standards in QC samples
+#' @param mat_ids A character vector of the matrix IDs
+#' @return A tibble with RSD% of the quantification standard samples. The first two columns are
+#'   `QC` and `feature_id`.
+#' @md
+#' @export
+calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
+  out <- lapply(qc_se_lst, \(qc_se) {
+    sapply(stats::setNames(nm = mat_ids), function(nm) {
+      apply(qc_se[[nm]], 1, rsd_perc)
+    }) |>    # Rows are features, columns are matrix IDs
+      tibble::as_tibble(rownames = "feature_id")
+  }) |> 
+    # `QC` has the name of the QC samples
+    dplyr::bind_rows(.id = "QC")
+  for(ii in mat_ids) {
+    out[[ii]] <- labelled::copy_labels(qc_se_lst[[1]][[ii]], out[[ii]])
+  }
+  out   
+}
 
 #' Plot the RSD% of various data sets of features
 #'
@@ -162,20 +178,7 @@ ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
 }
 
 
-
-
-#' Extract the label attribute of a variable if it has
-#'
-#' @param x An object that may have a label attribute
-#' @param default A default label if the object does not have a label attribute
-#'
-#' @return A character of the label attribute or the default label
-#' @export
-label_if_has <- function(x, default = deparse1(substitute(x))) {
-  lab <- labelled::get_label_attribute(x)
-  if (!is.null(lab)) return(lab)
-  default
-}
+# Calibration curve ----------------------------------------------------------------------
 
 #' Calibration curve line
 #' 
@@ -431,3 +434,81 @@ tbl_chemical_summary <- function(sumexp) {
     dplyr::ungroup()
 }
 
+
+# Injection order ------------------------------------------------------------------------
+
+#' Create a data frame for the injection order plot
+#' 
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param inj_ord A `tidyselect` expression for the injection order in the
+#'   `SumExp::col_df(sumexp)`
+#' @param mat_ids Matrix IDs to be included in the plot
+#' @returns A tibble with the data for the injection order plot. The columns include:
+#'   - `Data`: The name of the data in the `sumexp`
+#'   - `Value`: The value of the data
+#'   - `sum_value`: The sum of the `Value` per injection and per `Data`. It is for smoothed line
+#' @md
+#' @export
+df_for_injection_order <- function(sumexp, mat_ids = names(sumexp), inj_ord = injection_order) {
+  labs <- SumExp::name_labs(sumexp)
+  stopifnot(all(mat_ids %in% labs))
+  labs <- labs[match(mat_ids, labs)]   # The same order as `mat_ids`
+  
+  SumExp::as_tibble(sumexp) |> 
+    tidyr::pivot_longer(cols = dplyr::all_of(mat_ids), 
+                        names_to = "Data", 
+                        values_to = "Value") |> 
+    # Decorate the names of the data in the `sumexp`
+    dplyr::mutate(Data = factor(Data, levels = labs, labels = names(labs))) |> 
+    # For smoothed line across the injections
+    dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c({{ inj_ord }}, Data))
+}
+
+#' Create a column plot for the injection order
+#'
+#' @param data A tibble with the data for the injection order plot. It can be created by
+#'   `df_for_injection_order()`
+#' @param fill A `tidyselect` expression for the color aesthetic of the columns in the plot
+#' @param inj_ord A `tidyselect` expression for the injection order
+#'
+#' @returns A `ggplot2::ggplot()` object
+#' @seealso `df_for_injection_order()`
+#' @md
+#' @export
+ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
+  ggplot2::ggplot(data, ggplot2::aes(x = {{ inj_ord }})) +
+    ggplot2::geom_col(ggplot2::aes(y = Value, fill = {{ fill }})) +
+    ggplot2::labs(
+      x = label_if_has(dplyr::pull(data, {{ inj_ord }}), "Injection order"),
+      fill = label_if_has(dplyr::pull(data, {{ fill }}), deparse(substitute(fill))),
+    ) +
+    ggplot2::geom_smooth(ggplot2::aes(y = sum_value), 
+                         method = "loess", formula = 'y ~ x', se = FALSE) +
+    ggplot2::facet_wrap(~ Data, scales = "free_y")
+}
+
+# PCA ------------------------------------------------------------------------------------
+
+#' Create a PCA plot
+#'
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param mat_id The matrix ID in the `sumexp` to be used for PCA
+#' @param ... Additional arguments to `ggplot2::autoplot()`
+#'
+#' @returns A `ggplot2::ggplot()` object
+#' @md
+#' @export
+ggplot_pca <- function(sumexp, mat_id, ...) {
+  mat <- sumexp[[mat_id]]
+  lab <- labelled::get_label_attribute(mat)
+  mat <- mat[rowSums(mat > 0) > 0, ]    # Remove all-zero rows
+  pca_res <- tryCatch({
+    stats::prcomp(t(mat), scale. = TRUE)
+  }, error = function(e) {
+    warning("PCA failed. The error message is: ", e$message)
+    return(NULL)
+  })
+  if (is.null(pca_res)) return(NULL)
+  ggplot2::autoplot(pca_res, data = SumExp::col_df(sumexp), ...) +
+    ggplot2::labs(title = lab)
+}

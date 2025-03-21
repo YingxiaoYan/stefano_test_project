@@ -237,7 +237,7 @@ for(i_chem in 1:nrow(concn_se)) {       # For each chemical
   p2 <- p1 + 
     show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID) +
     labs(title = "Zoom-in (3 cal. pts.)")
-  # Distirbution of the concentration by class
+  # Distribution of the concentration by class
   x_df <- SumExp::as_tibble(x_se)
   p3 <- ggplot(x_df) +
     geom_boxplot(aes(x = Class, y = conc, color = Class, fill = Class)) +

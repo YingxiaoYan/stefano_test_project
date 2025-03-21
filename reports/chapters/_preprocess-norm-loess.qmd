@@ -177,6 +177,14 @@ rsd_qstd |>
   janitor::tabyl(QC, sign)
 ```
 
+#### Samples by run order
+
+```{r}
+#| purl: true
+has_vol_norm <- !is.null(norm_se[["vol_norm"]])
+mat_ids_to_compare <- c("raw", if (has_vol_norm) "vol_norm", "loess_norm")
+```
+
 Bar charts of the values of internal standard (`IS`) features are compared for raw and normalized data.
 The size of the bars represent the peak area before and after normalization. 
 Please note the injection orders may have gaps, as they are obtained information from the source file.
@@ -184,24 +192,15 @@ Please note the injection orders may have gaps, as they are obtained information
 The bars are colored by the given `Class` of the samples
 
 ```{r}
-#| fig-width: 14
+#| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 #| out-width: '100%'
-labs <- SumExp::name_labs(norm_se)
 df_show <- norm_se[quote(std_type == "IS"), ] |> 
-  SumExp::as_tibble() |> 
-  tidyr::pivot_longer(cols = c(dplyr::all_of(mat_id_for_norm), loess_norm), 
-                      names_to = "Data", 
-                      values_to = "Value") |> 
-  dplyr::mutate(Data = factor(Data, levels = labs, labels = names(labs))) |> 
-  dplyr::mutate(sum_value = sum(Value, na.rm = TRUE), .by = c(injection_order, Data))
+  show$df_for_injection_order(mat_ids_to_compare)
 
 plotly::ggplotly(
-  ggplot(df_show, aes(x = injection_order)) +
-    geom_col(aes(y = Value, fill = Class)) +
-    labs(title = "Internal standards", x = "Injection order") +
-    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-    facet_wrap(~ Data, scales = "free_y") +
+  show$ggplot_col_injection_order(df_show, fill = Class) +
+    labs(title = "Internal standards") +
     scale_fill_manual(values = COLORS_OF_CLASSES)
 )
 ```
@@ -209,45 +208,35 @@ plotly::ggplotly(
 The bars are colored by the internal standards and stacked for each sample.
 
 ```{r}
-#| fig-width: 14
+#| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 #| out-width: '100%'
 plotly::ggplotly(
-  ggplot(df_show, aes(x = injection_order)) +
-    geom_col(aes(y = Value, fill = feature_name)) +
-    labs(
-      title = "Internal standards", 
-      x = show$label_if_has(df_show$injection_order),
-      fill = show$label_if_has(df_show$feature_name),
-    ) +
-    geom_smooth(aes(y = sum_value), method = "loess", formula = 'y ~ x', se = FALSE) +
-    facet_wrap(~ Data, scales = "free_y")
+  show$ggplot_col_injection_order(df_show, fill = feature_name) +
+    labs(title = "Internal standards") +
+    # Skip the legend
+    theme(legend.position = "none")
 )
 ```
+
+#### Principal component analysis
 
 Principal component analysis (PCA) is performed to evaluate the normalization.
 
 ```{r}
-#| label: 'pca'
-#| fig-width: 14
+#| label: 'pca-normalization-loess'
+#| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 #| out-width: '100%'
 # PCA
 
 se <- norm_se[quote(std_type == "IS"), ]
-mat_ids <- c(mat_id_for_norm, "loess_norm")
-se_df <- SumExp::col_df(se)
 # Plot
-p_lst <- lapply(mat_ids, \(.x) {
-  mat <- se[[.x]]
-  lab <- labelled::get_label_attribute(mat)
-  mat <- mat[rowSums(mat > 0) > 0, ]    # Remove all-zero rows
-  pca_res <- stats::prcomp(t(mat), scale. = TRUE)
-  ggplot2::autoplot(pca_res, data = se_df, colour = "Class") +
-    scale_color_manual(values = COLORS_OF_CLASSES) +
-    labs(title = lab)
+p_lst <- lapply(mat_ids_to_compare, \(.x) {
+  show$ggplot_pca(se, .x, colour = "Class") +
+    scale_color_manual(values = COLORS_OF_CLASSES)
 })
 # Requires patchwork package
-p_lst[[1]] + p_lst[[2]] + patchwork::plot_layout(ncol = 2)
+Reduce("+", p_lst) + patchwork::plot_layout(ncol = length(p_lst))
 ```
 
