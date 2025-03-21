@@ -1,3 +1,12 @@
+
+box::use(io = ./check_io_exist)
+
+#' @export
+box::use(
+  projlib/proc[get_mat_id_of_blank_subtracted],    # Export blank subtracted matrix
+  projlib/show[tbl_chemical_summary],              # Export chemical summary table
+)
+
 # Project Parameters ---------------------------------------------------------------------
 
 #' Find the `userin` has the required inputs
@@ -26,7 +35,6 @@ get_user_input <- function(...) {
   userin
 }
 
-box::use(io = ./check_io_exist)
 
 #' Get the file name of the parsed data
 #' 
@@ -259,19 +267,33 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
 #' @export
 export_concentration_tsv <- function(sumexp, file) {
   methods::validObject(sumexp)     # Check consistency between elements, eg row_df, col_df, conc
+  
+  # Prepare the chemical summary table
+  chem_cols <- tbl_chemical_summary(sumexp) |> 
+    dplyr::mutate(      # Tidy up the table
+      perc_detf = sprintf("%.1f%%", perc_detf),
+      n_d_s = paste0("(", n_det, "/", n_samples, ")"),
+      model_r2 = round(model_r2, 3),
+      dplyr::across(c(lod, lloq), ~ round(.x, 2)),
+    ) |> 
+    dplyr::select(
+      "Alignment ID" = alignment_id,
+      "Chemical" = chem_name,
+      "Average Mz" = mz,
+      "Average Rt(min)" = rt,
+      "DF%" = perc_detf,
+      "Samples (d/n)" = n_d_s,
+      "LOD" = lod,
+      "LLOQ" = lloq,
+      "R2" = model_r2,
+      "Model" = best_model,
+      "N of points" = n_conc,
+    )
+  
   # The first three rows are the sample information
-  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = 4)
+  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(chem_cols))
   readr::write_tsv(sinfo, file, append = FALSE, col_names = FALSE, na = "")
   
-  # Prepare the feature table
-  feature_columns <- SumExp::row_df(sumexp) |> 
-    tibble::as_tibble() |> 
-    dplyr::select(
-      `Alignment ID` = alignment_id,
-      `Feature name` = feature_name,
-      `Average Mz` = mz,
-      `Average Rt(min)` = rt,
-    )
   # Prepare the concentration table
   conc_mat <- sumexp[["conc"]]
   conc_df <- conc_mat |>
@@ -279,6 +301,6 @@ export_concentration_tsv <- function(sumexp, file) {
     tibble::as_tibble()
   # Original sample ID
   colnames(conc_df) <- SumExp::col_df(sumexp)$sample_name
-  conc_df <- dplyr::bind_cols(feature_columns, conc_df)
+  conc_df <- dplyr::bind_cols(chem_cols, conc_df)
   readr::write_tsv(conc_df, file, append = TRUE, col_names = TRUE, na = "")
 }

@@ -34,10 +34,10 @@ io$chq_all_files_exist(FILE$i[c("raw", "qc")])
 # Load the normalized data
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
-norm_mat_ids <- qc_steps[["normalized matrix ids"]]
-norm_blk_mat_ids <- qc_steps[["normalized blank subtracted matrix ids"]]
+norm_mat_ids <- qc_steps[["normalized matrix ids"]]      # `mat_ids` e.g. "loess_norm"
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 is_non_target_mode <- SumExp::metadata(raw_se)$is_non_target_mode
+
 # Output files
 FILE$o <- local({
   # Copy the basename of the input file to the output file names
@@ -69,20 +69,26 @@ for(ii in seq(norm_mat_ids)) {
 
   msdial$export_data_with_feature_table_tsv(
     sumexp = qc_steps[["normalized - blank"]],
-    mat_id = norm_blk_mat_ids[ii],
+    mat_id = msdial$get_mat_id_of_blank_subtracted(norm_mat_ids[ii]),
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]]
   )
 }
 
+# Export concentration values ----------
 if (!is_non_target_mode) {
   io$chq_all_files_exist(FILE$i$proc)
   # Load the concentration data
   concn_lst <- readRDS(FILE$i$proc)
 
   for(ii in seq(norm_mat_ids)) {
+    norm_blk_mat_id <- msdial$get_mat_id_of_blank_subtracted(norm_mat_ids[ii])
+    concn_se <- concn_lst[[ norm_blk_mat_id ]]
+    # Sort the chemicals by name
+    concn_se <- concn_se[order(SumExp::row_df(concn_se)$feature_name), ]
     msdial$export_concentration_tsv(
-      sumexp = concn_lst[[ norm_blk_mat_ids[ii] ]],
+      # Concentration has been computed on the blank subtracted data
+      sumexp = concn_se,
       file = FILE$o$conc[[ii]]
     )
   }

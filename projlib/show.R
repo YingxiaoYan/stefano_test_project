@@ -10,6 +10,7 @@
 #' @param se A [`SumExp::SumExp`] object
 #'
 #' @return A list of SumExp objects divided by QC Classes
+#' @md
 #' @export
 extract_qc_samples_to_list <- function(se) {
   se <- se[, quote(contr_cat == "QC")]
@@ -22,6 +23,7 @@ extract_qc_samples_to_list <- function(se) {
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @return A list of SumExp objects with quantitative standards in QC samples
+#' @md
 #' @export
 extract_quant_qc <- function(sumexp) {
   se_lst <- extract_qc_samples_to_list(sumexp)
@@ -42,10 +44,11 @@ rsd_perc <- function(x, na.rm = FALSE) {
 
 #' Calculate RSD of the quantification standard samples
 #'
-#' @param qc_se_lst A list of SumExp objects with quantitative standards in QC samples
+#' @param qc_se_lst A list of [`SumExp::SumExp`] objects with quantitative standards in QC samples
 #' @param mat_ids A character vector of the matrix IDs
 #' @return A tibble with RSD% of the quantification standard samples. The first two columns are
 #'   `QC` and `feature_id`.
+#' @md
 #' @export
 calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
   out <- lapply(qc_se_lst, \(qc_se) {
@@ -107,6 +110,7 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
 #' @param color_cat A named character vector of colors for each control category
 #'
 #' @return A named character vector of colors for each class
+#' @md
 #' @export
 get_colors_of_classes <- function(sumexp, color_cat) {
   df1 <- SumExp::col_df(sumexp)
@@ -173,70 +177,67 @@ label_if_has <- function(x, default_lab) {
   default_lab
 }
 
+#' Calibration curve line
+#' 
+#' @param lim_df A data frame with columns `lloq`, `max_c_conc`, and `calcurve_model`.
+#' @param color,alpha,... Arguments passed to `ggplot2::geom_line`
+#' @returns A [`ggplot2::geom_line`] object. 
+#' @md
+#' @export
+geom_calibration_curve_line <- function(lim_df, color = "cadetblue", alpha = 0.7, ...) {
+  # Artificial concentration values for smooth calibration curve line
+  ccline_df <- purrr::pmap(lim_df, \(lloq, max_c_conc, calcurve_model, ...) {
+    conc <- sort(c(
+      seq(lloq, max_c_conc, length.out = 100),
+      seq(lloq, min(lloq * 10, max_c_conc), length.out = 100)[-c(1, 100)]   # Zoom-in 
+    ))
+    .y_value <- stats::predict.lm(calcurve_model$inv_model, data.frame(conc = conc))
+    tibble::tibble(conc = conc, .y_value = .y_value, ...)
+  }) |> 
+    dplyr::bind_rows() |> 
+    dplyr::arrange(feature_id, conc)      # To make sure
+  
+  ggplot2::geom_line(
+    ggplot2::aes(x = conc, y = .y_value), data = ccline_df,
+    color = color, 
+    alpha = alpha,
+    ...
+  )
+}
+
 #' Plot the calibration curve with the samples
 #'
 #' @description
 #' Plot the calibration curve for each feature together with the samples. The X-axis is the
 #' concentration and the Y-axis is the peak area of the intensity.
 #' 
-#' @param x_se A SumExp object having the data of the samples to be plotted
-#' @param cc_se A SumExp object of the calibration curve samples. The features in `x_se` should
-#'   be a subset of `cc_se`.
-#' @param cc_models A list of the linear regression models of the calibration curve samples.
-#'   The names of the list should be the same as the `feature_id` in `x_se` and `cc_se`.
+#' @param x_se A [`SumExp::SumExp`] object having the data of the samples to be plotted
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples. The features in
+#'   `x_se` should be a subset of `cc_se`.
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
 #' @param colors_of_classes A named character vector of colors for each class
 #'
 #' @return A ggplot object. 
+#' @md
 #' @export
-ggplot_calcurve_samples <- function(x_se, cc_se, cc_models, mat_id, colors_of_classes) {
+ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
   .chq_if_a_single_char(mat_id)
   feature_ids <- rownames(x_se)           # Limited to those features in the `x_se`
   cc_se <- cc_se[feature_ids, ]
   cc_df <- SumExp::as_tibble(cc_se) |> 
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
-  # LLOQ, LOD, max_c_conc of each `feature_id`. `feature_name` is for the output ggplot
-  lim_df <- SumExp::row_df(x_se)[, c("feature_name", "lloq", "lod", "max_c_conc")]
+  # LLOQ, LOD, max_c_conc of each `feature_id`
+  lim_df <- SumExp::row_df(x_se) |> 
+    # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
+    dplyr::select(feature_name, lloq, lod, max_c_conc, calcurve_model) |> 
+    tibble::rownames_to_column("feature_id") 
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |> 
     tidyr::drop_na(conc)
   
-  # Calibration curve lines
-  .geom_ccline <- function(feature_ids, lim_df, cc_models) {
-    # `feature_name` is added to the data of the output ggplot for further usage
-    feature_id_name <- tibble::rownames_to_column(lim_df, "feature_id")
-    feature_ids <- stats::setNames(nm = feature_ids)
-    conc_df <- sapply(feature_ids, \(feature_id) {
-      lims <- lim_df[feature_id, , drop = TRUE]
-      lloq <- lims$lloq
-      max_c_conc <- lims$max_c_conc
-      sort(c(
-        seq(lloq, max_c_conc, length.out = 100),
-        seq(lloq, min(lloq * 10, max_c_conc), length.out = 100)[-c(1, 100)]   # Zoom-in
-      ))
-    }) |> 
-      as.data.frame() |> 
-      tidyr::pivot_longer(tidyr::everything(), names_to = "feature_id", values_to = "conc") |> 
-      dplyr::left_join(feature_id_name, by = "feature_id")
-    
-    ccline_df <- conc_df |> 
-      dplyr::mutate(
-        .y_value = purrr::map2_dbl(
-          feature_id, conc, 
-          ~stats::predict.lm(cc_models[[.x]], data.frame(conc = .y))
-        )
-      ) |> 
-      dplyr::arrange(feature_id, conc)
-    ggplot2::geom_line(
-      ggplot2::aes(x = conc, y = .y_value), data = ccline_df,
-      color = "cadetblue",
-      alpha = 0.7
-    )
-  }
-  
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
-    .geom_ccline(feature_ids, lim_df, cc_models) +
+    geom_calibration_curve_line(lim_df) +
     # Remaining calibration samples
     ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) + 
     # Samples to measure
@@ -271,13 +272,12 @@ ggplot_calcurve_samples <- function(x_se, cc_se, cc_models, mat_id, colors_of_cl
 #' @rdname ggplot_calcurve_samples
 ggplot_calcurve_samples_facet <- function(x_se,
                                           cc_se,
-                                          cc_models,
                                           mat_id,
                                           colors_of_classes,
                                           scales = "free",
                                           ncol = 3,
                                           ...) {
-  ggplot_calcurve_samples(x_se, cc_se, cc_models, mat_id, colors_of_classes) +
+  ggplot_calcurve_samples(x_se, cc_se, mat_id, colors_of_classes) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }
 
@@ -354,5 +354,78 @@ coord_zoom_in_by_cc <- function(n_cc = 4,
     default = default,
     clip = clip
   )
+}
+
+
+#' [ggplot2::geom_text()] for the best model of the calibration curve
+#' 
+#' @param x_se A [`SumExp::SumExp`] object
+#' @param hjust,vjust,size,color,... Parameters to be passed to `ggplot2::geom_text()`
+#' @returns A [`ggplot2::geom_text()`] output
+#' @md
+#' @seealso [ggplot_calcurve_samples()]
+#' @export
+geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "red3", ...) {
+  show_df <- SumExp::row_df(x_se) |> 
+    # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
+    dplyr::select(feature_name, calcurve_model) |> 
+    tibble::rownames_to_column("feature_id") 
+  # Text for the selected calibration curve models
+  best_model_text_df <- show_df |> 
+    dplyr::mutate(
+      best_model_name = purrr::map_chr(calcurve_model, \(m) m$best_model_name),
+      R2 = purrr::map_dbl(calcurve_model, \(m) max(m$R2s)),
+      txt = paste0(best_model_name, "\n R2=", round(R2, 3)),
+      .keep = "unused"
+    ) 
+  ggplot2::geom_text(         # Display the best model name
+    ggplot2::aes(x = Inf, y = 0, label = txt),
+    data = best_model_text_df,
+    hjust = hjust,
+    vjust = vjust,
+    size = size,
+    color = color,
+    ...
+  )
+}
+
+#' Create a summary table for the chemicals
+#'
+#' @param sumexp A [`SumExp::SumExp`] object
+#'
+#' @returns A tibble with the summary of the chemical. The columns include: `chem_id`,
+#'   `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`, `median`, `mean`, `min`, `max`,
+#'   `best_model`, `model_r2`, `n_conc`
+#' @md
+#' @export
+tbl_chemical_summary <- function(sumexp) {
+  # Information about the chemicals
+  chemicals <- SumExp::row_df(sumexp) |> 
+    tibble::as_tibble(rownames = "chem_id") |> 
+    dplyr::rename(chem_name = "feature_name")
+  # Concentration
+  mat <- sumexp[["conc"]]
+  # Summary about the concentration ranges
+  conc_summary <- chemicals |> 
+    dplyr::mutate(
+      n_det = sapply(1:nrow(mat), \(i) sum(mat[i, ] >= lloq[i], na.rm = TRUE)),
+      n_samples = sapply(1:nrow(mat), \(i) sum(!is.na(mat[i, ]))),
+      perc_detf = n_det / n_samples * 100,
+      median = apply(mat, 1, stats::median),
+      mean = rowMeans(mat),
+      min = apply(mat, 1, min),
+      max = apply(mat, 1, max),
+    )
+  
+  # Add summary about the calibration curve models
+  conc_summary |> 
+    dplyr::rowwise() |> 
+    dplyr::mutate(
+      best_model = calcurve_model$best_model_name,
+      model_r2 = calcurve_model$R2s[[best_model]],
+      n_conc = calcurve_model$n_conc,
+      .keep = "unused"     # Remove `calcurve_model`
+    ) |> 
+    dplyr::ungroup()
 }
 

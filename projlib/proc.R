@@ -180,6 +180,16 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
 
 ## Blank subtraction ------------------
 
+#' Get the matrix ID of the blank-subtracted matrix
+#'
+#' @param mat_id The name of a matrix 
+#'
+#' @returns The name of the blank-subtracted matrix
+#' @export
+get_mat_id_of_blank_subtracted <- function(mat_id) {
+  paste0(mat_id, "_blk")
+}
+
 #' Subtract the average values of the blank samples from the samples
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the samples
@@ -194,11 +204,11 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
 #'   blanks are removed from the `x_se`.
 #' @md
 #' @export
-subtract_blank_sumexp <- function(x_se, 
+add_blank_substracted_sumexp <- function(x_se, 
                                   condition_blank, 
                                   condition_no_change,
                                   mat_ids, 
-                                  out_mat_ids = mat_ids) {
+                                  out_mat_ids = get_mat_id_of_blank_subtracted(mat_ids)) {
   stopifnot(length(mat_ids) == length(out_mat_ids))
   is_blank <- eval(substitute(condition_blank), SumExp::col_df(x_se), parent.frame())
   is_no_chg <- eval(substitute(condition_no_change), SumExp::col_df(x_se), parent.frame())
@@ -728,20 +738,19 @@ compute_llox <- function(v, conc, min_conc, calcurve_model, times) {
 #' Compute the concentration of features
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the samples
-#' @param cc_se A [`SumExp::SumExp`] object of the calibration samples
-#' @param calcurve_models A list of calibration curve models
 #' @param mat_id The name of a matrix in `x_se`
 #'
 #' @returns A matrix of the concentration of features
 #' @md
 #' @export
-compute_concentration <- function(x_se, cc_se, calcurve_models, mat_id) {
+compute_concentration <- function(x_se, mat_id) {
   mat <- x_se[[mat_id]]
+  models <- SumExp::row_df(x_se)$calcurve_model
   # Calculate the concentration of each feature
-  conc <- sapply(rownames(x_se), \(i_feature) {
+  conc <- sapply(rownames(mat), \(i_feature) {
     v <- mat[i_feature, ]
     # Concentration by the best model
-    calcurve_models[[i_feature]]$best_model(v)
+    models[[i_feature]]$best_model(v)
   }) |> 
     t()          # Features to rows
   conc <- labelled::set_label_attribute(conc, "Concentration")

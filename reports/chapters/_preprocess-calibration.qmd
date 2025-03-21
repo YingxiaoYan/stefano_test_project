@@ -128,7 +128,6 @@ calcurve_to_show_df |>
 
 ```{r}
 #| purl: true
-calcurve_models <- calib_interm_data[["calcurve_models"]]
 concn_se <- calib_interm_data[["concn_se with conc"]]
 ```
 
@@ -143,7 +142,8 @@ The distribution of $R^2$ values after penalty by different models for the calib
 
 ```{r}
 #| label: 'calibration-R2-by-mmodels'
-R2s_adj <- lapply(calcurve_models, \(m) m$R2s_adj)
+R2s_adj <- SumExp::row_df(concn_se)$calcurve_model |> 
+  lapply(\(m) m$R2s_adj)
 R2s_adj <- R2s_adj[!is.na(R2s_adj)] |> 
   dplyr::bind_rows(.id = "feature_id") |> 
   tidyr::pivot_longer(cols = -feature_id, names_to = "Model", values_to = "R2")
@@ -158,7 +158,9 @@ The count of chemicals favoring each model is shown below.
 ```{r}
 #| label: 'present-model-count-by-chemical'
 #| results: 'markup'
-table(sapply(calcurve_models, \(m) m$best_model_name))
+SumExp::row_df(concn_se)$calcurve_model |> 
+  sapply(\(m) m$best_model_name) |>
+  table()
 ```
 
 ### LOD/LLOQ
@@ -193,8 +195,6 @@ knitr::kable(
 #| purl: true
 # Table of the samples to show with the calibration curve
 to_show_se <- concn_se[i_9chemical_to_show, ]
-# Models to be used for the calibration curve
-cc_models <- lapply(calcurve_models, \(.x) .x$inv_model)
 ```
 
 The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(concn_se)$Class), before = "\x60")`,
@@ -218,7 +218,6 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-height: 11
 p <- show$ggplot_calcurve_samples_facet(to_show_se,
                                         calcurve9_se,
-                                        cc_models,
                                         DATA_ID,
                                         COLORS_OF_CLASSES) +
   labs(y = "Peak area (Normalized)")
@@ -254,28 +253,10 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-width: 12
 #| fig-height: 11
 
-# Table for the selected calibration curve models
-models_to_show_tbl <- purrr::imap_dfr(calcurve_models[i_9chemical_to_show], \(m, feature_id) {
-  tibble::tibble(
-    feature_id = feature_id,
-    best_model_name = m$best_model_name,
-    R2 = max(m$R2s),
-    txt = paste0(best_model_name, "\n R2=", round(R2, 3)),
-  )
-}) |> 
-  dplyr::left_join(feature_id_name_tbl, by = "feature_id")
-geom_best_model_name <- geom_text(         # Display the best model name
-  aes(x = Inf, y = 0, label = txt),
-  data = models_to_show_tbl,
-  hjust = 1,
-  vjust = 0,
-  size = 4,
-  color = "red3"
-)
-
-p <- to_show_se[, quote(Class %in% classes_excl_qc_blank)] |> 
-  show$ggplot_calcurve_samples_facet(calcurve9_se, cc_models, DATA_ID, COLORS_OF_CLASSES) +
-  geom_best_model_name
+to_show_excl_qc <- to_show_se[, quote(Class %in% classes_excl_qc_blank)]
+p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, 
+                                        calcurve9_se, DATA_ID, COLORS_OF_CLASSES) +
+  show$geom_best_model_text(to_show_excl_qc)
 print(p)
 ```
 

@@ -117,9 +117,9 @@ cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm")
-norm_blk_mat_ids <- paste0(norm_mat_ids, "_blk")
+norm_blk_mat_ids <- proc$get_mat_id_of_blank_subtracted(norm_mat_ids)
 overall_sumexp_before_blank <- overall_sumexp
-overall_sumexp <- proc$subtract_blank_sumexp(
+overall_sumexp <- proc$add_blank_substracted_sumexp(
   x_se = overall_sumexp,
   contr_cat == "Blank", 
   contr_cat == "CalCurve",
@@ -131,7 +131,6 @@ append_to_qc_steps(
   "excluded categories in normalization" = excl_cat, 
   "LOESS fit" = loess_fit,
   "normalized matrix ids" = norm_mat_ids,
-  "normalized blank subtracted matrix ids" = norm_blk_mat_ids,
   "normalized" = overall_sumexp_before_blank, 
   "normalized - blank" = overall_sumexp, 
 )
@@ -159,7 +158,6 @@ stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
 
 # Per normalization method
 per_norm_lst <- list()       # Collect the output
-mat_ids_for_calib <- setNames(nm = norm_blk_mat_ids)
 for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Collect intermediate data during calibration.
   # `append_to_qc_steps` takes too long to save
@@ -187,11 +185,13 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data[["calcurve_se all range"]] <- calcurve_se
   
   # Extract the signals of the lowest non-zero concentration points before replacing with NA
-  lst_s <- proc$get_signals_of_calibration_nonzero_pts(calcurve_se, mat_id)
-  llodq <- tibble::tibble(
-    feature_id = names(lst_s),
-    v = lst_s
-  )
+  llodq <- local({
+    lst_s <- proc$get_signals_of_calibration_nonzero_pts(calcurve_se, mat_id)
+    tibble::tibble(
+      chem_id = names(lst_s),        # Keep the IDs through dplyr::...
+      v_first_non_zero = lst_s
+    )
+  })
   
   # Replace the values outside the concentration range with NA
   calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
@@ -203,28 +203,29 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
     proc$fit_and_test_calcurve_model(c_concs, cc_mat_norm[ii, ], penalty_quadratic = 0.01)
   })
-  interm_data[["calcurve_models"]] <- calcurve_models
+  stopifnot(identical(llodq$chem_id, names(calcurve_models)))
+  llodq[["calcurve_model"]] <- calcurve_models
  
   # Find the LLOQ and LOD
   llodq <- llodq |>
     dplyr::rowwise() |>
     dplyr::mutate(
-      lod_signal = proc$compute_llox_signal(v, 3), 
-      lloq_signal = proc$compute_llox_signal(v, 10),
-      lod = calcurve_models[[feature_id]]$best_model(lod_signal),
-      lloq = calcurve_models[[feature_id]]$best_model(lloq_signal),
+      lod_signal = proc$compute_llox_signal(v_first_non_zero, 3), 
+      lloq_signal = proc$compute_llox_signal(v_first_non_zero, 10),
+      lod = calcurve_model$best_model(lod_signal),
+      lloq = calcurve_model$best_model(lloq_signal),
       lod = ifelse(lod < 0, 0, lod),
       lloq = ifelse(lloq < 0, 0, lloq)
     ) |> 
-    dplyr::select(-v) |> 
+    dplyr::select(-v_first_non_zero) |> 
     dplyr::ungroup() |> 
     dplyr::mutate(dplyr::across(c(lod, lloq), ~ round(.x, 3)))
+  llodq <- tibble::column_to_rownames(llodq, "chem_id")
+  stopifnot(identical(rownames(llodq), rownames(concn_se)))
   SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
 
   # Compute the concentration of the samples using the calibration curve
-  concn_se[["conc"]] <- proc$compute_concentration(
-    concn_se, calcurve_se, calcurve_models, mat_id
-  ) |> 
+  concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id) |> 
     labelled::set_label_attribute(
       paste0("Concentration [", user_inputs$concentration_unit, "]")
     ) |> 
