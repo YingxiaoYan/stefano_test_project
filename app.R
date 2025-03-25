@@ -26,6 +26,7 @@ if (file.exists(FILE)) {
     input_file = "",
     intermediate_dir = "",
     table_dir = "",
+    report_dir = "",
     concentration_unit = "",
     user = "",
     university = "",
@@ -41,6 +42,7 @@ user_in_format <- tibble::tribble(
   "input_file", "textInput", "Input file",
   "intermediate_dir", "textInput", "Directory to save intermediate files",
   "table_dir", "textInput", "Directory to save the exported tables",
+  "report_dir", "textInput", "Directory to save the creating reports",
   "concentration_unit", "textInput", "Concentration unit",
   "user", "textInput", "User",
   "university", "textInput", "University",
@@ -115,6 +117,7 @@ server <- function(input, output) {
       input_file = input$input_file,
       intermediate_dir = input$intermediate_dir,
       table_dir = input$table_dir,
+      report_dir = input$report_dir,
       concentration_unit = input$concentration_unit,
       user = input$user,
       university = input$university,
@@ -154,16 +157,16 @@ server <- function(input, output) {
       tools::file_path_sans_ext(compression = TRUE)
     fn_lst <- list(i = paste0(fn, "-internal.html"), e = paste0(fn, ".pdf"))
     out <- tryCatch({
-      quarto::quarto_render(
-        "report-internal.qmd",
-        output_format = "html",
-        output_file = fn_lst$i
-      ) 
-      quarto::quarto_render(
-        "report-external.qmd",
-        output_file = fn_lst$e
-      )
-      paste0("Reports generated on reports/: ", fn_lst$i, " and ", fn_lst$e)
+      system(paste(
+        "quarto render report-internal.qmd --to html --output", fn_lst$i, 
+        "--output-dir", file.path("../..", input$report_dir)
+      ))       # quarto::quarto_render() doesn't accept --output-dir
+      system(paste(
+        "quarto render report-external.qmd --to pdf --output", fn_lst$e, 
+        "--output-dir", file.path("../..", input$report_dir)
+      ))       # quarto::quarto_render() doesn't accept --output-dir
+      paste0("Reports generated on reports/: ", fn_lst$i, " and ", fn_lst$e, 
+             " on", input$report_dir)
     },
     warning = function(w) w,
     error = function(e) e)
