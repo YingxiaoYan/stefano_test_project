@@ -96,13 +96,15 @@ if (any(is_vIS)) {
 }
 ```
 
-## Internal standards (IS) 
+## Internal standards (ISs) 
 
 {{< include chapters/_preprocess-internal-stds.qmd >}}
 
-## Normalization by IS
+## Normalization by ISs
 
-The dataset is normalized using the provided internal standards.
+The dataset is normalized using the provided ISs. The user can opt to choose between 2 normalization methods: 
+- "Closest RT" method, whereby the peak area intensity of each feature/chemical is corrected with that of the closest IS in RT. Target classes of compounds can be specified.
+- "LOESS" method, whereby the peak area intensity of each feature/chemical is corrected by a LOESS model curve built using all the IS spanning across the entire chromatorgaphic RT.
 
 ```{r}
 #| purl: true
@@ -118,7 +120,7 @@ The retention time (RT) range of the dataset is between `r overall_rt_range[1]` 
 The RT range of the targeted chemicals to be quantified is from `r targetted_rt_range[1]` to `r targetted_rt_range[2]` min.
 The RT range of the internal standards is from `r range(rt)[1]` to `r range(rt)[2]` min.
 
-### Closest internal standard features
+### Closest RT (IS) normalization
 
 ```{r}
 #| purl: true
@@ -127,21 +129,21 @@ norm_se <- qc_steps[["normalized"]]
 
 {{< include chapters/_preprocess-norm-closest.qmd >}}
 
-### LOESS fit along RT
+### LOESS (IS) normalization
 
 ```{r}
 #| child: code/reports/chapters/_preprocess-norm-loess.qmd
 
 ```
 
-### Comparison of the normalization methods
+### Comparison of normalization methods
 
 {{< include chapters/_preprocess-norm-comparison.qmd >}}
 
 
 ### Blank subtraction
 
-After data normalization, peak areas were blank-corrected by subtracting the corresponding feature average peak area detected in blanks (negative values set to zero).
+After data normalization, peak areas are blank corrected by subtracting the corresponding feature average peak area detected in the blanks (negative values set to zero).
 Blank subtraction is applied to all samples in the dataset except for the calibration standards.
 
 ```{r}
