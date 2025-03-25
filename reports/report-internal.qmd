@@ -1,5 +1,5 @@
 ---
-title: "Exploratory data analysis"
+title: "Data quality evaluation"
 format:
   html: 
     fig-width : 10
@@ -65,15 +65,15 @@ feature_id_name_tbl <- SumExp::row_df(raw_se) |>
 set.seed(7579)
 ```
 
-# Given data
+# Data input
 
 {{< include chapters/_read-msdial.qmd >}}
 
 --------------------------------------------
 
-# Normalization using internal standards
+# Normalization by internal standards (IS)
 
-## Volumetric internal standard
+## Volumetric internal standard (vIS)
 
 ```{r}
 #| purl: true
@@ -96,13 +96,13 @@ if (any(is_vIS)) {
 }
 ```
 
-## Internal standard (IS) features
+## Internal standards (IS) 
 
 {{< include chapters/_preprocess-internal-stds.qmd >}}
 
-## Normalization
+## Normalization by IS
 
-The data is normalized using the internal standards.
+The dataset is normalized using the provided internal standards.
 
 ```{r}
 #| purl: true
@@ -114,9 +114,9 @@ targetted_rt_range <- range(all_rts[wo_vIS_df$std_type == "Quant"])
 rt <- range(all_rts[wo_vIS_df$std_type == "IS"])
 ```
 
-The range of RT values of overall features is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of targeted features is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and
-the range of internal standard features is `r range(rt)[1]` to `r range(rt)[2]`.
+The retention time (RT) range of the dataset is between `r overall_rt_range[1]` and `r overall_rt_range[2]` min.
+The RT range of the targeted chemicals to be quantified is from `r targetted_rt_range[1]` to `r targetted_rt_range[2]` min.
+The RT range of the internal standards is from `r range(rt)[1]` to `r range(rt)[2]` min.
 
 ### Closest internal standard features
 
