@@ -66,8 +66,8 @@ The initial set of columns contains information about features.
 
 #### Calibration curve samples
 
-  * Class: `"CalCurve"`
   * File type: `"Standard"`
+  * Sample ID includes "**Cal\_[numeric]**"; regex: `"Cal_[[:digit:]]"` 
 
 ##### Samples to fit the curve
 

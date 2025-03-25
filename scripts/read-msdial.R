@@ -82,7 +82,7 @@ sample_info <- sample_info |>
     # Control sample categories
     contr_cat = dplyr::case_when(
       sample_type == "Standard" & 
-        stringr::str_detect(sample_name, "Cal_[[:digit:]-]") ~ "CalCurve",
+        stringr::str_detect(sample_name, "Cal_[[:digit:]]") ~ "CalCurve",
       sample_type == "QC"    ~ "QC",
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
