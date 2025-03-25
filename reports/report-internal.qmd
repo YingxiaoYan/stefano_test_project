@@ -102,7 +102,7 @@ if (any(is_vIS)) {
 
 ## Normalization
 
-The data is normalized using the internal standard features.
+The data is normalized using the internal standards.
 
 ```{r}
 #| purl: true
