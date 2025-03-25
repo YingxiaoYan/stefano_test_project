@@ -141,9 +141,8 @@ norm_se <- qc_steps[["normalized"]]
 
 ### Blank subtraction
 
-The normalized values were subtracted by the average of blank samples to remove the background signals.
-As calibration samples were prepared differently from all the other samples including the blank samples, blank subtraction was not applied to the calibration samples.
-Any values below 0 are replaced with 0 to avoid any negative values. 
+After data normalization, peak areas were blank-corrected by subtracting the corresponding feature average peak area detected in blanks (negative values set to zero).
+Blank subtraction is applied to all samples in the dataset except for the calibration standards.
 
 ```{r}
 #| label: target_mode
