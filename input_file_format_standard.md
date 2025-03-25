@@ -64,15 +64,11 @@ The initial set of columns contains information about features.
 
 * The first line of this section (or the 5th line of the file) contains sample IDs.
 
-#### Calibration curve samples
+#### Standard calibration samples / to fit calibration models
 
   * File type: `"Standard"`
-  * Sample ID includes "**Cal\_[numeric]**"; regex: `"Cal_[[:digit:]]"` 
-
-##### Samples to fit the curve
-
-  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"` 
-  * Concentration Formatting: Replace decimal point in concentration numbers with a dash `"-"` , e.g. 0.01 becomes `"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"`. 
+  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"`
+  * Concentration Formatting: replace decimal point in concentration numbers with a dash `"-"` , e.g. 0.01 becomes `"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"`. 
 
 ##### Zero concentration
 

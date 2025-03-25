@@ -1,0 +1,22 @@
+Package: SumExp
+Type: Package
+Title: A light package similar to SummarizedExperiment
+Version: 0.1.1
+Author: Mun-Gwan Hong
+Maintainer: Mun-Gwan Hong <mungwan.hong@nbis.se>
+Description: This package has functions to handle a class that has a structure
+  similar to SummarizedExperiment in Bioconductor. Unlike SummarizedExperiment,
+  this package cope with tibble and labelled classes. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Collate: 'list-method.R' 'ListMatrix-class.R' 'SumExp-class.R'
+        'Extract.R' 'data.R' 'labelled.R' 'tidyverse.R'
+Imports: dplyr, ggplot2, labelled, methods, rlang, tibble, tidyr
+Depends: R (>= 2.10)
+NeedsCompilation: no
+Packaged: 2025-03-20 12:51:10 UTC; mun-gwan.hong
