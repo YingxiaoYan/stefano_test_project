@@ -199,7 +199,7 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
  
   # Fit the calibration curve
   cc_mat_norm <- calcurve_se[[mat_id]]
-  c_concs <- proc$get_calcurve_concentrations(calcurve_se)
+  c_concs <- proc$concentration_points(calcurve_se)
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
     proc$fit_and_test_calcurve_model(c_concs, cc_mat_norm[ii, ], penalty_quadratic = 0.01)
   })
