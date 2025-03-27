@@ -160,10 +160,6 @@ fetch_sample_info <- function(msdial_file, indices) {
   sinfo
 }
 
-#' The column name that contains the spiked concentrations of the calibration curve samples
-#' @export
-CALCURVE_CONCENTRATION_COLNAME <- "c_conc"
-
 #' Fetch data of the selected columns of a MS-DIAL output file
 #' 
 #' @param msdial_file Path to the MS-DIAL output file
