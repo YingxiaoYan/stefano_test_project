@@ -1,5 +1,5 @@
 ---
-title: "Exploratory data analysis"
+title: "Data quality evaluation"
 format:
   html: 
     fig-width : 10
@@ -65,15 +65,15 @@ feature_id_name_tbl <- SumExp::row_df(raw_se) |>
 set.seed(7579)
 ```
 
-# Given data
+# Data input
 
 {{< include chapters/_read-msdial.qmd >}}
 
 --------------------------------------------
 
-# Normalization using internal standards
+# Normalization by internal standards (IS)
 
-## Volumetric internal standard
+## Volumetric internal standard (vIS)
 
 ```{r}
 #| purl: true
@@ -96,13 +96,15 @@ if (any(is_vIS)) {
 }
 ```
 
-## Internal standard (IS) features
+## Internal standards (ISs) 
 
 {{< include chapters/_preprocess-internal-stds.qmd >}}
 
-## Normalization
+## Normalization by ISs
 
-The data is normalized using the internal standard features.
+The dataset is normalized using the provided ISs. The user can opt to choose between 2 normalization methods: 
+- "Closest RT" method, whereby the peak area intensity of each feature/chemical is corrected with that of the closest IS in RT. Target classes of compounds can be specified.
+- "LOESS" method, whereby the peak area intensity of each feature/chemical is corrected by a LOESS model curve built using all the IS spanning across the entire chromatorgaphic RT.
 
 ```{r}
 #| purl: true
@@ -114,11 +116,11 @@ targetted_rt_range <- range(all_rts[wo_vIS_df$std_type == "Quant"])
 rt <- range(all_rts[wo_vIS_df$std_type == "IS"])
 ```
 
-The range of RT values of overall features is `r overall_rt_range[1]` to `r overall_rt_range[2]`,
-while the range of targeted features is `r targetted_rt_range[1]` to `r targetted_rt_range[2]` and
-the range of internal standard features is `r range(rt)[1]` to `r range(rt)[2]`.
+The retention time (RT) range of the dataset is between `r overall_rt_range[1]` and `r overall_rt_range[2]` min.
+The RT range of the targeted chemicals to be quantified is from `r targetted_rt_range[1]` to `r targetted_rt_range[2]` min.
+The RT range of the internal standards is from `r range(rt)[1]` to `r range(rt)[2]` min.
 
-### Closest internal standard features
+### Closest RT (IS) normalization
 
 ```{r}
 #| purl: true
@@ -127,23 +129,22 @@ norm_se <- qc_steps[["normalized"]]
 
 {{< include chapters/_preprocess-norm-closest.qmd >}}
 
-### LOESS fit along RT
+### LOESS (IS) normalization
 
 ```{r}
 #| child: code/reports/chapters/_preprocess-norm-loess.qmd
 
 ```
 
-### Comparison of the normalization methods
+### Comparison of normalization methods
 
 {{< include chapters/_preprocess-norm-comparison.qmd >}}
 
 
 ### Blank subtraction
 
-The normalized values were subtracted by the average of blank samples to remove the background signals.
-As calibration samples were prepared differently from all the other samples including the blank samples, blank subtraction was not applied to the calibration samples.
-Any values below 0 are replaced with 0 to avoid any negative values. 
+After data normalization, peak areas are blank corrected by subtracting the corresponding feature average peak area detected in the blanks (negative values set to zero).
+Blank subtraction is applied to all samples in the dataset except for the calibration standards.
 
 ```{r}
 #| label: target_mode

@@ -269,12 +269,12 @@ print(p)
 p + show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID)
 ```
 
-## Remove the chemicals with no measurement samples
+## Removal of the chemicals with no measurement samples
 
 ```{r}
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
 ```
 
-If all values of non-QC samples are below LLOQ, the chemical is removed from the data.
-After the removal, the number of remaining chemicals is `r nrow(concn_se)`.
+If all values of non-QC samples were below LLOQ, the chemical was removed from the final reports.
+After the removal, the number of reported chemicals is `r nrow(concn_se)`.
 

@@ -42,6 +42,7 @@ The columns in these lines are organized into 3 sections.
 The initial set of columns contains information about features.
 
 * **Required Columns**:
+
   `"Alignment ID"`,
   `"Average Rt(min)"`,
   `"Average Mz"`,
@@ -50,38 +51,40 @@ The initial set of columns contains information about features.
   `"Comment"`
 
 * **Purpose**:
+
   - These 5 columns, `Alignment ID`, `Average Rt(min)`, `Average Mz`, `Metabolite name`, and `S/N average` will be read and copied to an output file, concentration table. 
   - The `Comment` column will be read and used for data processing but **not** copied to the output file.
 
 * **Column Names**:
+
   These six columns must have exact names as specified. All other columns will be ignored.
 
 * **Comment Column Values**:
+
   The `Comment` column contains information about the type of standards and can have one of the following case-sensitive values: 
-  `"Quant"` (standard for calibration curve),`"IS"` (Internal standard), and "vIS" (volumetric IS). Feature with all other variants will be considered as non-targeted.
+  `"Quant"` (reference standard for calibration curve),`"IS"` (isotope-labelled internal standard), and `"vIS"` (volumetric IS).
+  Compound target classes can be specified for both Quant and IS, by `"\"` - e.g. Quant\PCB and IS\PCB.
+  Any other entry in the dataset will be considered as non-target features.
 
 ### Sample Information Columns (2nd section)
 
 * The first line of this section (or the 5th line of the file) contains sample IDs.
 
-#### Calibration curve samples
+#### Standard calibration samples / to fit calibration models
 
   * File type: `"Standard"`
-  * Sample ID includes "**Cal\_[numeric]**"; regex: `"Cal_[[:digit:]]"` 
-
-##### Samples to fit the curve
-
-  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"` 
-  * Concentration Formatting: Replace decimal point in concentration numbers with a dash `"-"` , e.g. 0.01 becomes `"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"`. 
+  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"`
+  * Concentration format: replace decimal points with a dash `"-"` , e.g. 0.01 ->`"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"` (etc). 
 
 ##### Zero concentration
 
-  * There must be at least two samples with zero concentration.
+  * There must be at least two replicate (n=2) standards with zero concentration.
   * Sample ID: "[...]**Cal\_0**\[not -\][…]"; regex: `".*Cal_0[^-]?.*"` 
 
-#### Quality Control Samples
+#### Quality Control (QC) samples
 
-  * The samples with identical "QC sample group" are replicates of one sample. They are supposed to have the identical measurement. For each "QC sample group", there must be multiple loaded samples. 
+  * All QC samples have to be defined as QC in File type. Samples with identical "QC" group are considered as replicates of one sample which are supposed to have the identical measurement. It is possible to inlcude different QC groups (e.g. QC-low; QC-high) but each group must be contain multiple replicate samples. 
+
   * Class: `"**(QC sample group)**"`
   * File type: `"QC"`
 
