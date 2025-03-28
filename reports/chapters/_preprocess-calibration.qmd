@@ -165,10 +165,10 @@ SumExp::row_df(concn_se)$calcurve_model |>
 
 ### LOD/LLOQ
 
-The limit of detection (LOD) is first calculated from a signal perspective by multiplying the standard deviation of the signals at the lowest calibration concentration point that exhibits a non-zero response by three and then adding this product to the average signal of the concentration point. 
+The limit of detection (LOD) from a signal perspective is calculated using the formula $\rm{LOD} = m + 3 \times \rm{avg(RSD)} \times m$, where $\rm{avg(RSD)}$ represents the average relative standard deviation from step 2, and $m$ is the mean signal of the lowest non-zero concentration point.
 The LOD in terms of concentration is then derived using the chosen calibration curve model.
 
-In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of three, with all other steps remaining consistent with the LOD determination.
+In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of 3, with all other steps remaining consistent with the LOD determination.
 
 The LOD and LLOQ of each chemical is presented below.
 

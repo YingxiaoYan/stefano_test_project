@@ -151,25 +151,28 @@ server <- function(input, output) {
     output$export_data_output <- renderPrint(out)
   })
   observeEvent(input$generate_report, {
-    setwd("code/reports")
+    od <- setwd("code/reports")
     # Extract file base name without extension
     fn <- basename(input$input_file) |> 
       tools::file_path_sans_ext(compression = TRUE)
     fn_lst <- list(i = paste0(fn, "-internal.html"), e = paste0(fn, ".pdf"))
-    out <- tryCatch({
-      system(paste(
-        "quarto render report-internal.qmd --to html --output", fn_lst$i, 
-        "--output-dir", file.path("../..", input$report_dir)
-      ))       # quarto::quarto_render() doesn't accept --output-dir
-      system(paste(
-        "quarto render report-external.qmd --to pdf --output", fn_lst$e, 
-        "--output-dir", file.path("../..", input$report_dir)
-      ))       # quarto::quarto_render() doesn't accept --output-dir
-      paste0("Reports generated on reports/: ", fn_lst$i, " and ", fn_lst$e, 
-             " on", input$report_dir)
-    },
-    warning = function(w) w,
-    error = function(e) e)
+    out <- tryCatch(
+      {
+        system(paste(
+          "quarto render report-internal.qmd --to html --output", fn_lst$i, 
+          "--output-dir", file.path("../..", input$report_dir)
+        ))       # quarto::quarto_render() doesn't accept --output-dir
+        system(paste(
+          "quarto render report-external.qmd --to pdf --output", fn_lst$e, 
+          "--output-dir", file.path("../..", input$report_dir)
+        ))       # quarto::quarto_render() doesn't accept --output-dir
+        paste0("Reports generated on reports/: ", fn_lst$i, " and ", fn_lst$e, 
+               " on ", input$report_dir)
+      },
+      warning = function(w) w,
+      error = function(e) e
+    )
+    setwd(od)
     output$generate_report_output <- renderPrint(out)
   })
 }

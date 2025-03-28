@@ -286,12 +286,16 @@ identify_lox_signal <- function(mat_m, mat_sd, non_zero, times) {
     nrow(mat_m) == length(non_zero)
   )
   conc <- as.numeric(colnames(mat_m))
+  stopifnot("The columns of `mat_m` are supposed to be sorted" = all(conc == sort(conc)))
   sapply(1:nrow(mat_m), \(ii) {
-    i_nz <- which(conc == non_zero[ii])
-    m <- mat_m[ii, ]
-    s <- mat_sd[ii, ]
+    incl <- conc >= non_zero[ii]
+    m <- mat_m[ii, incl]
+    s <- mat_sd[ii, incl]
+    is_all_0 <- m == 0      # If all values of one pt are zero, rsd is NaN
+    m <- m[!is_all_0]
+    s <- s[!is_all_0]
     rsd <- s / m 
-    m[i_nz] + times * mean(rsd) * m[i_nz]
+    m[1] + times * mean(rsd) * m[1]    # Mean of non-zero + ...
   })
 }
 

@@ -34,7 +34,11 @@ format:
     echo: false 
     fig-align: center  # Assure line breaks between figures
     documentclass: report
+    classoption: landscape
     papersize: a4
+    geometry:
+      - margin=20mm
+      - heightrounded
 
 execute:
   output: asis
