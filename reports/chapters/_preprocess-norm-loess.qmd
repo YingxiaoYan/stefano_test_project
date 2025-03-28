@@ -12,6 +12,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   projlib/show,       # Functions to present data
   io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
@@ -73,7 +74,7 @@ Randomly selected 3 samples are shown below.
 
 # Plot the normalized and original data for randomly selected 3 samples excluding those not
 # used in normalization
-to_excl <- SumExp::col_df(norm_se)$contr_cat %in% excl_cat
+to_excl <- util$contr_cat(norm_se) %in% excl_cat
 i_sel <- sample(c(1:ncol(norm_se))[!to_excl], 3)
 i_sel <- setNames(i_sel, colnames(norm_se)[i_sel])
 

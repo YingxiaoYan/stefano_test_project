@@ -8,8 +8,6 @@ box::use(
   projlib/msdial,   # Handle MS-Dial files
   io = projlib/check_io_exist,       # Check input/output files
 )
-# Constants
-SPIKED_CONC <- "c_conc"
 
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
@@ -109,11 +107,11 @@ if (is_non_target_mode) {
       as.numeric()
   }
   # Known concentration of calibration curves, which have been saved into the `sample_info`
-  sample_info[[SPIKED_CONC]] <- ifelse(sample_info$contr_cat == "CalCurve", 
-                                       catch_concentration(sample_info$sample_name), 
-                                       NA_real_) |> 
+  sample_info[["c_conc"]] <- ifelse(sample_info$contr_cat == "CalCurve", 
+                                    catch_concentration(sample_info$sample_name), 
+                                    NA_real_) |> 
     labelled::set_label_attribute("Known Concentration")
-  cc_conc <- sample_info[[SPIKED_CONC]][sample_info$contr_cat == "CalCurve"]
+  cc_conc <- sample_info[["c_conc"]][sample_info$contr_cat == "CalCurve"]
   stopifnot(
     "Error in Calibration sample IDs" = all(!is.na(cc_conc)), 
     "Multiple curve samples per concentration are required." = all(table(cc_conc) > 1)
@@ -132,7 +130,6 @@ sumexp <- SumExp::SumExp(
   col_df = sample_info,
   row_df = features,
   metadata = rlang::list2(
-    SPIKED_CONC = SPIKED_CONC,
     file_name = basename(FILE$i),
     file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),
     is_non_target_mode = is_non_target_mode,

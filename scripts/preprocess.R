@@ -10,6 +10,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   projlib/proc,       # Preprocessing functions
 )
 # Get the input file name provided by the user
@@ -121,8 +122,7 @@ norm_blk_mat_ids <- proc$get_mat_id_of_blank_subtracted(norm_mat_ids)
 overall_sumexp_before_blank <- overall_sumexp
 overall_sumexp <- proc$add_blank_substracted_sumexp(
   x_se = overall_sumexp,
-  contr_cat == "Blank", 
-  contr_cat == "CalCurve",
+  no_change = util$contr_cat(overall_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
@@ -151,10 +151,8 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
 } 
 
 # Limit to the samples to be calibrated (or quantified)
-quant_se <- overall_sumexp[quote(std_type == "Quant"), ]
 # Before excluding out-of-range calibration concentrations
-calcurve_se0 <- quant_se[, quote(contr_cat == "CalCurve")]
-stopifnot("Calibration curve samples are required." = nrow(calcurve_se0) > 0)
+quant_se0 <- overall_sumexp[quote(std_type == "Quant"), ]
 
 # Per normalization method
 per_norm_lst <- list()       # Collect the output
@@ -163,35 +161,22 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # `append_to_qc_steps` takes too long to save
   interm_data <- list()
   
+  quant_se <- quant_se0     # Keep the unmodified for the next normalized data
+  # Meaningful min and max calibration points
+  quant_se <- proc$add_calibration_curve_limits(quant_se, mat_id)
+  
+  # Exclude the chemicals having no appropriate concentration range
+  limit_df <- proc$extract_calibration_limit_pts(quant_se)
+  has_proper_range <- proc$has_proper_calibration_range(quant_se)
+  interm_data[["calcurve conc ranges"]] <- cbind(limit_df, has_proper_range)
+  quant_se <- quant_se[has_proper_range, ]
   # Data is divided into two parts.
   # `calcurve_se` : calibration curve samples
   # `concn_se` : samples to be calibrated
-  
-  calcurve_se <- calcurve_se0     # Keep the unmodified for the next normalized data
-  # Non-calcurve. `conc` will be added.
-  concn_se <- quant_se[, quote(! contr_cat %in% "CalCurve")]
-  stopifnot(identical(rownames(calcurve_se), rownames(concn_se)))  # Identical features
-  
-  # Meaningful min and max calibration points
-  calcurve_se <- proc$add_calibration_curve_limits(calcurve_se, concn_se, mat_id)
-  limit_df <- proc$extract_calibration_limit_pts(calcurve_se)
-  SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), limit_df)   # Copy limits
-  
-  # Exclude the features having no appropriate concentration range
-  has_proper_range <- proc$has_proper_calibration_range(calcurve_se)
-  interm_data[["calcurve conc ranges"]] <- cbind(limit_df, has_proper_range)
-  calcurve_se <- calcurve_se[has_proper_range, ]
-  concn_se    <-    concn_se[has_proper_range, ]
+  lst_q_se <- util$split_into_calcurve_and_other(quant_se, c("cc", "concn"))
+  calcurve_se <- lst_q_se$cc
+  concn_se    <- lst_q_se$concn
   interm_data[["calcurve_se all range"]] <- calcurve_se
-  
-  # Extract the signals of the lowest non-zero concentration points before replacing with NA
-  llodq <- local({
-    lst_s <- proc$get_signals_of_calibration_nonzero_pts(calcurve_se, mat_id)
-    tibble::tibble(
-      chem_id = names(lst_s),        # Keep the IDs through dplyr::...
-      v_first_non_zero = lst_s
-    )
-  })
   
   # Replace the values outside the concentration range with NA
   calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
@@ -199,27 +184,27 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
  
   # Fit the calibration curve
   cc_mat_norm <- calcurve_se[[mat_id]]
-  c_concs <- proc$concentration_points(calcurve_se)
+  c_concs <- util$spiked_conc_pts(calcurve_se)
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
     proc$fit_and_test_calcurve_model(c_concs, cc_mat_norm[ii, ], penalty_quadratic = 0.01)
   })
-  stopifnot(identical(llodq$chem_id, names(calcurve_models)))
-  llodq[["calcurve_model"]] <- calcurve_models
- 
+  
   # Find the LLOQ and LOD
-  llodq <- llodq |>
+  llodq <- proc$extract_calibration_limit_pts(calcurve_se)[, c("lod_signal", "lloq_signal")] |> 
+    tibble::rownames_to_column("chem_id")        # Keep the IDs through dplyr::...
+  stopifnot(identical(llodq$chem_id, names(calcurve_models)))
+  llodq <- llodq |> 
+    dplyr::mutate(calcurve_model = calcurve_models) |> 
     dplyr::rowwise() |>
     dplyr::mutate(
-      lod_signal = proc$compute_llox_signal(v_first_non_zero, 3), 
-      lloq_signal = proc$compute_llox_signal(v_first_non_zero, 10),
       lod = calcurve_model$best_model(lod_signal),
       lloq = calcurve_model$best_model(lloq_signal),
       lod = ifelse(lod < 0, 0, lod),
       lloq = ifelse(lloq < 0, 0, lloq)
     ) |> 
-    dplyr::select(-v_first_non_zero) |> 
     dplyr::ungroup() |> 
-    dplyr::mutate(dplyr::across(c(lod, lloq), ~ round(.x, 3)))
+    dplyr::select(chem_id, calcurve_model, lod, lloq)
+  # SumExp@row_df is a data frame with row names.
   llodq <- tibble::column_to_rownames(llodq, "chem_id")
   stopifnot(identical(rownames(llodq), rownames(concn_se)))
   SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
@@ -233,11 +218,11 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
   labelled::label_attribute(concn_se) <- norm_lab
-  # Maximum/minimum concentration after trimming out of each feature
+  # Maximum/minimum concentration after trimming out of each chemical
   interm_data[["concn_se with conc"]] <- concn_se
   
-  # Exclude the features with no quantification
-  non_qc_conc <- concn_se[, quote(! contr_cat %in% "QC")][["conc"]]
+  # Exclude the chemicals with no quantification
+  non_qc_conc <- concn_se[["conc"]][, util$contr_cat(concn_se) != "QC"]
   any_above_lloq <- non_qc_conc > llodq$lloq
   concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
   

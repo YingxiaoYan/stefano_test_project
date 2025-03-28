@@ -1,3 +1,4 @@
+box::use(util = ./msdial_utils)
 
 # Utils ----------------------------------------------------------------------------------
 
@@ -79,7 +80,7 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
 #' @export
 get_colors_of_classes <- function(sumexp, color_cat) {
   df1 <- SumExp::col_df(sumexp)
-  by_cat <- split(df1, df1$contr_cat) |> 
+  by_cat <- split(df1, util$contr_cat(sumexp)) |> 
     lapply(\(.x) unique(.x$Class))
   # Fix the colors of the classes given in `color_cat`
   color_given <- by_cat[names(by_cat) %in% names(color_cat)] |> 
@@ -104,7 +105,7 @@ get_colors_of_classes <- function(sumexp, color_cat) {
 #' @md
 #' @export
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, quote(contr_cat == "QC")]
+  se <- se[, util$contr_cat(se) == "QC"]
   qc_id <- SumExp::col_df(se)$Class
   # Column-wise split
   lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
@@ -403,7 +404,7 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
 #' @export
 tbl_chemical_summary <- function(sumexp) {
   # Non-control samples only
-  sumexp <- sumexp[, quote(contr_cat == "")]
+  sumexp <- sumexp[, util$contr_cat(sumexp) == ""]
   # Information about the chemicals
   chemicals <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble(rownames = "chem_id") |> 

@@ -172,7 +172,7 @@ knitr::kable(df1, caption = "RSD% of internal standard features by quality contr
 #### By sample classes
 
 ```{r}
-se <- internal_std_se[, quote(contr_cat != "QC")]
+se <- internal_std_se[, util$contr_cat(internal_std_se) != "QC"]
 df1 <- sapply(setNames(nm = unique(SumExp::col_df(se)$Class)), function(cls) {
   se <- se[, SumExp::col_df(se)$Class == cls]
   apply(se[[mat_id_for_norm]], 1, \(.x) round(show$rsd_perc(.x), 2))

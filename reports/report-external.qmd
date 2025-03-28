@@ -28,6 +28,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   projlib/show,       # Functions to present data
   io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
@@ -102,9 +103,9 @@ plot_pca <- function(se, mat_id) {
   ggplot2::autoplot(pca_res, data = se_df, colour = "Class")
 }
 norm_se <- qc_steps[["normalized - blank"]]
-p1 <- norm_se[, quote(! contr_cat %in% c("QC", "CalCurve", "Blank"))] |> 
+p1 <- norm_se[, ! util$contr_cat(norm_se) %in% c("QC", "CalCurve", "Blank")] |> 
   plot_pca(DATA_ID) + ggtitle("Target + Non-target")
-p2 <- plot_pca(concn_se[, quote(contr_cat != "QC")], DATA_ID) +
+p2 <- plot_pca(concn_se[, util$contr_cat(concn_se) != "QC"], DATA_ID) +
   ggtitle("Target")
 p1 + p2 + patchwork::plot_layout(guides = "collect")
 ```
@@ -221,7 +222,7 @@ for(i_chem in 1:nrow(concn_se)) {       # For each chemical
   chem_name <- SumExp::row_df(concn_se)$feature_name[i_chem]
   cat("\n\n## ", chem_name, "\n")
   
-  x_se <- concn_se[i_chem, quote(! contr_cat %in% c("QC", "Blank"))]
+  x_se <- concn_se[i_chem, ! util$contr_cat(concn_se) %in% c("QC", "Blank")]
   # Calibration curves
   x1_se <- x_se   # For the case, lod < 0 or lloq < 0
   SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 

@@ -20,6 +20,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   projlib/proc,       # Preprocessing functions
   projlib/show,       # Functions to present data
   io = projlib/check_io_exist,       # Check input/output files

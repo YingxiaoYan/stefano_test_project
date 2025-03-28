@@ -5,6 +5,7 @@ _scr
 *.pdf
 # Quarto temporary files
 /*_files/
+/*.rmarkdown
 
 # Local files
 _*.local
