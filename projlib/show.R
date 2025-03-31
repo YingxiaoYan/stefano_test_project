@@ -423,6 +423,19 @@ tbl_chemical_summary <- function(sumexp) {
       max = apply(mat, 1, max),
     )
   
+  # Write an equation for the calibration curve model
+  get_equation <- function(cc_model) {
+    num_f <- function(x) {
+      format(x, scientific = TRUE, digits = 3)
+    }
+    e <- environment(cc_model$best_model)
+    assign("num_f", num_f, envir = e)   # `e` is not a child of this environment
+    if (grepl("^linear", cc_model$best_model_name)) {
+      with(e, paste("y =", num_f(b1), "* x +", num_f(b0)))
+    } else {
+      with(e, paste("y =", num_f(a), "* x^2 +", num_f(b), "* x +", num_f(cc)))
+    }
+  }
   # Add summary about the calibration curve models
   conc_summary |> 
     dplyr::rowwise() |> 
@@ -430,11 +443,11 @@ tbl_chemical_summary <- function(sumexp) {
       best_model = calcurve_model$best_model_name,
       model_r2 = calcurve_model$R2s[[best_model]],
       n_conc = calcurve_model$n_conc,
+      eqn = get_equation(calcurve_model),
       .keep = "unused"     # Remove `calcurve_model`
     ) |> 
     dplyr::ungroup()
 }
-
 
 # Injection order ------------------------------------------------------------------------
 
