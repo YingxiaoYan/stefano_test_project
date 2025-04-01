@@ -283,6 +283,7 @@ export_concentration_tsv <- function(sumexp, file) {
       "LLOQ" = lloq,
       "R2" = model_r2,
       "Model" = best_model,
+      "Equation" = eqn,
       "N of points" = n_conc,
     )
   
