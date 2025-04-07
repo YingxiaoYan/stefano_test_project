@@ -31,7 +31,7 @@ In order to fit a calibration curve to a meaningful range of concentration, the 
 The lower-limit of the range is chosen following the process described below. 
 Concentration points below the limit are excluded from the calibration curve.
 
-1. Begin with the lowest concentration point (e.g. `Cal_0`) from the calibration sample set with a detected signal (or peak area) greater than zero.
+1. Begin with the lowest concentration point (e.g. `Cal0`) from the calibration sample set with a detected signal (or peak area) greater than zero.
 2. Evaluate the relative standard deviation (RS) for signal values at each concentration point above the lowest point with no less than one non-zero signal.
 3. Calculate the limit of detection (LOD) from a signal perspective using the formula $\rm{LOD} = m + 3 \times \rm{avg(RSD)} \times m$, where $\rm{avg(RSD)}$ represents the average relative standard deviation from step 2, and $m$ is the mean signal of the lowest non-zero concentration point..
 

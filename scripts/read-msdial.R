@@ -82,7 +82,7 @@ sample_info <- sample_info |>
     # Control sample categories
     contr_cat = dplyr::case_when(
       sample_type == "Standard" & 
-        stringr::str_detect(sample_name, "Cal_[[:digit:]]") ~ "CalCurve",
+        stringr::str_detect(sample_name, "Cal[[:digit:]]") ~ "CalCurve",
       sample_type == "QC"    ~ "QC",
       sample_type == "Blank" ~ "Blank",
       TRUE ~ ""         # # NA does not behave predictably with `==`
@@ -102,7 +102,7 @@ if (is_non_target_mode) {
   # Function to identify concentration values from the given IDs
   catch_concentration <- function(sid) {
     sid |> 
-      stringr::str_extract("Cal_([[:digit:]-]+)", group = 1) |> 
+      stringr::str_extract("Cal([[:digit:]][[:digit:]-]*)", group = 1) |> 
       stringr::str_replace("-", ".") |>     # Replace "-" with "."
       as.numeric()
   }

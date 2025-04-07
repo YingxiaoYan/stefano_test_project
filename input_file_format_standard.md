@@ -73,13 +73,8 @@ The initial set of columns contains information about features.
 #### Standard calibration samples / to fit calibration models
 
   * File type: `"Standard"`
-  * Sample ID: "[...]**Cal\_[concentration]**[…]"; regex: `".*Cal_[[:digit:]-]+.*"`
-  * Concentration format: replace decimal points with a dash `"-"` , e.g. 0.01 ->`"0-01"`, 0.5 -> `"0-5"`, 10 -> `"10"` (etc). 
-
-##### Zero concentration
-
-  * There must be at least two replicate (n=2) standards with zero concentration.
-  * Sample ID: "[...]**Cal\_0**\[not -\][…]"; regex: `".*Cal_0[^-]?.*"` 
+  * Sample ID: "[...]**Cal[concentration]**[…]"; regex to detect: `"Cal[[:digit:]]"`, to extract: `"Cal([[:digit:]][[:digit:]-]*)"`
+  * Concentration format: replace decimal points with a dash `"-"` , e.g. 0 -> `"Cal0"`, 0.01 ->`"Cal0-01"`, 0.5 -> `"Cal0-5"`, 10 -> `"Cal10"` (etc). 
 
 #### Quality Control (QC) samples
 
