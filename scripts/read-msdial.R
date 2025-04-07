@@ -27,14 +27,33 @@ i_three_sections <- msdial$get_three_section_indices(FILE$i)
 sample_info <- msdial$fetch_sample_info(FILE$i, i_three_sections[["2nd"]])
 
 # Feature Data
-features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["1st"]]) |>
-  dplyr::select(   # Syntactically valid column names in R,  new_id = "Given ID"
-    alignment_id = "Alignment ID",
-    feature_name = "Metabolite name",
-    mz = "Average Mz",
-    rt = "Average Rt(min)",
-    sn_ratio = "S/N average",
-    std_type = "Comment",            # Type of standard, e.g. "Quant", "IS", "vIS", or NA 
+conv_tbl <- tibble::tribble(
+  ~given_id,         ~id,            ~label,
+  "Alignment ID",    "alignment_id", "Alignment ID",
+  "Metabolite name", "feature_name", "Feature Name",
+  "Average Mz",      "mz",           "Average M/Z",
+  "Quant mass",      "mz",           "Quant Mass",
+  "Average Rt(min)", "rt",           "Average Retention Time (min)",
+  "S/N average",     "sn_ratio",     "Average S/N Ratio",
+  "Comment",         "std_type",     "Standard Type", # e.g. "Quant", "IS", "vIS", or NA 
+)
+convert_to_id <- function(given_id, tbl = conv_tbl) {
+  m <- match(given_id, tbl$given_id)
+  ifelse(is.na(m), given_id, tbl$id[m])
+}
+features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["1st"]])
+# Duplicated "id"s for different type of data
+conv_tbl <- conv_tbl[conv_tbl$given_id %in% colnames(features), ]
+stopifnot(anyDuplicated(conv_tbl$id) == 0)
+# Syntactically valid column names in R
+features <- dplyr::rename_with(features, convert_to_id) |> 
+  dplyr::select(        # Required 
+    alignment_id,
+    feature_name,
+    mz,
+    rt,
+    sn_ratio,
+    std_type,
   ) |> 
   as.data.frame()        # To have row names
 
@@ -47,15 +66,8 @@ features <- features |>
     std_type = ifelse(std_type %in% c("Quant", "IS", "vIS"), std_type, ""),
   )
 # Apply labels for plots and tables
-features <- features |> 
-  labelled::set_variable_labels(
-    alignment_id = "Alignment ID",
-    feature_name = "Feature Name",
-    mz = "Average M/Z",
-    rt = "Average Retention Time (min)",
-    sn_ratio = "Average S/N Ratio",
-    std_type = "Standard Type"
-  )
+conv_tbl <- conv_tbl[match(colnames(features), conv_tbl$id), ]  # To make sure the order is right.
+features <- labelled::set_variable_labels(features, .labels = conv_tbl$label)
 stopifnot("`IS` features are required." = any(features$std_type == "IS"))
 if (!any(features$std_type == "Quant")) {
   warning("`Quant` features are missing.")
