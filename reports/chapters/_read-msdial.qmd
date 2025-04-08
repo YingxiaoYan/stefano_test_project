@@ -85,7 +85,9 @@ For those targeted features, the standard type was specified.
 The number of features for each type is as follows:
 
 ```{r}
-show$kable_number_of(SumExp::row_df(raw_se)$std_type, what = "Features", exclude = "")
+v <- SumExp::row_df(raw_se)$std_type
+replace(v, v == "", "Not targeted") |>
+  show$kable_number_of(what = "Features")
 ```
 
 ## Distribution of the values
