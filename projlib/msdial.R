@@ -147,6 +147,7 @@ fetch_sample_info <- function(msdial_file, indices) {
       Class,
       sample_type = "File type",
       injection_order = "Injection order",
+      batch_id = "Batch ID",
       sample_name,
     )
   # For plots and tables
@@ -155,6 +156,7 @@ fetch_sample_info <- function(msdial_file, indices) {
       Class = "Class",
       sample_type = "Sample Type",
       injection_order = "Injection Order",
+      batch_id = "Batch ID",
       sample_name = "Sample ID",
     )
   sinfo

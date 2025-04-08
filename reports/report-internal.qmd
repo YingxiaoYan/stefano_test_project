@@ -105,7 +105,7 @@ if (any(is_vIS)) {
 
 The dataset is normalized using the provided ISs. The user can opt to choose between 2 normalization methods: 
 - "Closest RT" method, whereby the peak area intensity of each feature/chemical is corrected with that of the closest IS in RT. Target classes of compounds can be specified.
-- "LOESS" method, whereby the peak area intensity of each feature/chemical is corrected by a LOESS model curve built using all the IS spanning across the entire chromatorgaphic RT.
+- "LOESS" method, whereby the peak area intensity of each feature/chemical is corrected by a LOESS model curve built using all the IS spanning across the entire chromatographic RT.
 
 ```{r}
 #| purl: true

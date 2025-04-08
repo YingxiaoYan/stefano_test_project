@@ -134,6 +134,8 @@ sample_info <- sample_info |>
   dplyr::mutate(
     injection_order = as.integer(injection_order) |> 
       labelled::copy_labels_from(injection_order),
+    batch_id = as.integer(batch_id) |> 
+      labelled::copy_labels_from(batch_id),
   )
 
 # Into "SumExp" class
