@@ -1,5 +1,8 @@
 # ------------------------------------------------------------------------------------------- #
 # Parse a MS-Dial file and save the data to an `rds` file
+# NOTE: This script is designed to work with the utility functions in `projlib/msdial_utils.R`.
+#   Please check the functions in the chapter "Variables used in `read-msdial.R`" of the file
+#   whenever this script is modified.
 # ------------------------------------------------------------------------------------------- #
 
 # Load packages and project local libraries
@@ -92,7 +95,7 @@ cat("From the given file:", FILE$i, "\n",
 sample_info <- sample_info |> 
   dplyr::mutate(
     # Control sample categories
-    contr_cat = dplyr::case_when(
+    .ctrl_cat = dplyr::case_when(
       sample_type == "Standard" & 
         stringr::str_detect(sample_name, "Cal[[:digit:]]") ~ "CalCurve",
       sample_type == "QC"    ~ "QC",
@@ -101,9 +104,9 @@ sample_info <- sample_info |>
     ) |> 
       labelled::set_label_attribute("Control Sample Category")
   )
-stopifnot("`Blank` samples are required." = any(sample_info$contr_cat == "Blank"))
+stopifnot("`Blank` samples are required." = any(sample_info$.ctrl_cat == "Blank"))
 for(cat in c("CalCurve", "QC")) {
-  if (!any(sample_info$contr_cat == cat)) {
+  if (!any(sample_info$.ctrl_cat == cat)) {
     warning("`", cat, "` samples are missing.")
     is_non_target_mode <- TRUE
   }
@@ -119,11 +122,12 @@ if (is_non_target_mode) {
       as.numeric()
   }
   # Known concentration of calibration curves, which have been saved into the `sample_info`
-  sample_info[["c_conc"]] <- ifelse(sample_info$contr_cat == "CalCurve", 
-                                    catch_concentration(sample_info$sample_name), 
-                                    NA_real_) |> 
-    labelled::set_label_attribute("Known Concentration")
-  cc_conc <- sample_info[["c_conc"]][sample_info$contr_cat == "CalCurve"]
+  nm_c <- util$spiked_conc_pts_name
+  sample_info[[nm_c]] <- ifelse(sample_info$.ctrl_cat == "CalCurve", 
+                              catch_concentration(sample_info$sample_name), 
+                              NA_real_) |> 
+    labelled::set_label_attribute("Calibrant Concentration")
+  cc_conc <- sample_info[[nm_c]][sample_info$.ctrl_cat == "CalCurve"]
   stopifnot(
     "Error in Calibration sample IDs" = all(!is.na(cc_conc)), 
     "Multiple curve samples per concentration are required." = all(table(cc_conc) > 1)

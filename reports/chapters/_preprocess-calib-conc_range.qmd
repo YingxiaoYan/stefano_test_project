@@ -6,7 +6,7 @@ The number of samples in the calibration curve after outlier removal is presente
 ```{r}
 #| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-v <- SumExp::col_df(norm_se)$c_conc
+v <- util$spiked_conc_pts(norm_se)
 v <- v[!is.na(v)] |> 
   labelled::copy_labels_from(v)
 table(v) |> 

@@ -1,6 +1,10 @@
 
 # Variables used in `read-msdial.R` ------------------------------------------------------
 
+#' Get the name of the element containing the spiked concentration points
+#' @export
+spiked_conc_pts_name <- "c_conc"
+
 #' Get the spiked concentration points
 #' 
 #' @param cc_se A [`SumExp::SumExp`] object including the calibration curve samples
@@ -8,17 +12,55 @@
 #' @md
 #' @export
 spiked_conc_pts <- function(cc_se) {
-  SumExp::col_df(cc_se)[["c_conc"]]
+  stopifnot(inherits(cc_se, "SumExp"))
+  SumExp::col_df(cc_se)[[spiked_conc_pts_name]]
 }
 
 #' Special control sample categories
 #'
 #' @param x_se A [`SumExp::SumExp`] object
-#' @returns A character vector of the control sample categories. 
+#' @returns 
+#' [ctrl_smpl_cat()]: A character vector of the control sample categories. 
+#' 
 #' @md
 #' @export
-contr_cat <- function(x_se) {
-  SumExp::col_df(x_se)[["contr_cat"]]
+ctrl_smpl_cat <- function(x_se) {
+  stopifnot(inherits(x_se, "SumExp"))
+  SumExp::col_df(x_se)[[".ctrl_cat"]]
+}
+#' @rdname ctrl_smpl_cat
+#' @description
+#' [exclude_ctrl_smpl_cat()]: Exclude one or more special control sample categories
+#' 
+#' @param cat A character vector of the control sample categories to be excluded
+#' @returns
+#' [exclude_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
+#' categories excluded
+#' @md
+#' @export
+exclude_ctrl_smpl_cat <- function(x_se, cat) {
+  stopifnot(is.character(cat))
+  cat <- unique(cat)
+  if (length(cat) == 0) {
+    return(x_se)
+  }
+  x_se[, ! ctrl_smpl_cat(x_se) %in% cat]
+}
+#' @rdname ctrl_smpl_cat
+#' @description
+#' [extract_ctrl_smpl_cat()]: Extract one or more special control sample categories
+#' @returns
+#' [extract_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
+#' categories extracted
+#' @md
+#' @export
+extract_ctrl_smpl_cat <- function(x_se, cat) {
+  stopifnot(is.character(cat))
+  cat <- unique(cat)
+  if (length(cat) == 0) {
+    return(x_se)
+  }
+  x_se[, ctrl_smpl_cat(x_se) %in% cat]
 }
 
 #' Split the columns of a [`SumExp::SumExp`] object into the calibration curve and the other
@@ -31,21 +73,9 @@ contr_cat <- function(x_se) {
 #' @export
 split_into_calcurve_and_other <- function(x_se, out_names = c("CalCurve", "Other")) {
   stopifnot(length(out_names) == 2)
-  g <- ifelse(contr_cat(x_se) == "CalCurve", out_names[1], out_names[2])
+  g <- ifelse(ctrl_smpl_cat(x_se) == "CalCurve", out_names[1], out_names[2])
   SumExp::split_columns(x_se, g)
 }
-
-#' Extract the calibration curve samples
-#'
-#' @param x_se A [`SumExp::SumExp`] object including the calibration curve samples
-#'
-#' @returns A [`SumExp::SumExp`] object of the calibration curve samples
-#' @md
-#' @export
-extract_calcurve <- function(x_se) {
-  x_se[, contr_cat(x_se) == "CalCurve"]
-}
-
 
 # Utils ----------------------------------------------------------------------------------
 

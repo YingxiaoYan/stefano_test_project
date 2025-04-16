@@ -30,6 +30,7 @@ The subdirectories within the `code/` directory should be structured as shown be
     ├── code/
     │   ├── envs/             # Software environment
     │   ├── projlib/          # Reusable code modules imported by other scripts
+    │   ├── R/                # Functions for `app.R` (shiny app)
     │   ├── reports/          # Code that generates reports in `<project>/reports/`
     │   └── scripts/          # Scripts (AWK, R, Python, etc.)
 

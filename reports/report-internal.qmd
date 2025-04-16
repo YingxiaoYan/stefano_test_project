@@ -36,7 +36,7 @@ COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 IS_NON_TARGET_MODE <- SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 
 # Input/Output files
 FILE <- list(

@@ -25,7 +25,7 @@ constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 # For consistency throughout the report
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 
 # Input/Output files
 FILE <- list(
@@ -74,10 +74,11 @@ calcurve_to_show_df <- local({
   cc9_se <- calib_interm_data[["calcurve_se all range"]][i_9chemical_to_show, ]
   SumExp::as_tibble(cc9_se) |> 
     tidyr::drop_na(all_of(DATA_ID)) |>         # Drop concentrations outside the range
+    dplyr::rename(.cc_pt = util$spiked_conc_pts_name) |>    # Rename for clarity
     dplyr::mutate(
       "c_type" = dplyr::case_when(
-        c_conc == non_zero_conc ~ "First non-zero",
-        c_conc >= min_c_conc & c_conc <= max_c_conc ~ "Within limits",
+        .cc_pt == non_zero_conc ~ "First non-zero",
+        .cc_pt >= min_c_conc & .cc_pt <= max_c_conc ~ "Within limits",
         TRUE ~ "Out-of-range"
       )
     )
@@ -94,12 +95,12 @@ The concentration range was narrowed down to the range after the trimming step d
 #| fig-width: 12
 #| fig-height: 11
 # Plot calibration curves
-calcurve_plot <- function(df, x = "c_conc", y = DATA_ID) {
-  ggplot(df, aes(x = .data[[x]], y = .data[[y]])) +
+calcurve_plot <- function(df, y = DATA_ID) {
+  ggplot(df, aes(x = .cc_pt, y = .data[[y]])) +
     geom_point(aes(color = c_type)) +
     labs(
-      x = labelled::label_attribute(df[[x]]),
-      y = labelled::label_attribute(df[[y]]),
+      x = show$label_if_has(df$.cc_pt, "Calibrant Concentration"),
+      y = show$label_if_has(df[[y]], "Signal"),
       color = "Concentration\ncategory"
     ) +
     scale_color_manual(
@@ -119,7 +120,7 @@ calcurve_plot(calcurve_to_show_df)
 #| fig-width: 12
 #| fig-height: 11
 calcurve_to_show_df |> 
-  dplyr::filter(c_conc <= min_c_conc * 5) |> 
+  dplyr::filter(.cc_pt <= min_c_conc * 5) |> 
   calcurve_plot()
 ```
 
@@ -236,9 +237,11 @@ p + show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID)
 #### All except `QC` samples
 
 ```{r}
-classes_excl_qc_blank <- local({
-  unique(df$Class[!df$contr_cat %in% c("QC")])
-}, list(df = SumExp::col_df(concn_se)))
+classes_excl_qc_blank <- local(envir = list(se = concn_se), {
+  not_qc <- util$ctrl_smpl_cat(se) != "QC"
+  SumExp::col_df(se)[["Class"]][not_qc] |> 
+    unique()
+})
 ```
 
 The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.

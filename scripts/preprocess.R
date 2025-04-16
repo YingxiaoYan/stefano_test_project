@@ -122,7 +122,7 @@ norm_blk_mat_ids <- proc$get_mat_id_of_blank_subtracted(norm_mat_ids)
 overall_sumexp_before_blank <- overall_sumexp
 overall_sumexp <- proc$add_blank_substracted_sumexp(
   x_se = overall_sumexp,
-  no_change = util$contr_cat(overall_sumexp) == "CalCurve",
+  no_change = util$ctrl_smpl_cat(overall_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
@@ -222,7 +222,7 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data[["concn_se with conc"]] <- concn_se
   
   # Exclude the chemicals with no quantification
-  non_qc_conc <- concn_se[["conc"]][, util$contr_cat(concn_se) != "QC"]
+  non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
   any_above_lloq <- non_qc_conc > llodq$lloq
   concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
   

@@ -15,7 +15,7 @@ box::use(
 #' @param ... The required parameters in a character vector
 #'
 #' @md
-#' @return TRUE if all required inputs are provided
+#' @returns TRUE if all required inputs are provided
 .stop_unless_has_required_inputs <- function(userin, ...) {
   for (p in c(...)) {
     if(is.null(userin[[p]])) stop(paste(p, "is required, but not provided."))
@@ -26,7 +26,7 @@ box::use(
 #' Get the required input from the user
 #'
 #' @param ... The required parameters in a character vector
-#' @return A list of user input
+#' @returns A list of user input
 #' @export
 get_user_input <- function(...) {
   userin <- yaml::read_yaml("params.yml")
@@ -45,7 +45,7 @@ get_user_input <- function(...) {
 #' @param suffix A suffix to add to the file name to distinguish between data at different
 #'   stages, such as raw and processed data.
 #'
-#' @return A text string of the file name
+#' @returns A text string of the file name
 #' @md
 #' @export
 get_raw_data_file_name <- function(user_inputs, suffix = '') {
@@ -62,7 +62,7 @@ get_raw_data_file_name <- function(user_inputs, suffix = '') {
 #'
 #' @param user_inputs A list of user inputs including `input_file` and `intermediate_dir`.
 #'
-#' @return A [`SumExp::SumExp`] object
+#' @returns A [`SumExp::SumExp`] object
 #' @md
 #' @export
 read_parsed_msdial_data <- function(user_inputs) {
@@ -77,7 +77,7 @@ read_parsed_msdial_data <- function(user_inputs) {
     stop("The input file is different from the one used in the parsing.",
          "Please re-run `read-msdial.R` first.")
   }
-  return(sumexp)
+  sumexp
 }
 
 
@@ -91,7 +91,7 @@ read_parsed_msdial_data <- function(user_inputs) {
 #' 
 #' @param msdial_file Path to the MS-DIAL output file
 #' 
-#' @return A list of three column indices
+#' @returns A list of three column indices
 #' @export
 get_three_section_indices <- function(msdial_file) {
   # Read the second (`File type`) line to identify three sections
@@ -113,7 +113,7 @@ get_three_section_indices <- function(msdial_file) {
 #' @param indices The indices of the columns that contain sample information. If it not
 #'   provided, the 2nd section identified by `get_three_section_indices` will be used.
 #' 
-#' @return A data frame with sample information
+#' @returns A data frame with sample information
 #' @md
 #' @export
 fetch_sample_info <- function(msdial_file, indices) {
@@ -169,7 +169,7 @@ fetch_sample_info <- function(msdial_file, indices) {
 #' @param skip The number of lines to skip before reading the data. The default is 4. The data
 #'   in MS_DIAL files starts from the 5th line.
 #' 
-#' @return A tibble 
+#' @returns A tibble 
 #' @seealso `get_three_section_indices` `fetch_sample_info`
 #' @export
 fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {

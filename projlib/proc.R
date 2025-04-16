@@ -147,9 +147,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
   # Normalize the data using the internal standards
   # Mean of each internal standard feature for overall measurement samples
   # , excluding the calibration curve and blank samples
-  to_excl <- util$contr_cat(istd_se) %in% excl_cat
-  # The data of the samples with measurements
-  mat <- istd_log[, !to_excl, drop = FALSE]
+  mat <- log(util$exclude_ctrl_smpl_cat(istd_se, excl_cat)[[mat_id]])
   stopifnot("Failed interncal control(s)! value = 0" = all(is.finite(mat)))
   istd_m <- rowMeans(mat)
   # Subtract the mean from the data
@@ -209,7 +207,7 @@ add_blank_substracted_sumexp <- function(x_se,
                                          mat_ids, 
                                          out_mat_ids) {
   stopifnot(length(mat_ids) == length(out_mat_ids))
-  g <- ifelse(util$contr_cat(x_se) == "Blank", "Blank", "Other")
+  g <- ifelse(util$ctrl_smpl_cat(x_se) == "Blank", "Blank", "Other")
   se <- SumExp::split_columns(x_se, g)
   blank_se <- se[["Blank"]]
   x_se <- se[["Other"]]
@@ -416,7 +414,7 @@ find_calibration_limit_pts <- function(x_se, mat_id) {
   # Calibration curve concentration lower limit. The lowest concentration point
   min_c_conc <- min_conc_for_curve(mat_m, lod_signal)
   # Calibration curve concentration upper limit
-  mat_q <- se$quant[, util$contr_cat(se$quant) == ""][[mat_id]]   # Excluding "QC" category
+  mat_q <- util$exclude_ctrl_smpl_cat(se$quant, "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
   max_c_conc <- max_conc_for_curve(mat_m, mat_q, times = 10) |>
     make_sure_to_have_enough_calcurve(min_c_conc, conc_pts, min_n = 3, enough_n = 5)
@@ -441,7 +439,7 @@ add_calibration_curve_limits <- function(x_se, mat_id) {
 }
 #' @description
 #'   **`extract_calibration_limit_pts`**: 
-#'   Extract the calibration curve limits from the output of [`add_calibration_curve_limits()`]
+#'   Extract the calibration curve limits from the output of [add_calibration_curve_limits()]
 #' @rdname calibration_limit_pts
 #' @aliases extract_calibration_limit_pts
 #' @md
@@ -453,7 +451,7 @@ extract_calibration_limit_pts <- function(x_se) {
 #' @description
 #'   **`get_calibration_nonzero_pts`**: 
 #'   Extract the lowest non-zero concentration from the output of 
-#'   [`add_calibration_curve_limits()`]
+#'   [add_calibration_curve_limits()]
 #' @rdname calibration_limit_pts
 #' @aliases get_calibration_nonzero_pts
 #' @md
@@ -463,7 +461,7 @@ get_calibration_nonzero_pts <- function(x_se) {
 }
 #' @description
 #'   **`get_calibration_min_pts`**: 
-#'   Extract the minimum limits from the output of [`add_calibration_curve_limits()`]
+#'   Extract the minimum limits from the output of [add_calibration_curve_limits()]
 #' @rdname calibration_limit_pts
 #' @aliases get_calibration_min_pts
 #' @md
@@ -473,7 +471,7 @@ get_calibration_min_pts <- function(x_se) {
 }
 #' @description
 #'   **`get_calibration_max_pts`**: 
-#'   Extract the maximum limits from the output of [`add_calibration_curve_limits()`]
+#'   Extract the maximum limits from the output of [add_calibration_curve_limits()]
 #' @rdname calibration_limit_pts
 #' @aliases get_calibration_max_pts
 #' @md
@@ -486,7 +484,7 @@ get_calibration_max_pts <- function(x_se) {
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the calibration curve samples. 
 #'   The object should have the calibration curve limits added by
-#'   [`add_calibration_curve_limits()`]
+#'   [add_calibration_curve_limits()]
 #'
 #' @returns A logical vector
 #' @md

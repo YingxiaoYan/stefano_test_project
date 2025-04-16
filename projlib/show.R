@@ -5,7 +5,9 @@ box::use(util = ./msdial_utils)
 #' Check if 
 .chq_if_a_single_char <- function(x) {
   x_chr <- deparse1(substitute(x))
-  if (is.character(x) & length(x) == 1) return(TRUE)
+  if (is.character(x) & length(x) == 1) {
+    return(TRUE)
+  }
   stop(paste("`", x_chr, "` should be a single character", sep = ""))
 }
 
@@ -14,11 +16,13 @@ box::use(util = ./msdial_utils)
 #' @param x An object that may have a label attribute
 #' @param default A default label if the object does not have a label attribute
 #'
-#' @return A character of the label attribute or the default label
+#' @returns A character of the label attribute or the default label
 #' @export
 label_if_has <- function(x, default = deparse1(substitute(x))) {
   lab <- labelled::get_label_attribute(x)
-  if (!is.null(lab)) return(lab)
+  if (!is.null(lab)) {
+    return(lab)
+  }
   default
 }
 
@@ -26,7 +30,7 @@ label_if_has <- function(x, default = deparse1(substitute(x))) {
 #'
 #' @param x A numeric vector
 #' @param na.rm A logical value indicating whether to remove NA values
-#' @return A numeric value of RSD%
+#' @returns A numeric value of RSD%
 #' @export
 rsd_perc <- function(x, na.rm = FALSE) {
   100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
@@ -35,7 +39,7 @@ rsd_perc <- function(x, na.rm = FALSE) {
 #' RSD% across all samples
 #'
 #' @param mat A numeric matrix
-#' @return A numeric vector of RSD% across the samples in columns
+#' @returns A numeric vector of RSD% across the samples in columns
 #' @export
 compute_rsd_per_feature <- function(mat) {
   apply(mat, 1, rsd_perc) |> 
@@ -50,7 +54,7 @@ compute_rsd_per_feature <- function(mat) {
 #' @param lab The label of the variable
 #' @param ... Arguments passed to `janitor::tabyl` 
 #'
-#' @return A `kable` table with the number of samples and percentage of each level
+#' @returns A `kable` table with the number of samples and percentage of each level
 #' @export
 kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
   if (missing(lab)) {
@@ -75,12 +79,12 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @param color_cat A named character vector of colors for each control category
 #'
-#' @return A named character vector of colors for each class
+#' @returns A named character vector of colors for each class
 #' @md
 #' @export
 get_colors_of_classes <- function(sumexp, color_cat) {
   df1 <- SumExp::col_df(sumexp)
-  by_cat <- split(df1, util$contr_cat(sumexp)) |> 
+  by_cat <- split(df1, util$ctrl_smpl_cat(sumexp)) |> 
     lapply(\(.x) unique(.x$Class))
   # Fix the colors of the classes given in `color_cat`
   color_given <- by_cat[names(by_cat) %in% names(color_cat)] |> 
@@ -101,11 +105,11 @@ get_colors_of_classes <- function(sumexp, color_cat) {
 #'
 #' @param se A [`SumExp::SumExp`] object
 #'
-#' @return A list of SumExp objects divided by QC Classes
+#' @returns A list of SumExp objects divided by QC Classes
 #' @md
 #' @export
 extract_qc_samples_to_list <- function(se) {
-  se <- se[, util$contr_cat(se) == "QC"]
+  se <- util$extract_ctrl_smpl_cat(se, "QC")
   qc_id <- SumExp::col_df(se)$Class
   # Column-wise split
   lapply(stats::setNames(nm = unique(qc_id)), \(ii) se[, qc_id == ii])
@@ -114,7 +118,7 @@ extract_qc_samples_to_list <- function(se) {
 #' Extract quantitative standards in QC samples
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
-#' @return A list of SumExp objects with quantitative standards in QC samples
+#' @returns A list of SumExp objects with quantitative standards in QC samples
 #' @md
 #' @export
 extract_quant_qc <- function(sumexp) {
@@ -128,7 +132,7 @@ extract_quant_qc <- function(sumexp) {
 #'
 #' @param qc_se_lst A list of [`SumExp::SumExp`] objects with quantitative standards in QC samples
 #' @param mat_ids A character vector of the matrix IDs
-#' @return A tibble with RSD% of the quantification standard samples. The first two columns are
+#' @returns A tibble with RSD% of the quantification standard samples. The first two columns are
 #'   `QC` and `feature_id`.
 #' @md
 #' @export
@@ -151,7 +155,7 @@ calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
 #'
 #' @param rsd_df A data frame with columns `feature_id` as well as all in `mat_ids`
 #' @param mat_ids A character vector of assay IDs to be plotted in the x-axis
-#' @return A ggplot object
+#' @returns A ggplot object
 #' @export
 ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
   nms <- names(mat_ids)
@@ -221,7 +225,7 @@ geom_calibration_curve_line <- function(lim_df, color = "cadetblue", alpha = 0.7
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
 #' @param colors_of_classes A named character vector of colors for each class
 #'
-#' @return A ggplot object. 
+#' @returns A ggplot object. 
 #' @md
 #' @export
 ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
@@ -266,7 +270,9 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
       alpha = 0.5,
       inherit.aes = FALSE
     )
-  if (missing(colors_of_classes)) return(out)
+  if (missing(colors_of_classes)) {
+    return(out)
+  }
   out + ggplot2::scale_color_manual(values = colors_of_classes)
 }
 
@@ -365,7 +371,7 @@ coord_zoom_in_by_cc <- function(n_cc = 4,
 #' 
 #' @param x_se A [`SumExp::SumExp`] object
 #' @param hjust,vjust,size,color,... Parameters to be passed to `ggplot2::geom_text()`
-#' @returns A [`ggplot2::geom_text()`] output
+#' @returns A [ggplot2::geom_text()] output
 #' @md
 #' @seealso [ggplot_calcurve_samples()]
 #' @export
@@ -404,7 +410,7 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
 #' @export
 tbl_chemical_summary <- function(sumexp) {
   # Non-control samples only
-  sumexp <- sumexp[, util$contr_cat(sumexp) == ""]
+  sumexp <- util$extract_ctrl_smpl_cat(sumexp, "")
   # Information about the chemicals
   chemicals <- SumExp::row_df(sumexp) |> 
     tibble::as_tibble(rownames = "chem_id") |> 
@@ -481,12 +487,12 @@ df_for_injection_order <- function(sumexp, mat_ids = names(sumexp), inj_ord = in
 #' Create a column plot for the injection order
 #'
 #' @param data A tibble with the data for the injection order plot. It can be created by
-#'   `df_for_injection_order()`
+#'   [df_for_injection_order()]
 #' @param fill A `tidyselect` expression for the color aesthetic of the columns in the plot
 #' @param inj_ord A `tidyselect` expression for the injection order
 #'
-#' @returns A `ggplot2::ggplot()` object
-#' @seealso `df_for_injection_order()`
+#' @returns A [ggplot2::ggplot()] object
+#' @seealso [df_for_injection_order()]
 #' @md
 #' @export
 ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
@@ -507,9 +513,9 @@ ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @param mat_id The matrix ID in the `sumexp` to be used for PCA
-#' @param ... Additional arguments to `ggplot2::autoplot()`
+#' @param ... Additional arguments to [ggplot2::autoplot()]
 #'
-#' @returns A `ggplot2::ggplot()` object
+#' @returns A [ggplot2::ggplot()] object
 #' @md
 #' @export
 ggplot_pca <- function(sumexp, mat_id, ...) {
@@ -522,7 +528,9 @@ ggplot_pca <- function(sumexp, mat_id, ...) {
     warning("PCA failed. The error message is: ", e$message)
     return(NULL)
   })
-  if (is.null(pca_res)) return(NULL)
+  if (is.null(pca_res)) {
+    return(NULL)
+  }
   ggplot2::autoplot(pca_res, data = SumExp::col_df(sumexp), ...) +
     ggplot2::labs(title = lab)
 }

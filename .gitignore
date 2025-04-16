@@ -33,6 +33,6 @@ nohup.out
 # for temporary files
 temp
 tmp
-
+test.R
 
 /.quarto/

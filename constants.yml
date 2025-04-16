@@ -4,7 +4,7 @@
 
 # colors in plots
 COLORS:
-  contr_cat:
+  .ctrl_cat:
     Blank: 'red'
     QC: 'blue'
 

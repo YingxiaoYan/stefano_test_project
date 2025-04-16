@@ -43,7 +43,7 @@ COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 IS_NON_TARGET_MODE <- SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 
 # Input files
 FILE <- list(
@@ -103,9 +103,9 @@ plot_pca <- function(se, mat_id) {
   ggplot2::autoplot(pca_res, data = se_df, colour = "Class")
 }
 norm_se <- qc_steps[["normalized - blank"]]
-p1 <- norm_se[, ! util$contr_cat(norm_se) %in% c("QC", "CalCurve", "Blank")] |> 
+p1 <- util$exclude_ctrl_smpl_cat(norm_se, c("QC", "CalCurve", "Blank")) |> 
   plot_pca(DATA_ID) + ggtitle("Target + Non-target")
-p2 <- plot_pca(concn_se[, util$contr_cat(concn_se) != "QC"], DATA_ID) +
+p2 <- plot_pca(util$exclude_ctrl_smpl_cat(concn_se, "QC"), DATA_ID) +
   ggtitle("Target")
 p1 + p2 + patchwork::plot_layout(guides = "collect")
 ```
@@ -214,14 +214,14 @@ textbox_of_a_width <- function(txt, width) {
 }
 
 calcurve_se <- calib_interm_data[["calcurve_se within range"]]
-c_concs <- SumExp::col_df(calcurve_se)$c_conc
+c_concs <- util$spiked_conc_pts(calcurve_se)
 lowest_c <- min(c_concs[c_concs > 0])
 
 for(i_chem in 1:nrow(concn_se)) {       # For each chemical
   chem_name <- SumExp::row_df(concn_se)$feature_name[i_chem]
   cat("\n\n## ", chem_name, "\n")
   
-  x_se <- concn_se[i_chem, ! util$contr_cat(concn_se) %in% c("QC", "Blank")]
+  x_se <- util$exclude_ctrl_smpl_cat(concn_se, c("QC", "Blank"))[i_chem, ]
   # Calibration curves
   x1_se <- x_se   # For the case, lod < 0 or lloq < 0
   SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 

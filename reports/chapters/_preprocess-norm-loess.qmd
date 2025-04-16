@@ -26,7 +26,7 @@ constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 # For consistency throughout the report
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$contr_cat)
+COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 # Feature intensity to be used for normalization
 is_vIS <- SumExp::row_df(raw_se)$std_type == "vIS"
 mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
@@ -74,7 +74,7 @@ Randomly selected 3 samples are shown below.
 
 # Plot the normalized and original data for randomly selected 3 samples excluding those not
 # used in normalization
-to_excl <- util$contr_cat(norm_se) %in% excl_cat
+to_excl <- util$ctrl_smpl_cat(norm_se) %in% excl_cat
 i_sel <- sample(c(1:ncol(norm_se))[!to_excl], 3)
 i_sel <- setNames(i_sel, colnames(norm_se)[i_sel])
 
