@@ -32,18 +32,16 @@ init_data_info <- read_or_create_params(.yml_file, ids, defaults)
 
 #' MS-DIAL User Information UI for Shiny
 #' 
-#' @param ui_id The ID of the UI module. It should be matched with the server ID of 
+#' @param uiId The ID of the UI module. It should be matched with the server ID of 
 #'  [msdialInfoServer()].
 #' 
 #' @returns A Shiny UI module for MS-DIAL user information
 #' @md
 #' @export
-msdialInfoUI <- function(ui_id) {
-  stopifnot(is.list(init_data_info))
-  
+msdialInfoUI <- function(uiId) {
   shiny::tagList(
     purrr::pmap(.user_params, function(id, type, label) {
-      inputId <- shiny::NS(ui_id, id)
+      inputId <- shiny::NS(uiId, id)
       dplyr::case_match(
         type,
         c("text", "textArea") ~ "txt",
@@ -55,7 +53,7 @@ msdialInfoUI <- function(ui_id) {
         # Ordinary text outputs
         "txt" = textInputOfOneParam(inputId, type, label, value = init_data_info[[id]]),
         "browse" = local({
-          outputId <- shiny::NS(ui_id, matched_output_id(id))
+          outputId <- shiny::NS(uiId, matched_output_id(id))
           rlang::list2(
             # Title of the "Button"
             shiny::strong(label),
@@ -75,27 +73,27 @@ msdialInfoUI <- function(ui_id) {
         })
       )
     }),
-    shiny::actionButton(inputId = shiny::NS(ui_id, "save_param_button"), 
+    shiny::actionButton(inputId = shiny::NS(uiId, "save_param_button"), 
                         label = "Save the paramters above"),
     # Display the "saved" message
-    shiny::verbatimTextOutput(shiny::NS(ui_id, "saved")),
+    shiny::verbatimTextOutput(shiny::NS(uiId, "saved")),
   )
 }
 
 
 #' MS-DIAL User Information Server for Shiny
 #' 
-#' @param server_id The ID of the server module. It should be matched with the UI ID of
+#' @param serverId The ID of the server module. It should be matched with the UI ID of
 #'   [msdialInfoUI()].
 #' 
-#' @returns An output of [shiny::moduleServer()] 
+#' @returns A list of reactive values containing the user data information
 #' @md
 #' @export
-msdialInfoServer <- function(server_id) {
+msdialInfoServer <- function(serverId) {
   # The inputs obtained by [shinyFiles::shinyDirButton()]
   user_dirs <- .user_params$id[.user_params$type == "dir"]
   
-  shiny::moduleServer(server_id, function(input, output, session) {
+  shiny::moduleServer(serverId, function(input, output, session) {
     # Reactive values to store user data information
     data_info <- do.call(shiny::reactiveValues, init_data_info)
     
@@ -139,6 +137,8 @@ msdialInfoServer <- function(server_id) {
                           shiny::reactiveValuesToList(data_info))
       output$saved <- renderText("User data information saved successfully.")
     })
+    # Return of this module, to be used by other modules
+    data_info
   })
 }
 
