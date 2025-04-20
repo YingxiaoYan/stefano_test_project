@@ -9,19 +9,20 @@
 #' @returns A list of UI elements for generating a report.
 #' @export
 genReportUI <- function(uiId) {
+  ns <- shiny::NS(uiId)
   shiny::tagList(
     shiny::actionButton(
-      inputId = shiny::NS(uiId, "gen_intnl"),
+      inputId = ns("gen_intnl"),
       label = "Generate internal report",
     ),
-    shiny::textOutput(shiny::NS(uiId, "gen_intnl_out")),
+    shiny::textOutput(ns("gen_intnl_out")),
     shiny::br(),
     
     shiny::actionButton(
-      inputId = shiny::NS(uiId, "gen_extnl"),
+      inputId = ns("gen_extnl"),
       label = "Generate external report",
     ),
-    shiny::textOutput(shiny::NS(uiId, "gen_extnl_out")),
+    shiny::textOutput(ns("gen_extnl_out")),
   )
 }
 
