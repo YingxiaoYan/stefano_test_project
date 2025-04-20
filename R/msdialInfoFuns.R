@@ -87,46 +87,6 @@ read_or_create_params <- function(file, ids, defaults) {
   }
 }
 
-#' Create a text input field for a single parameter
-#' 
-#' @param inputId The ID for the input field
-#' @param type The type of input field, either "text" or "textArea"
-#' @param label The label for the input field
-#' @param value The default value for the input field
-#' 
-#' @returns A text input field as [shiny::textInput()] or [shiny::textAreaInput()]
-#' @md
-#' @export
-textInputOfOneParam <- function(inputId, type, label, value) {
-  fun <- switch(type,
-                "text"     = shiny::textInput,
-                "textArea" = shiny::textAreaInput)
-  fun(inputId = inputId, label = label, value = value, width = "100%")
-}
-
-#' Create a button for file or directory selection
-#' 
-#' @param id The ID for the button
-#' @param type The type of button, either "file" or "dir"
-#' 
-#' @returns A button for file or directory selection as [shinyFiles::shinyFilesButton()] or
-#'   [shinyFiles::shinyDirButton()]
-#' @md
-#' @export
-shinyButtonOfOneParam <- function(id, type) {
-  fun <- switch(
-    type,
-    "file" = shinyFiles::shinyFilesButton,
-    "dir"  = shinyFiles::shinyDirButton
-  )
-  title <- paste("Select a", switch(type, "dir" = "directory", "file" = "file"))
-  fun(
-    id = id,
-    label = "Browse",
-    title = title,
-    multiple = FALSE           # Only one file/dir is allowed
-  )
-}
 
 #' Get the file/directory name from a [shinyFiles::shinyFilesButton()] or
 #' [shinyFiles::shinyDirButton()]

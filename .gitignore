@@ -1,22 +1,23 @@
-# Created by and for Mac OS
+# Created by and for operating systems (e.g. MacOS)
 .DS_Store
 ._*
+
+# IDEs
+.Rproj.user/
+*.Rproj
+.vscode/
 
 # Apptainer container
 *.sif
 
-# Local (hidden) files and directories for some applications
+# Local (hidden) for applications
 .snakemake/
 .quarto/
 _*.local
 .cache
 .config
 
-# Rstudio project
-.Rproj.user/
-*.Rproj
-
-# R creating files
+# R
 .Rhistory
 .RData
 Rplot.pdf
@@ -24,15 +25,21 @@ Rplot.pdf
 # Python compiled versions
 __pycache__
 
-# Local HPC systems
+# Local for HPC systems
 /*.slurm
 /to_slurm.R
 *.swp
 nohup.out
 
-# for temporary files
+# Temporary files
 temp
 tmp
-test.R
 
-/.quarto/
+# Test files
+test.*
+
+# Accidentally created output files
+*.html
+*.pdf
+
+

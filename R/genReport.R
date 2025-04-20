@@ -47,38 +47,46 @@ genReportServer <- function(serverId, data_info) {
     out_dir <- shiny::reactive(data_info[["report_dir"]])
     
     shiny::observeEvent(input[["gen_intnl"]], {
-      od <- setwd("code/reports")          # Otherwise, all figures are not linked. 
-      tryCatch(
-        {
-          out_fname <- paste0(fn(), "-internal.html")
-          system(paste(
-            "quarto render report-internal.qmd --to html --output", out_fname, 
-            "--output-dir", file.path("../..", out_dir())
-          ))       # quarto::quarto_render() doesn't accept --output-dir
-          txt$i <- paste0("Internal reports `", out_fname, "` generated on `", out_dir(), "`")
-       },
-        warning = function(w) w,
-        error = function(e) e
+      txt$i <- withr::with_dir(
+        new = "code/reports",            # Otherwise, "Could not fetch resource..."
+        tryCatch(
+          {
+            out_fname <- paste0(fn(), "-internal.html")
+            odir <- file.path("../../", out_dir())      # Matched with the with_dir() above
+            quarto::quarto_render(
+              "report-internal.qmd",
+              output_format = "html",
+              output_file = out_fname,
+              quarto_args = c("--output-dir", odir)
+            )
+            paste0("Internal reports `", out_fname, "` generated on `", out_dir(), "`")
+          },
+          warning = function(w) w,
+          error = function(e) e
+        )
       )
-      setwd(od)
     })
     output[["gen_intnl_out"]] <- shiny::renderText(txt$i)
     
     shiny::observeEvent(input[["gen_extnl"]], {
-      od <- setwd("code/reports")          # Otherwise, all figures are not linked. 
-      tryCatch(
-        {
-          out_fname <- paste0(fn(), ".pdf")
-          system(paste(
-            "quarto render report-external.qmd --to pdf --output", out_fname, 
-            "--output-dir", file.path("../..", out_dir())
-          ))       # quarto::quarto_render() doesn't accept --output-dir
-          txt$e <- paste0("External reports `", out_fname, "` generated on `", out_dir(), "`")
-        },
-        warning = function(w) w,
-        error = function(e) e
+      txt$e <- withr::with_dir(
+        new = "code/reports",            # Otherwise, "Could not fetch resource..."
+        tryCatch(
+          {
+            out_fname <- paste0(fn(), ".pdf")
+            odir <- file.path("../../", out_dir())      # Matched with the with_dir() above
+            quarto::quarto_render(
+              "report-external.qmd",
+              output_format = "pdf",
+              output_file = out_fname,
+              quarto_args = c("--output-dir", odir)
+            )
+            paste0("External reports `", out_fname, "` generated on `", out_dir(), "`")
+          },
+          warning = function(w) w,
+          error = function(e) e
+        )
       )
-      setwd(od)
     })
     output[["gen_extnl_out"]] <- shiny::renderText(txt$e)
     NULL
@@ -87,7 +95,6 @@ genReportServer <- function(serverId, data_info) {
 
 #' A Shiny app to generate a report, for testing purposes
 genReportApp <- function() {
-  setwd("..")
   ui <- shiny::fluidPage(
     genReportUI("gen_report"),
   )
@@ -101,3 +108,7 @@ genReportApp <- function() {
   }
   shiny::shinyApp(ui = ui, server = server)
 }
+
+# Run this module
+# shiny::runApp(genReportApp())
+

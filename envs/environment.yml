@@ -11,7 +11,6 @@ dependencies:
   - r-tidyverse=2.0.0
   - r-box=1.2.0
   - r-roxygen2=7.3.2      # `box` requires this.
-  - r-renv                # `renv::dependencies()`
 
   # Plots
   - r-labelled              # labelled

@@ -10,6 +10,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   projlib/msdial,   # Handle MS-Dial files
   io = projlib/check_io_exist,       # Check input/output files
+  util = projlib/msdial_utils,   
 )
 
 # Get the input file name provided by the user

@@ -8,37 +8,23 @@ box::use(
   shiny[...],
   info = R/msdialInfo,
   rep  = R/genReport,
+  scr  = R/runScript,
 )
 # options(readr.show_progress = FALSE)
-
-# All scripts and Quarto files are written to be run from the project root directory.
-wd <- normalizePath("../")
 
 # Define UI for application
 ui <- fluidPage(
   fluidRow(
     column(
-      width = 6,
+      width = 7,
       info$msdialInfoUI("data_info"),
     ),
     column(
-      width = 6,
-      actionButton(
-        inputId = "read_msdial",
-        label = "Read MS-Dial output files"
-      ),
-      verbatimTextOutput("read_msdial_output"),
-      actionButton(
-        inputId = "preprocess",
-        label = "Preprocess data",
-      ),
-      verbatimTextOutput("preprocess_output"),
-      actionButton(
-        inputId = "export_data",
-        label = "Export data into tables",
-      ),
-      verbatimTextOutput("export_data_output"),
-      shiny::br(),
+      width = 5,
+      scr$runScriptUI("read_msdial", label = "Read MS-Dial output files"),
+      scr$runScriptUI("preprocess", label = "Preprocess data"),
+      scr$runScriptUI("export_data", label = "Export data into tables"),
+      shiny::hr(),
       rep$genReportUI("report"),
     ),
   )
@@ -48,33 +34,18 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   data_info <- info$msdialInfoServer("data_info")
   
-  setwd(wd)
-  observeEvent(input$read_msdial, {
-    out <- tryCatch(
-      capture.output(source("code/scripts/read-msdial.R")), 
-      warning = function(w) w,
-      error = function(e) e
-    )
-    output$read_msdial_output <- renderPrint(out)
-  })
-  observeEvent(input$preprocess, {
-    out <- tryCatch(
-      capture.output(source("code/scripts/preprocess.R")), 
-      warning = function(w) w,
-      error = function(e) e
-    )
-    output$preprocess_output <- renderPrint(out)
-  })
-  observeEvent(input$export_data, {
-    out <- tryCatch(
-      capture.output(source("code/scripts/export_data.R")), 
-      warning = function(w) w,
-      error = function(e) e
-    )
-    output$export_data_output <- renderPrint(out)
-  })
+  # Run scripts and display output
+  scr$runScriptServer("read_msdial", "code/scripts/read-msdial.R")
+  scr$runScriptServer("preprocess", "code/scripts/preprocess.R")
+  scr$runScriptServer("export_data", "code/scripts/export_data.R")
+  
   rep$genReportServer("report", data_info = data_info)
 }
 
 # Run the application 
-shiny::shinyApp(ui = ui, server = server)
+withr::with_dir(
+  # All scripts and Quarto files are written to be executed on the project root.
+  # This `app.R` is located in `code/` folder.
+  new = "..",   
+  shiny::shinyApp(ui = ui, server = server)
+)

@@ -42,23 +42,33 @@ msdialInfoUI <- function(uiId) {
   shiny::tagList(
     purrr::pmap(.user_params, function(id, type, label) {
       inputId <- shiny::NS(uiId, id)
-      dplyr::case_match(
-        type,
-        c("text", "textArea") ~ "txt",
-        c("file", "dir") ~ "browse",
-      ) |> 
-      # [dplyr::case_match()] runs every output and select matched ones, 
-      # while [switch()] works like multiple if-else statements
       switch(
-        # Ordinary text outputs
-        "txt" = textInputOfOneParam(inputId, type, label, value = init_data_info[[id]]),
-        "browse" = local({
+        type, 
+        "text" = shiny::textInput(inputId, label, 
+                                  value = init_data_info[[id]], width = "100%"),
+        "textArea" = shiny::textAreaInput(inputId, label, 
+                                          value = init_data_info[[id]], width = "100%"),
+        "file" = local({
+          outputId <- shiny::NS(uiId, matched_output_id(id))
+          rlang::list2(
+            # Title of the "Button"
+            shiny::strong(label),
+            # File name
+            shiny::verbatimTextOutput(outputId, placeholder = TRUE),
+            shinyFiles::shinyFilesButton(inputId, "Browse",
+                                         title = "Select a file",
+                                         icon = shiny::icon("file"),
+                                         multiple = FALSE),
+            shiny::br(),    # Avoids overlap
+          )
+        }),
+        "dir" = local({
           outputId <- shiny::NS(uiId, matched_output_id(id))
           rlang::list2(
             # Title of the "Button"
             shiny::strong(label),
             shiny::fluidRow(      # Horizontal layout
-              # File/Directory name
+              # Directory name
               shiny::column(
                 width = 8,
                 shiny::verbatimTextOutput(outputId, placeholder = TRUE),
@@ -66,7 +76,10 @@ msdialInfoUI <- function(uiId) {
               # "Browse" button
               shiny::column(
                 width = 2,
-                shinyButtonOfOneParam(inputId, type),
+                shinyFiles::shinyDirButton(inputId, "Browse",
+                                           title = "Select a directory",
+                                           icon = shiny::icon("folder-open"),
+                                           multiple = FALSE),
               )
             ),
           )
@@ -152,3 +165,6 @@ msdialInfoApp <- function() {
   }
   shiny::shinyApp(ui, server)
 }
+
+# Run this module on `code/` where `app.R` is located
+# shiny::runApp(msdialInfoApp())
