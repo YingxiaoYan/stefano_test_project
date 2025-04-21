@@ -5,14 +5,14 @@
 # options(readr.show_progress = FALSE)
 
 # Define UI for application
-ui <- fluidPage(
-  fluidRow(
-    column(
-      width = 7,
+ui <- shiny::fluidPage(
+  shiny::fluidRow(
+    shiny::column(
+      width = 6,
       msdialInfoUI("data_info"),
     ),
-    column(
-      width = 5,
+    shiny::column(
+      width = 6,
       runScriptUI("read_msdial", label = "Read MS-Dial output files"),
       runScriptUI("preprocess",  label = "Preprocess data"),
       runScriptUI("export_data", label = "Export data into tables"),

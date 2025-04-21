@@ -2,15 +2,14 @@
 # A Shiny module to collect user's MS-DIAL information
 # ------------------------------------------------------------------------------------------- #
 
-.roots <- c('home' = "..")     # This R project home
 # "params.yml": The parameter file in YAML format that stores user's MS-DIAL info
-.yml_file <- "params.yml"
+.yml_file <- "../params.yml"
 
 # User project parameters
 .user_params <- tibble::tribble(
   ~id,                  ~type,      ~label,
   "title",              "text",     "Title",
-  "input_file",         "file",     "Input file (relative path from `home/code/` dir.)",
+  "input_file",         "file",     "Input file",
   "intermediate_dir",   "dir",      "Directory to save intermediate files",
   "table_dir",          "dir",      "Directory to save the exported tables",
   "report_dir",         "dir",      "Directory to save the creating reports",
@@ -104,6 +103,8 @@ msdialInfoServer <- function(serverId) {
   # The inputs obtained by [shinyFiles::shinyDirButton()]
   user_dirs <- .user_params$id[.user_params$type == "dir"]
   txt_ids <- .user_params$id[.user_params$type %in% c("text", "textArea")]
+  .roots <- c('home' = "..")     # The root directory for the file/directory chooser
+  .from_roots <- c('home' = ".")    # Returned file/directory path
   
   shiny::moduleServer(serverId, function(input, output, session) {
     # Reactive values to store user data information
@@ -122,7 +123,7 @@ msdialInfoServer <- function(serverId) {
         # Update the file name when the user selects a file
         data_info[[id]] <- .getShinyFileName(button = input[[id]], 
                                              default = data_info[[id]], 
-                                             roots = .roots)
+                                             roots = .from_roots)
       })
       # Display the selected file name
       output[[matched_output_id(id)]] <- shiny::renderText(data_info[[id]])
@@ -137,7 +138,7 @@ msdialInfoServer <- function(serverId) {
       shiny::observeEvent(input[[id]], {
         data_info[[id]] <- .getShinyDirName(button = input[[id]], 
                                             default = data_info[[id]], 
-                                            roots = .roots)
+                                            roots = .from_roots)
       })
       # Update the directory name when the user selects a directory
       output[[matched_output_id(id)]] <- shiny::renderText(data_info[[id]])
