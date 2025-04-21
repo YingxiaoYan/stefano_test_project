@@ -2,7 +2,7 @@
 # This is a Shiny web application.
 # ------------------------------------------------------------------------------------------- #
 
-# options(readr.show_progress = FALSE)
+options(readr.show_progress = FALSE)      # Avoids progress stored in the "capture.output"
 
 # Define UI for application
 ui <- shiny::fluidPage(
@@ -28,9 +28,9 @@ server <- function(input, output, session) {
   data_info <- msdialInfoServer("data_info")
   
   # Run scripts and display output
-  runScriptServer("read_msdial", "scripts/read-msdial.R")
-  runScriptServer("preprocess",  "scripts/preprocess.R")
-  runScriptServer("export_data", "scripts/export_data.R")
+  runScriptServer("read_msdial", "code/scripts/read-msdial.R", root = "..")
+  runScriptServer("preprocess",  "code/scripts/preprocess.R",  root = "..")
+  runScriptServer("export_data", "code/scripts/export_data.R", root = "..")
   
   genReportServer("report", data_info = data_info)
 }

@@ -6,6 +6,8 @@ format:
     fig-height: 6
     out-width: "100%"
     fig-align: "default"
+params:
+  data_id: loess_norm_blk
 ---
 
 ```{r}
@@ -13,7 +15,7 @@ format:
 #| purl: true
 #| output: false
 # The preprocessed data used for calibration. Default is `loess_norm_blk`.
-if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
+DATA_ID <- params$data_id
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries

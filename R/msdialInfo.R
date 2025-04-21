@@ -9,7 +9,7 @@
 .user_params <- tibble::tribble(
   ~id,                  ~type,      ~label,
   "title",              "text",     "Title",
-  "input_file",         "file",     "Input file",
+  "input_file",         "file",     "Input file (relative path from `home/`)",
   "intermediate_dir",   "dir",      "Directory to save intermediate files",
   "table_dir",          "dir",      "Directory to save the exported tables",
   "report_dir",         "dir",      "Directory to save the creating reports",

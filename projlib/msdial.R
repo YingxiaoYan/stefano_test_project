@@ -30,7 +30,7 @@ box::use(
 #' @export
 get_user_input <- function(...) {
   userin <- yaml::read_yaml("params.yml")
-  cat("User input has been read from 'params.yml'.\n")
+  # cat("User input has been read from 'params.yml'.\n")
   .stop_unless_has_required_inputs(userin, ...)
   userin
 }

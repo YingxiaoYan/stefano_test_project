@@ -11,6 +11,14 @@
 genReportUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    shiny::radioButtons(
+      inputId = ns("norm_method"),
+      label = "Normalization method",
+      choices = c("LOESS" = "loess_norm", 
+                  "Closest RT" = "closest_norm"),
+      selected = "loess_norm",
+    ),
+    
     shiny::actionButton(
       inputId = ns("gen_internal"),
       label = "Generate internal report",
@@ -38,11 +46,12 @@ genReportUI <- function(uiId) {
 genReportServer <- function(serverId, data_info) {
   shiny::moduleServer(serverId, function(input, output, session) {
     txt <- shiny::reactiveValues(gen_internal = "", gen_external = "")
-
+    
     # Extract file base name without extension
     fn <- shiny::reactive({
-      basename(data_info[["input_file"]]) |>
+      out <- basename(data_info[["input_file"]]) |>
         tools::file_path_sans_ext(compression = TRUE)
+      paste0(out, "-", input$norm_method)
     })
     # Output directory
     out_dir <- shiny::reactive(data_info[["report_dir"]])
@@ -50,21 +59,23 @@ genReportServer <- function(serverId, data_info) {
     observeButtonAndRun <- function(type, out_fname) {
       id <- paste0("gen_", type)
       qmd <- paste0("report-", type, ".qmd")
-      current_dir <- normalizePath("./")      # To avoid "../", which breaks by symbolic links
       shiny::observeEvent(input[[id]], {
         txt[[id]] <- withr::with_dir(
           new = "reports",            # Otherwise, "Could not fetch resource..."
           tryCatch(
             {
-              odir <- file.path(current_dir, out_dir())      # Matched with the with_dir() above
+              odir <- file.path("../..", out_dir())      # Matched with the with_dir() above
               quarto::quarto_render(
                 qmd,
-                output_format = tools::file_ext(out_fname),
-                output_file = out_fname,
+                output_format = tools::file_ext(out_fname()),
+                output_file = out_fname(),
+                execute_params = rlang::list2(
+                  data_id = paste0(input$norm_method, "_blk"),
+                ),
                 quarto_args = c("--output-dir", odir)
               )
               paste0(stringr::str_to_title(type),
-                     " reports `", out_fname, "` generated on `", out_dir(), "`")
+                     " reports `", out_fname(), "` generated on `", out_dir(), "`")
             },
             warning = function(w) w,
             error = function(e) e
@@ -73,10 +84,11 @@ genReportServer <- function(serverId, data_info) {
       })
       output[[paste0(id, "_out")]] <- shiny::renderText(txt[[id]])
     }
+    
     # Generate internal report
-    observeButtonAndRun("internal", paste0(fn(), "-internal.html"))
+    observeButtonAndRun("internal", shiny::reactive(paste0(fn(), "-internal.html")))
     # Generate external report
-    observeButtonAndRun("external", paste0(fn(), ".pdf"))
+    observeButtonAndRun("external", shiny::reactive(paste0(fn(), ".pdf")))
     NULL
   })
 }
@@ -90,7 +102,7 @@ genReportApp <- function() {
     # Placeholder for data_info
     data_info <- shiny::reactiveValues(
       input_file = "path/to/input_file_example.msdial",
-      report_dir = "../reports",
+      report_dir = "../../reports",
     )
     genReportServer("gen_report", data_info)
   }
