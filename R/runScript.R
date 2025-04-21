@@ -43,7 +43,10 @@ runScriptApp <- function() {
     runScriptUI("script1", "Run script 1"),
   )
   server <- function(input, output, session) {
-    runScriptServer("script1", "code/scripts/read-msdial.R")
+    runScriptServer("script1", "scripts/read-msdial.R")
   }
   shiny::shinyApp(ui = ui, server = server)
 }
+
+# Module test on `code/` where `app.R` is located
+# shiny::runApp(runScriptApp())

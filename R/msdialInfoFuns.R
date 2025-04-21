@@ -81,8 +81,8 @@ read_or_create_params <- function(file, ids, defaults) {
   } else {
     # Create the YAML file, which is required.
     .save_user_input_to_yaml(file, ids, defaults)
-    warning(file, "YAML file not found.",
-            "A new YAML file has been created with default parameters.\n")
+    # warning(file, "YAML file not found.",
+    #         "A new YAML file has been created with default parameters.\n")
     return(defaults)
   }
 }
@@ -96,10 +96,7 @@ read_or_create_params <- function(file, ids, defaults) {
 #' @param roots The roots for the file/directory selection
 #' 
 #' @returns A character string representing the file/directory name
-#'
-#' @md
-#' @export
-getShinyFileName <- function(button, default, roots) {
+.getShinyFileName <- function(button, default, roots) {
   if (is.numeric(button)) {
     return(default)
   } else {
@@ -108,14 +105,11 @@ getShinyFileName <- function(button, default, roots) {
 }
 #' @rdname getShinyFileName
 #' @alias getShinyFileName
-#' @export
-getShinyDirName <- function(button, default, roots) {
+.getShinyDirName <- function(button, default, roots) {
   if (is.numeric(button)) {
     return(default)
   } else {
     return(shinyFiles::parseDirPath(roots, button))
   }
 }
-
-
 

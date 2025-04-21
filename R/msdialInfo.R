@@ -2,19 +2,15 @@
 # A Shiny module to collect user's MS-DIAL information
 # ------------------------------------------------------------------------------------------- #
 
-options(box.path = "./")   # Where "app.R" is located, "code/"
-box::use(R/msdialInfoFuns[...])
-
-# source("R/msdialInfoFuns.R")     # Outsource to simplify this script
-roots <- c('wd' = "..")     # This R project home
+.roots <- c('home' = "..")     # This R project home
 # "params.yml": The parameter file in YAML format that stores user's MS-DIAL info
-.yml_file <- "../params.yml"
+.yml_file <- "params.yml"
 
-#' User project parameters
+# User project parameters
 .user_params <- tibble::tribble(
   ~id,                  ~type,      ~label,
   "title",              "text",     "Title",
-  "input_file",         "file",     "Input file",
+  "input_file",         "file",     "Input file (relative path from `home/code/` dir.)",
   "intermediate_dir",   "dir",      "Directory to save intermediate files",
   "table_dir",          "dir",      "Directory to save the exported tables",
   "report_dir",         "dir",      "Directory to save the creating reports",
@@ -26,9 +22,12 @@ roots <- c('wd' = "..")     # This R project home
 )
 
 # Default values for the parameters
-ids <- .user_params$id
-defaults <- lapply(rlang::set_names(ids), \(x) "")
-init_data_info <- read_or_create_params(.yml_file, ids, defaults)
+.init_data_info <- local({
+  box::use(R/msdialInfoFuns[read_or_create_params])
+  ids <- .user_params$id
+  defaults <- lapply(rlang::set_names(ids), \(x) "")
+  read_or_create_params(.yml_file, ids, defaults)
+})
 
 #' MS-DIAL User Information UI for Shiny
 #' 
@@ -36,7 +35,6 @@ init_data_info <- read_or_create_params(.yml_file, ids, defaults)
 #'  [msdialInfoServer()].
 #' 
 #' @returns A Shiny UI module for MS-DIAL user information
-#' @md
 #' @export
 msdialInfoUI <- function(uiId) {
   shiny::tagList(
@@ -45,9 +43,9 @@ msdialInfoUI <- function(uiId) {
       switch(
         type, 
         "text" = shiny::textInput(inputId, label, 
-                                  value = init_data_info[[id]], width = "100%"),
+                                  value = .init_data_info[[id]], width = "100%"),
         "textArea" = shiny::textAreaInput(inputId, label, 
-                                          value = init_data_info[[id]], width = "100%"),
+                                          value = .init_data_info[[id]], width = "100%"),
         "file" = local({
           outputId <- shiny::NS(uiId, matched_output_id(id))
           rlang::list2(
@@ -100,40 +98,46 @@ msdialInfoUI <- function(uiId) {
 #'   [msdialInfoUI()].
 #' 
 #' @returns A list of reactive values containing the user data information
-#' @md
+#' @include msdialInfoFuns.R
 #' @export
 msdialInfoServer <- function(serverId) {
   # The inputs obtained by [shinyFiles::shinyDirButton()]
   user_dirs <- .user_params$id[.user_params$type == "dir"]
+  txt_ids <- .user_params$id[.user_params$type %in% c("text", "textArea")]
   
   shiny::moduleServer(serverId, function(input, output, session) {
     # Reactive values to store user data information
-    data_info <- do.call(shiny::reactiveValues, init_data_info)
+    data_info <- do.call(shiny::reactiveValues, .init_data_info)
+    # Text inputs are updated as the inputs change
+    for(id in txt_ids) {
+      shiny::observe(data_info[[id]] <- input[[id]], env = list2env(list(id = id)))
+    }
     
     observeFileAndUpdate <- function(id) {
       # File choose ("Browse") button
-      shinyFiles::shinyFileChoose(input, id, roots = roots, defaultPath = data_info[[id]])
+      shinyFiles::shinyFileChoose(input, id, roots = .roots, 
+                                  defaultPath = data_info[[id]])
       # Observe the "Browse" button click event for file choosing
       shiny::observeEvent(input[[id]], {
         # Update the file name when the user selects a file
-        data_info[[id]] <- getShinyFileName(button = input[[id]], 
-                                            default = data_info[[id]], 
-                                            roots = roots)
+        data_info[[id]] <- .getShinyFileName(button = input[[id]], 
+                                             default = data_info[[id]], 
+                                             roots = .roots)
       })
       # Display the selected file name
       output[[matched_output_id(id)]] <- shiny::renderText(data_info[[id]])
       NULL
     }
     observeFileAndUpdate("input_file")
-
+    
     observeDirAndUpdate <- function(id) {
       # Directory choose ("Browse") button
-      shinyFiles::shinyDirChoose(input, id, roots = roots, defaultPath = "")
+      shinyFiles::shinyDirChoose(input, id, roots = .roots, defaultPath = "")
       # Observe the "Browse" button click event for directory choosing
       shiny::observeEvent(input[[id]], {
-        data_info[[id]] <- getShinyDirName(button = input[[id]], 
-                                           default = data_info[[id]], 
-                                           roots = roots)
+        data_info[[id]] <- .getShinyDirName(button = input[[id]], 
+                                            default = data_info[[id]], 
+                                            roots = .roots)
       })
       # Update the directory name when the user selects a directory
       output[[matched_output_id(id)]] <- shiny::renderText(data_info[[id]])
@@ -156,6 +160,7 @@ msdialInfoServer <- function(serverId) {
 }
 
 #' MS-DIAL User Information App for modular testing
+#' @include msdialInfoFuns.R
 msdialInfoApp <- function() {
   ui <- shiny::fluidPage(
     msdialInfoUI("data_info"),
@@ -166,5 +171,7 @@ msdialInfoApp <- function() {
   shiny::shinyApp(ui, server)
 }
 
-# Run this module on `code/` where `app.R` is located
+# Module test on `code/` where `app.R` is located
+# source("R/msdialInfoFuns.R")
+# source("R/msdialInfo.R")
 # shiny::runApp(msdialInfoApp())
