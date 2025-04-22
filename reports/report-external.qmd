@@ -68,6 +68,8 @@ calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
 # Sort the chemicals by name
 concn_se <- concn_se[order(SumExp::row_df(concn_se)$feature_name), ]
+# Exclude control samples
+concn_se <- util$exclude_ctrl_smpl_cat(concn_se, c("QC"))
 ```
 
 # Project Information
@@ -84,6 +86,10 @@ concn_se <- concn_se[order(SumExp::row_df(concn_se)$feature_name), ]
 
 * Number of samples: `r ncol(concn_se)`
 * Number of targeted chemicals: `r nrow(concn_se)`
+
+```{r}
+show$kable_number_of(SumExp::col_df(concn_se)$Class)
+```
 
 {{< pagebreak >}}
 
@@ -108,7 +114,7 @@ plot_pca <- function(se, mat_id) {
 norm_se <- qc_steps[["normalized - blank"]]
 p1 <- util$exclude_ctrl_smpl_cat(norm_se, c("QC", "CalCurve", "Blank")) |> 
   plot_pca(DATA_ID) + ggtitle("Target + Non-target")
-p2 <- plot_pca(util$exclude_ctrl_smpl_cat(concn_se, "QC"), DATA_ID) +
+p2 <- plot_pca(concn_se, DATA_ID) +
   ggtitle("Target")
 p1 + p2 + patchwork::plot_layout(guides = "collect")
 ```
@@ -224,7 +230,7 @@ for(i_chem in 1:nrow(concn_se)) {       # For each chemical
   chem_name <- SumExp::row_df(concn_se)$feature_name[i_chem]
   cat("\n\n## ", chem_name, "\n")
   
-  x_se <- util$exclude_ctrl_smpl_cat(concn_se, c("QC", "Blank"))[i_chem, ]
+  x_se <- concn_se[i_chem, ]
   # Calibration curves
   x1_se <- x_se   # For the case, lod < 0 or lloq < 0
   SumExp::row_df(x1_se) <- SumExp::row_df(x1_se) |> 
