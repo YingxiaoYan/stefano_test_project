@@ -15,13 +15,15 @@ format:
     geometry:
       - margin=20mm
       - heightrounded
+params:
+  data_id: loess_norm_blk
 ---
 
 ```{r}
 #| label: 'setup'
 #| purl: true
-# The preprocessed data used for calibration. Default is `loess_norm_blk`.
-if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
+# The preprocessed data used for calibration.
+DATA_ID <- params$data_id
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries

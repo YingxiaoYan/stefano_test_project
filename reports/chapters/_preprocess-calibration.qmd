@@ -1,13 +1,15 @@
 ---
 title: Calibration
+params:
+  data_id: loess_norm_blk
 ---
 
 ```{r}
 #| label: 'setup-calibration'
 #| purl: true
 #| eval: !expr '!knitr::opts_knit$get("child")'
-# The preprocessed data used for calibration. Default is `loess_norm_blk`.
-if (!exists("DATA_ID")) DATA_ID <- "loess_norm_blk"
+# The preprocessed data used for calibration.
+DATA_ID <- params$data_id
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -16,6 +18,7 @@ box::use(
   projlib/msdial,     # Handle MS-Dial files
   projlib/show,       # Functions to present data
   ggplot2[...],        # Too long to write and usually specific enough
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   io = projlib/check_io_exist,       # Check input/output files
 )
 # Get the input file name provided by the user
@@ -134,8 +137,25 @@ concn_se <- calib_interm_data[["concn_se with conc"]]
 
 ### Calibration models
 
-The calibration curve is fitted to the [normalized data](#normalization) using 6 different models.
-Linear models and quadratic models are fitted to the data with three different weights, $1$, $\frac{1}{x}$ and $\frac{1}{x^2}$.
+```{r}
+weight_method <- calib_interm_data[["weight method"]]
+if (weight_method == "lowestR2") {
+  n_models <- 6
+  weight_txt <- "three different weights, $1$, $\\frac{1}{x}$ and $\\frac{1}{x^2}$"
+} else {
+  n_models <- 2
+  weight_txt <- switch(
+    weight_method,
+    "1" = "constant",
+    "1/x" = "$\\frac{1}{x}$",
+    "1/x2" = "$\\frac{1}{x^2}$"
+  )
+  weight_txt <- paste(weight_txt, "weight")
+}
+```
+
+The calibration curve is fitted to the [normalized data](#normalization) using `r n_models` different models.
+Linear models and quadratic models are fitted to the data with `r weight_txt`.
 The best model is selected based on the $R^2$ value.
 Preferring simpler models, the measures of explained variation of quadratic models were penalized by 0.01.
 

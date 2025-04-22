@@ -14,7 +14,7 @@ params:
 #| label: 'setup-read-msdial'
 #| purl: true
 #| output: false
-# The preprocessed data used for calibration. Default is `loess_norm_blk`.
+# The preprocessed data used for calibration.
 DATA_ID <- params$data_id
 
 # Load packages and project local libraries

@@ -572,6 +572,11 @@ get_signals_of_calibration_nonzero_pts <- function(x_se, mat_id) {
 #'
 #' @param conc A vector of concentrations
 #' @param signal A vector of signal values
+#' @param weight_method The method to use for weighting the models. The options are:
+#'   - `lowestR2`: The model with the lowest R2 value is used as the weight
+#'   - `1`: Constant weight of 1
+#'   - `1/x`: Inverse of the concentration
+#'   - `1/x2`: Inverse of the concentration squared
 #' @param penalty_quadratic The penalty for the quadratic models
 #'
 #' @returns A list with the best model, the name of it, the R2 values of all models, and the
@@ -586,7 +591,10 @@ get_signals_of_calibration_nonzero_pts <- function(x_se, mat_id) {
 NULL
 #' @rdname calcurve_model
 #' @export
-fit_and_test_calcurve_model <- function(conc, signal, penalty_quadratic = 0) {
+fit_and_test_calcurve_model <- function(conc,
+                                        signal,
+                                        weight_method = "lowestR2",
+                                        penalty_quadratic = 0) {
   if (all(is.na(signal) | signal == 0)) {
     return(list(
       "best_model" = function(x) x,
@@ -600,6 +608,11 @@ fit_and_test_calcurve_model <- function(conc, signal, penalty_quadratic = 0) {
     "1/x" = 1 / conc,
     "1/x2" = 1 / (conc ^ 2),
   )
+  # Limit the weight alternatives when one has been chosen
+  if (weight_method != "lowestR2") {
+    weights_alt <- weights_alt[weight_method]
+  }
+  
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
   names(lmodels) <- paste("linear", names(lmodels), sep = "-")

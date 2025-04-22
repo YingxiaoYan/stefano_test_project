@@ -5,6 +5,10 @@
 # using the `proc$initialize_qc_steps` and `proc$append_to_qc_steps` functions. 
 # ------------------------------------------------------------------------------------------- #
 
+if (!exists("param_weight")) param_weight <- "lowestR2"   # Default weight method
+cat("\nPreprocessing parameters:\n",
+    "  - Weight method: ", param_weight, "\n")
+
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
@@ -186,8 +190,12 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   cc_mat_norm <- calcurve_se[[mat_id]]
   c_concs <- util$spiked_conc_pts(calcurve_se)
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-    proc$fit_and_test_calcurve_model(c_concs, cc_mat_norm[ii, ], penalty_quadratic = 0.01)
+    proc$fit_and_test_calcurve_model(c_concs,
+                                     signal = cc_mat_norm[ii, ],
+                                     weight_method = param_weight,
+                                     penalty_quadratic = 0.01)
   })
+  interm_data[["weight method"]] <- param_weight
   
   # Find the LLOQ and LOD
   llodq <- proc$extract_calibration_limit_pts(calcurve_se)[, c("lod_signal", "lloq_signal")] |> 

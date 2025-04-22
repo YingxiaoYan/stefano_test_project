@@ -18,6 +18,7 @@ genReportUI <- function(uiId) {
                   "Closest RT" = "closest_norm"),
       selected = "loess_norm",
     ),
+    shiny::br(),
     
     shiny::actionButton(
       inputId = ns("gen_internal"),

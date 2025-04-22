@@ -22,14 +22,13 @@ runScriptUI <- function(uiId, label) {
 #'
 #' @param serverId A string that identifies the server module.
 #' @param script_path A string that specifies the path to the script to be run.
-#' @param root A string that specifies the root directory where the script will be run.
 #' @export
-runScriptServer <- function(serverId, script_path, root) {
+runScriptServer <- function(serverId, script_path) {
   shiny::moduleServer(serverId, function(input, output, session) {
     shiny::observeEvent(input[["run_button"]], {
       out <- tryCatch(
         withr::with_dir(
-          new = root,
+          new = "..",     # Every script is written to be executed at the root of the project
           utils::capture.output(source(script_path, local = TRUE))
         ),
         warning = function(w) w,
