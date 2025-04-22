@@ -72,6 +72,7 @@ genReportServer <- function(serverId, data_info) {
                 output_file = out_fname(),
                 execute_params = rlang::list2(
                   data_id = paste0(input$norm_method, "_blk"),
+                  title = data_info[["title"]],
                 ),
                 quarto_args = c("--output-dir", odir)
               )

@@ -90,6 +90,47 @@ replace(v, v == "", "Not targeted") |>
   show$kable_number_of(what = "Features")
 ```
 
+The distribution of the features across m/z and retention time is shown below.
+
+```{r}
+#| label: 'distribution-features'
+#| fig-width: 16
+#| fig-height: 10
+#| out-width: '100%'
+df1 <- SumExp::row_df(raw_se)
+colors <- local({
+  x <- unique(df1$std_type)
+  col <- scales::hue_pal()(length(x) - 1)
+  c(rlang::set_names(col, x[x != ""]), "grey")     # grey for non-targeted
+})
+ggplot(df1) +
+  geom_point(aes(x = rt, y = mz, color = std_type), 
+             alpha = ifelse(df1$std_type == "", 0.1, 1)) +
+  labs(
+    x = show$label_if_has(df1$rt), 
+    y = show$label_if_has(df1$mz),
+    color = show$label_if_has(df1$std_type),
+  ) +
+  scale_color_manual(values = colors)
+```
+
+The distribution of m/z of the features is shown below.
+The bin width is set to 0.5.
+
+```{r}
+#| label: 'distribution-mz'
+#| fig-width: 16
+#| fig-height: 8
+#| out-width: '100%'
+df1 <- SumExp::row_df(raw_se)
+ggplot(df1) +
+  geom_histogram(aes(x = mz), binwidth = 0.5) +
+  labs(
+    x = show$label_if_has(df1$mz), 
+    y = "Number of features"
+  )
+```
+
 ## Distribution of the values
 
 * Overall samples and targeted features

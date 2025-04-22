@@ -67,7 +67,11 @@ features <- features |>
   dplyr::mutate(
     dplyr::across(c(mz, rt, sn_ratio), as.numeric),
     # Ignore other variants
-    std_type = ifelse(std_type %in% c("Quant", "IS", "vIS"), std_type, ""),
+    std_type = dplyr::case_when(
+      std_type %in% c("Quant", "IS", "vIS") ~ std_type,
+      grepl("^IS/", std_type) ~ std_type,
+      .default = ""
+    )
   )
 # Apply labels for plots and tables
 conv_tbl <- conv_tbl[match(colnames(features), conv_tbl$id), ]  # To make sure the order is right.

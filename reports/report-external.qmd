@@ -1,5 +1,8 @@
 ---
-title: "Report on {{< var title >}}"
+params:
+  data_id: loess_norm_blk
+  title: "Test"
+title: "Report on `r params$title`"
 format:
   titlepage-pdf:
     titlepage: academic
@@ -15,8 +18,6 @@ format:
     geometry:
       - margin=20mm
       - heightrounded
-params:
-  data_id: loess_norm_blk
 ---
 
 ```{r}
