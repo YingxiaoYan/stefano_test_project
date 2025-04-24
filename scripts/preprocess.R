@@ -5,9 +5,19 @@
 # using the `proc$initialize_qc_steps` and `proc$append_to_qc_steps` functions. 
 # ------------------------------------------------------------------------------------------- #
 
-if (!exists("param_weight")) param_weight <- "lowestR2"   # Default weight method
-cat("\nPreprocessing parameters:\n",
-    "  - Weight method: ", param_weight, "\n")
+# Handle the parameters selected by the user in the Shiny app
+if (!exists("params")) {
+  # Defaults when they are not given
+  params <- rlang::list2(
+    weight = "lowestR2",
+    llox_method = "pt_signal_mean_plus_sd",
+  )
+}
+cat(
+  "\nPreprocessing parameters:\n",
+  "  - Weight method:", params$weight, "\n",
+  "  - LOD/LLOQ method:", params$llox_method, "\n"
+)
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -122,7 +132,7 @@ cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm")
-norm_blk_mat_ids <- proc$get_mat_id_of_blank_subtracted(norm_mat_ids)
+norm_blk_mat_ids <- proc$mat_id_of_blank_subtracted(norm_mat_ids)
 overall_sumexp_before_blank <- overall_sumexp
 overall_sumexp <- proc$add_blank_substracted_sumexp(
   x_se = overall_sumexp,
@@ -166,13 +176,19 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data <- list()
   
   quant_se <- quant_se0     # Keep the unmodified for the next normalized data
-  # Meaningful min and max calibration points
-  quant_se <- proc$add_calibration_curve_limits(quant_se, mat_id)
+  # Meaningful min and max calibration points + LOD/LLOQ
+  fun <- switch(
+    params$llox_method,
+    "pt_signal_mean" = proc$compute_llox_signal_using_mean_times,
+    "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
+  )
+  interm_data[["llox method"]] <- params$llox_method
+  limits_df <- proc$find_calibration_limit_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
+  SumExp::row_df(quant_se) <- cbind(SumExp::row_df(quant_se), limits_df)
   
   # Exclude the chemicals having no appropriate concentration range
-  limit_df <- proc$extract_calibration_limit_pts(quant_se)
   has_proper_range <- proc$has_proper_calibration_range(quant_se)
-  interm_data[["calcurve conc ranges"]] <- cbind(limit_df, has_proper_range)
+  interm_data[["calcurve conc ranges"]] <- cbind(limits_df, has_proper_range)
   quant_se <- quant_se[has_proper_range, ]
   # Data is divided into two parts.
   # `calcurve_se` : calibration curve samples
@@ -192,37 +208,20 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
     proc$fit_and_test_calcurve_model(c_concs,
                                      signal = cc_mat_norm[ii, ],
-                                     weight_method = param_weight,
+                                     weight_method = params$weight,
                                      penalty_quadratic = 0.01)
   })
-  interm_data[["weight method"]] <- param_weight
+  stopifnot(identical(names(calcurve_models), rownames(concn_se)))
+  SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |> 
+    dplyr::mutate(calcurve_model = calcurve_models)
+  interm_data[["weight method"]] <- params$weight
   
-  # Find the LLOQ and LOD
-  llodq <- proc$extract_calibration_limit_pts(calcurve_se)[, c("lod_signal", "lloq_signal")] |> 
-    tibble::rownames_to_column("chem_id")        # Keep the IDs through dplyr::...
-  stopifnot(identical(llodq$chem_id, names(calcurve_models)))
-  llodq <- llodq |> 
-    dplyr::mutate(calcurve_model = calcurve_models) |> 
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      lod = calcurve_model$best_model(lod_signal),
-      lloq = calcurve_model$best_model(lloq_signal),
-      lod = ifelse(lod < 0, 0, lod),
-      lloq = ifelse(lloq < 0, 0, lloq)
-    ) |> 
-    dplyr::ungroup() |> 
-    dplyr::select(chem_id, calcurve_model, lod, lloq)
-  # SumExp@row_df is a data frame with row names.
-  llodq <- tibble::column_to_rownames(llodq, "chem_id")
-  stopifnot(identical(rownames(llodq), rownames(concn_se)))
-  SumExp::row_df(concn_se) <- cbind(SumExp::row_df(concn_se), llodq)
-
   # Compute the concentration of the samples using the calibration curve
   concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id) |> 
     labelled::set_label_attribute(
       paste0("Concentration [", user_inputs$concentration_unit, "]")
     ) |> 
-    proc$replace_below_lloq_llod(llodq)
+    proc$replace_below_lod_lloq(limits = SumExp::row_df(concn_se)[, c("lod", "lloq")])
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
   labelled::label_attribute(concn_se) <- norm_lab
@@ -231,7 +230,7 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   
   # Exclude the chemicals with no quantification
   non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
-  any_above_lloq <- non_qc_conc > llodq$lloq
+  any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
   concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
   
   # Store the intermediate data in a file

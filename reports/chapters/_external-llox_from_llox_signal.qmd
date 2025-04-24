@@ -1,0 +1,31 @@
+---
+title: "_external-llox_from_llox_signal"
+---
+
+Limit of detection (LOD) and lower-limit of quantification (LLOQ) are identified as described below. 
+
+1. Beginning with the lowest concentration point (e.g. `Cal0`), identify the lowest concentration point with a detected signal (or peak area) greater than zero.
+```{r}
+cat(switch(
+  calib_interm_data[["llox method"]],
+  "pt_signal_mean" = 
+"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the non-zero concentration point.
+3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the mean of the non-zero concentration point.
+    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%.",
+  "pt_signal_mean_plus_sd" =
+"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
+3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
+    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%."
+))
+```
+
+In order to fit a calibration curve to a meaningful range of concentration, the fitting range is adjusted.
+The lower-limit of the range is chosen as the LLOQ.
+Concentration points below the limit are excluded from the calibration curve.
+
+As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
+When there are sufficient number (≥ 5) of calibration points, that the points that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
+
+If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.

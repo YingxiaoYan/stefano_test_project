@@ -165,24 +165,12 @@ summary_tbl |>
 
 The unit of concentration is `r user_inputs$concentration_unit`.
 
-In order to fit a calibration curve to a meaningful range of concentration, the range is adjusted.
-The lower-limit of the range is chosen following the process described below. 
-Concentration points below the limit are excluded from the calibration curve.
+```{r}
+#| label: 'lod-lloq-limits-text'
+qmd <- "_external-llox_from_llox_signal.qmd"
+cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
 
-1. Begin with the lowest concentration point (e.g. `Cal0`) from the calibration sample set with a detected signal (or peak area) greater than zero.
-2. Evaluate the relative standard deviation (RS) for signal values at each concentration point above the lowest point with no less than one non-zero signal.
-3. Calculate the limit of detection (LOD) from a signal perspective using the formula $\rm{LOD} = m + 3 \times \rm{avg(RSD)} \times m$, where $\rm{avg(RSD)}$ represents the average relative standard deviation from step 2, and $m$ is the mean signal of the lowest non-zero concentration point..
-
-As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
-When there are sufficient number (≥ 5) of concentration points, that concentrations that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
-
-If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
-
-The LOD is first calculated from a signal perspective as described at the step 3.
-The LOD in terms of concentration is then derived using the chosen calibration curve model.
-When the LOD is below zero, it is adjusted to zero.
-
-In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of 3, with all other steps remaining consistent with the LOD determination.
+```
 
 After the computation of concentration, the following steps are applied to the data:
 

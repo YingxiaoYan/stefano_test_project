@@ -3,7 +3,7 @@ box::use(io = ./check_io_exist)
 
 #' @export
 box::use(
-  ./proc[get_mat_id_of_blank_subtracted],    # Export blank subtracted matrix
+  ./proc[mat_id_of_blank_subtracted],    # Export blank subtracted matrix
   ./show[tbl_chemical_summary],              # Export chemical summary table
 )
 

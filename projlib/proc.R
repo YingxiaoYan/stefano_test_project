@@ -186,7 +186,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt 
 #'
 #' @returns The name of the blank-subtracted matrix
 #' @export
-get_mat_id_of_blank_subtracted <- function(mat_id) {
+mat_id_of_blank_subtracted <- function(mat_id) {
   paste0(mat_id, "_blk")
 }
 
@@ -236,9 +236,29 @@ add_blank_substracted_sumexp <- function(x_se,
 
 # Calibration ----------------------------------------------------------------------------
 
-## Identify minimum/maximum concentration points ----------
+## Calibration working range ----------
 
-#' Split a matrix-like object by the spiked concentration points and sort by the values
+### Utils ----------
+
+#### For matrices of spiked concentration points ----------
+
+#' Get the values satisfying the condition
+#' 
+#' @param cond A logical vector to select the values.
+#' @param values A numeric or character vector of values. 
+#'   When it is a character vector, the values are converted to numeric.
+#' 
+#' @returns The `values` that satisfies the condition `cond`. 
+#'   If no value satisfies the condition, return `NA_real_`.
+#' @md
+satisfying_values <- function(cond, values = names(cond)) {
+  stopifnot(length(cond) == length(values))
+  values <- as.numeric(values)
+  if (all(!cond)) return(NA_real_)
+  values[which(cond)]
+}
+
+#' Split a matrix column-wise by the spiked concentration points and sort by the values
 #'
 #' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples
 #' @param mat_id A matrix ID in the `cc_se`
@@ -266,25 +286,126 @@ apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ...) {
   sapply(cc_lst, apply, MARGIN, FUN, ...)
 }
 
-
-#' Identify LOD/LLOQ signal
+#' Get means, standard deviation and non-zero concentration
+#'
+#' @description
+#' The output is a list with the following elements:
+#' - `mat_m` and `mat_sd` are matrices with the mean and standard deviation of the signal 
+#'   values for each chemical and concentration point.
+#' - `non_zero` is a vector of the concentration points with non-zero signal for each chemical.
+#' - `conc` is a vector of the concentration points.
 #' 
-#' @param mat_m A matrix of the mean signals per spiked concentration point
-#' @param mat_sd A matrix of the standard deviation signals per spiked concentration point
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve
+#' @param mat_id A matrix ID
+#' @returns A list with `mat_m`, `mat_sd`, `non_zero` and `conc`
+#' @md
+list_mean_sd_and_nonzero <- function(cc_se, mat_id) {
+  # Mean/standard deviation per spiked concentration point
+  # Columns: spiked concentration points (sorted), Rows: chemicals
+  mat_m  <- apply_per_spiked_conc(cc_se, mat_id, 1, mean, na.rm = TRUE)
+  mat_sd <- apply_per_spiked_conc(cc_se, mat_id, 1, stats::sd, na.rm = TRUE)
+  # Concentration values
+  conc <- as.numeric(colnames(mat_m))    # In fact, no need
+  # The minimum concentration with non-zero mean
+  non_zero <- apply(mat_m > 0, 1, \(.x) min(satisfying_values(.x, conc)))
+  
+  list(mat_m = mat_m, mat_sd = mat_sd, non_zero = non_zero)
+}
+
+#' Get the values of the non-zero concentration points
+#'
+#' @param mat A matrix of values, in which the rows are chemicals and the columns are
+#'   concentration points. The column names should be the concentration values at each point.
+#' @param non_zero A vector of the concentration points with non-zero signal for each chemical
+#'
+#' @returns A vector of the values of the non-zero concentration points
+values_of_non_zero <- function(mat, non_zero) {
+  stopifnot(nrow(mat) == length(non_zero))
+  # Concentration values
+  conc <- as.numeric(colnames(mat))
+  stopifnot(all(non_zero %in% conc), anyDuplicated(conc) == 0)
+  # Extract the mean of the lowest non-zero concentration point
+  sapply(1:nrow(mat), \(ii) {
+    mat[ii, conc == non_zero[ii]]
+  })
+}
+
+### LOD/LLOQ ----------
+
+#' Compute the LOD/LLOQ
+#' 
+#' @name compute_llox
+#' 
+#' @param mat_m A matrix of the mean signals per spiked concentration point. 
+#'   The columns are the points.
+#' @param mat_sd A matrix of the standard deviation signals per spiked concentration point.
+#'   The columns are the points.
 #' @param non_zero A vector of the lowest concentration points with non-zero mean value.
 #'   The length of the vector should be the same as the number of rows of the matrices in
 #'   `mat_m` and `mat_sd`
 #' @param times Multiplication factor to the standard deviation of the signal to get the LOD or
 #'   LLOQ. Common values are 3 and 10 for LOD and LLOQ, respectively. 
-#' @returns A numeric vector of the LOD or LLOQ signals
+#' 
+#' @returns A numeric vector of the LOD/LLOQ signal values for each chemical
+NULL
+
+#### LOD/LLOQ from signal perspective ----------
+
+#' Compute the LOD/LLOQ signal using mean + SD * times
+#'
+#' @inheritParams compute_llox
+#' @inherit compute_llox returns
+#' @export
+compute_llox_signal_using_mean_plus_sd_times <- function(mat_m, mat_sd, non_zero, times) {
+  stopifnot(all(dim(mat_m) == dim(mat_sd)))
+  # Extract the mean and standard deviation of the lowest non-zero concentration point
+  m_nz <- values_of_non_zero(mat_m, non_zero)
+  sd_nz <- values_of_non_zero(mat_sd, non_zero)
+  # Compute LOD/LLOQ using mean + SD * times
+  llox_signal <- m_nz + times * sd_nz
+  # Set the chemical IDs as names 
+  names(llox_signal) <- rownames(mat_m)
+  llox_signal
+}
+
+#' Compute the LOD/LLOQ signal using mean * times
+#'
+#' @inheritParams compute_llox
+#' @param mat_sd Not used. It is included to keep the same function signature as other
+#'   `compute_llox*` functions.
+#' @inherit compute_llox returns
+#' @export
+compute_llox_signal_using_mean_times <- function(mat_m, mat_sd, non_zero, times) {
+  # Extract the mean of the lowest non-zero concentration point
+  m_nz <- values_of_non_zero(mat_m, non_zero)
+  # Compute LOD/LLOQ using mean * times
+  llox_signal <- m_nz * times
+  # Set the chemical IDs as names 
+  names(llox_signal) <- rownames(mat_m)
+  llox_signal
+}
+
+#' Compute the LOD/LLOQ signal using mean plus average RSD
+#' 
+#' This function computes a value for the limit of detection (LOD) or lower limit of
+#' quantification (LLOQ) from signal intensity perspective. It is based on the mean signal of
+#' the lowest concentration point `m` and the average of relative standard deviation values
+#' (a.k.a. coefficient of variation) `rsd` of the signal intensity at each concentration point. 
+#' The formula is:  `m + mean(rsd) * m * times`
+#' , where `times` is a multiplication factor
+#' 
+#' @inheritParams compute_llox
+#' @inherit compute_llox returns
 #' @md
-identify_lox_signal <- function(mat_m, mat_sd, non_zero, times) {
+#' @export
+compute_llox_signal_using_nonzero_mean_and_avg_rsd <- function(mat_m, mat_sd, non_zero, times) {
   stopifnot(
     all(dim(mat_m) == dim(mat_sd)),
     nrow(mat_m) == length(non_zero)
   )
   conc <- as.numeric(colnames(mat_m))
   stopifnot("The columns of `mat_m` are supposed to be sorted" = all(conc == sort(conc)))
+  
   sapply(1:nrow(mat_m), \(ii) {
     incl <- conc >= non_zero[ii]
     m <- mat_m[ii, incl]
@@ -297,16 +418,73 @@ identify_lox_signal <- function(mat_m, mat_sd, non_zero, times) {
   })
 }
 
+#### LOD/LLOQ at spiked concentration points ----------
+
+#' Get the minimum concentration points that satisfy the condition
+#' 
+#' @param cond A logical matrix, where each row is a chemical and each column is a
+#'   concentration point.
+#' @returns A numeric vector of the same length as the number of rows in `cond`.
+#' @md
+#' @export
+identify_min_pt_satisfying <- function(cond) {
+  llox_pt <- apply(cond, 1, \(.x) min(satisfying_values(.x)))
+  # Set the chemical IDs as names
+  names(llox_pt) <- rownames(cond)
+  llox_pt
+}
+
+#### LOD/LLOQ concentration values ----------
+
+#' Compute the LLO(Q/D) using the slope and standard deviation
+#' 
+#' `s * factor / slope`
+#' , where `s` the standard deviation of the lower-limit concentration point, 
+#' `slope` is the slope of the calibration curve at the point, and `factor` is a multiplication
+#' factor.
+#'
+#' @param v A numeric vector of the peak areas of the calibration samples
+#' @param min_conc The lower limit concentration of calibration curve
+#' @param calcurve_model The calibration curve model
+#' @param conc A numeric vector of the concentrations of the calibration samples. It should be
+#'   the same length as the `v`.
+#' @param times Multiplication factor to the mean of the peak area of the `min_conc`
+#'   concentration. Common values are 3 and 10 for LOD and LLOQ, respectively. 
+#' @returns A numeric value of the LLO(Q/D)
+#' @md
+#' @export
+compute_llox_using_slope_and_sd <- function(v, conc, min_conc, calcurve_model, times) {
+  stopifnot(length(conc) == length(v))       # Identical concentrations
+  # Standard deviation of the lowest non-zero concentration
+  v <- v[conc == min_conc]
+  s <- stats::sd(v, na.rm = TRUE)
+  
+  # Slope of calibration curve
+  e <- environment(calcurve_model$best_model)
+  slope <- if (grepl("linear", calcurve_model$best_model_name)) {
+    get("b1", envir = e)
+  } else {
+    a <- get("a", envir = e)
+    b <- get("b", envir = e)
+    2 * a * min_conc + b
+  }
+  # Calculate the LLOx
+  (s * times) / slope
+}
+
+### With derived min/max concentration ----------
+
 #' Identify the minimum concentration point for calibration curve
 #' 
-#' @inheritParams identify_lox_signal
+#' @param mat_m A matrix of the mean signals per spiked concentration point. The columns are
+#'   the spiked concentration points, which should be sorted in ascending order.
 #' @param lod_signal A numeric vector of the LOD signals
 #' @returns A numeric vector of the minimum concentrations
 #' @md
-min_conc_for_curve <- function(mat_m, lod_signal) {
+min_conc_for_curve_using_lox_signal <- function(mat_m, lod_signal) {
   stopifnot(nrow(mat_m) == length(lod_signal))
   # The minimum concentration having higher signal than the LOD
-  out <- apply(mat_m > lod_signal, 1, util$get_min_satisfy)
+  out <- apply(mat_m > lod_signal, 1, \(.x) min(satisfying_values(.x)))
   nm <- names(out)
   out <- as.numeric(out)         # Lost names by this
   names(out) <- nm
@@ -316,14 +494,17 @@ min_conc_for_curve <- function(mat_m, lod_signal) {
 
 #' Identify the maximum concentration point of the calibration samples
 #'
-#' @inheritParams identify_lox_signal
+#' @param mat_m A matrix of the mean signals per spiked concentration point. The columns are
+#'   the spiked concentration points, which should be sorted in ascending order.
 #' @param mat_q A matrix of the peak areas of the samples of interest
 #' @param times A numeric value to multiply the maximum peak area of the samples for
 #'   measurement to get a margin for the maximum concentration
 #'
-#' @returns A numeric vector of the upper limit concentration for the calibration curve.
-#'   If all values of `mat_qe` are zero for a row, the maximum concentration is zero. 
+#' @returns A numeric vector of the upper limit concentration points for the calibration curve.
 #'   The names of the returned vector are the row names. 
+#'   Some returned values mean:
+#'   * `0`  : All values of `mat_q` are zero for the row
+#'   * `-9` : No valid maximum concentration
 #' @md
 max_conc_for_curve <- function(mat_m, mat_q, times) {
   stopifnot(
@@ -333,7 +514,7 @@ max_conc_for_curve <- function(mat_m, mat_q, times) {
   # Find maximum peak area of the samples of non-calibration samples
   max_in_q <- apply(mat_q, 1, max, na.rm = TRUE)
   # Find the maximum concentration of the calibration samples that are not too far (`times`x)
-  out <- apply(mat_m <= times * max_in_q, 1, util$get_max_satisfy)
+  out <- apply(mat_m <= times * max_in_q, 1, \(.x) max(satisfying_values(.x)))
   out[max_in_q == 0] <- 0
   out[is.na(out)] <- -9
   out <- labelled::set_label_attribute(out, "Maximum Concentration")
@@ -345,28 +526,30 @@ max_conc_for_curve <- function(mat_m, mat_q, times) {
 #'
 #' @param max_conc A vector of the maximum concentration
 #' @param min_conc A vector of the minimum concentration
-#' @param conc A numeric vector of spiked concentrations
+#' @param conc_pts A numeric vector of spiked concentrations
 #' @param min_n Required minimum number of concentrations for the calibration curve. If the 
 #'   number of concentrations is less than this, `NA` is returned.
 #' @param enough_n Enough number of concentrations for the calibration curve
 #'
 #' @returns A numeric vector of the maximum concentrations that provide enough number of spiked
-#'   concentrations. The names are the same as the input vectors `max_conc`. If the number of
-#'   concentrations is less than `min_n`, the maximum concentration is set to `NA`
+#'   concentrations. The names are the same as the input vector `max_conc`. If the number of
+#'   concentrations points is less than `min_n`, the returned value is set to `NA_real_`
 #' @md
 make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts, 
                                               min_n = 3, enough_n = 5) {
   stopifnot(length(max_conc) == length(min_conc))
   uniq_conc <- sort(unique(conc_pts))
   n_uniq_conc <- length(uniq_conc)
-  i_min <- match(min_conc, uniq_conc)     # Index of the minimum concentration
-  # Find the index of the maximum that provides enough number of spiked concentrations
+  # Indices of the minimum concentration points
+  i_min <- match(min_conc, uniq_conc)
+  # Find the indices of the maximums that provide enough number of spiked concentration points
   i_max <- match(max_conc, c(0, uniq_conc)) - 1   # If `max_conc` == 0, take the largest range
-  i_enough_from_min <- i_min + enough_n - 1   # Counting from minimum
+  # Counting from minimum
+  i_enough_from_min <- i_min + enough_n - 1
   i_max <- ifelse(i_enough_from_min <= i_max, i_max, i_enough_from_min)
-  # Limit when `i_enough_from_min` > number of concentrations
+  # Limit when `i_enough_from_min` > number of concentration points
   i_max <- ifelse(i_max > n_uniq_conc, n_uniq_conc, i_max)
-  # If the number of valid concentrations is less than `min_n`, return NA
+  # If the number of valid concentration points is less than `min_n`, return NA
   i_max <- ifelse(i_max >= i_min + min_n - 1, i_max, NA_real_)
   out <- uniq_conc[i_max]
   names(out) <- names(max_conc)
@@ -375,123 +558,137 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts,
   out
 }
 
-#' Limits in the calibration curve
-#'
-#' @name calibration_limit_pts
+#### Find calibration working range ----------
+
+
+#' Find the calibration curve limits and the LOD/LLOQ
 #' 
 #' @param x_se A [`SumExp::SumExp`] object including the calibration curve samples
 #' @param mat_id The name of a matrix in `x_se`
-#' @md
-NULL
-#' @rdname calibration_limit_pts
-#' @aliases find_calibration_limit_pts
-#' @returns **`find_calibration_limit_pts`** & **`extract_calibration_limit_pts`** :
-#' 
-#'   A data frame with the limits. 
-#'   The row names are the names of the calibration curve samples. 
-#'   The columns are `non_zero_conc`, `min_c_conc`, `max_c_conc`, `lod_signal`, and
-#'   `lloq_signal`, which are the non-zero spiked concentration, the lower and upper limits of
-#'   the calibration curve, the LOD signal, and the LLOQ signal, respectively.
+#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals
+#' @returns
+#'   A data frame with all the limits. The row names are the chemical IDs.
+#'   The columns are `non_zero_conc`, `min_c_conc`, `max_c_conc`, `lod`, and `lloq`, which are
+#'   the non-zero spiked concentration, the lower and upper limits of the calibration curve,
+#'   the LOD and LLOQ, respectively.
 #'   Some values in the columns are set to have the following meanings:
 #'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
-#'   * `max_c_conc` = 0 : All concentrations are zero
-#'   * `max_c_conc` = -9 : No valid maximum concentration
 #'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
+#'   * `max_c_conc` = 0  : All values are zero for the row
+#'   * `max_c_conc` = -9 : No valid maximum concentration
 #' @md
+#' @seealso [max_conc_for_curve()]
 #' @export
-find_calibration_limit_pts <- function(x_se, mat_id) {
+find_calibration_limit_pts_and_llox_from_llox_signal <- function(x_se, 
+                                                                 mat_id, 
+                                                                 compute_llox_signal_fun) {
   se <- util$split_into_calcurve_and_other(x_se, out_names = c("cc", "quant"))
-  
-  # Means/standard deviation per spiked concentration point
-  mat_m <- apply_per_spiked_conc(se$cc, mat_id, 1, mean, na.rm = TRUE)
-  mat_sd <- apply_per_spiked_conc(se$cc, mat_id, 1, stats::sd, na.rm = TRUE)
-  # The minimum concentration with non-zero mean
-  non_zero <- apply(mat_m > 0, 1, util$get_min_satisfy)
+  lx <- list_mean_sd_and_nonzero(se$cc, mat_id)
+  mat_m <- lx$mat_m             # `mat_m` is the mean signal matrix
+  mat_sd <- lx$mat_sd           # `mat_sd` is the standard deviation matrix
+  non_zero <- lx$non_zero       # `non_zero` is the concentration points with non-zero signals
   # Limit of detection
-  lod_signal <- identify_lox_signal(mat_m, mat_sd, non_zero, time = 3)
+  lod_signal <- compute_llox_signal_fun(mat_m, mat_sd, non_zero, times = 3)
+  stopifnot(identical(rownames(mat_m), names(lod_signal)))
+  lod <- apply(mat_m >= lod_signal, 1, \(.x) min(satisfying_values(.x)))
   # Lower limit of quantification
-  lloq_signal <- identify_lox_signal(mat_m, mat_sd, non_zero, time = 10)
-  # Calibration curve concentration lower limit. The lowest concentration point
-  min_c_conc <- min_conc_for_curve(mat_m, lod_signal)
+  lloq_signal <- compute_llox_signal_fun(mat_m, mat_sd, non_zero, times = 10)
+  stopifnot(identical(rownames(mat_m), names(lloq_signal)))
+  mat_rsd <- mat_sd / mat_m
+  mat_cond <- mat_m >= lloq_signal & mat_rsd <= 0.2
+  lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
+  
+  # Calibration curve concentration lower limit.
+  min_c_conc <- lloq
+  min_c_conc <- labelled::set_label_attribute(min_c_conc, "Minimum Concentration")
   # Calibration curve concentration upper limit
   mat_q <- util$exclude_ctrl_smpl_cat(se$quant, "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
   max_c_conc <- max_conc_for_curve(mat_m, mat_q, times = 10) |>
     make_sure_to_have_enough_calcurve(min_c_conc, conc_pts, min_n = 3, enough_n = 5)
   
-  stopifnot(identical(names(min_c_conc), names(max_c_conc)))
-  stopifnot(identical(names(non_zero), names(max_c_conc)))
-  out <- data.frame(non_zero_conc = non_zero, min_c_conc, max_c_conc, 
-                    lod_signal, lloq_signal)
+  stopifnot(
+    identical(names(non_zero), names(max_c_conc)),
+    identical(names(min_c_conc), names(max_c_conc))
+  )
+  # data.frame for SumExp::row_df, instead of tibble
+  out <- data.frame(non_zero_conc = non_zero, min_c_conc, max_c_conc, lod, lloq)
   stopifnot(identical(rownames(out), rownames(x_se)))
   out
 }
-#' @rdname calibration_limit_pts
-#' @aliases add_calibration_curve_limits
-#' @returns **`add_calibration_curve_limits`**:
-#'   A [`SumExp::SumExp`] object with the calibration curve limits
+
+#### Access calibration curve limits ----------
+
+#' Limits in the calibration curve
+#'
+#' @name calibration_limit_pts
+#' 
+#' @param x_se A [`SumExp::SumExp`] object
 #' @md
-#' @export
-add_calibration_curve_limits <- function(x_se, mat_id) {
-  l_df <- find_calibration_limit_pts(x_se, mat_id)
-  SumExp::row_df(x_se) <- cbind(SumExp::row_df(x_se), l_df)
-  x_se
-}
+NULL
+
 #' @description
 #'   **`extract_calibration_limit_pts`**: 
-#'   Extract the calibration curve limits from the output of [add_calibration_curve_limits()]
+#'   Extract the calibration curve limits
 #' @rdname calibration_limit_pts
-#' @aliases extract_calibration_limit_pts
+#' @returns **`extract_calibration_limit_pts`** :
+#' 
+#'   A data frame with all the limits. The row names are the chemical IDs.
+#'   The columns are `non_zero_conc`, `min_c_conc` and `max_c_conc`
+#'   , which are the non-zero spiked concentration, the lower and upper limits of the
+#'   calibration curve, respectively.
+#'   Some values in the columns are set to have the following meanings:
+#'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
+#'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
+#'   * `max_c_conc` = 0  : All values are zero for the row
+#'   * `max_c_conc` = -9 : No valid maximum concentration
 #' @md
+#' @seealso [max_conc_for_curve()]
 #' @export
 extract_calibration_limit_pts <- function(x_se) {
-  SumExp::row_df(x_se)[, c("non_zero_conc", "min_c_conc", "max_c_conc", 
-                           "lod_signal", "lloq_signal")]
+  SumExp::row_df(x_se)[, c("non_zero_conc", "min_c_conc", "max_c_conc")]
 }
 #' @description
-#'   **`get_calibration_nonzero_pts`**: 
-#'   Extract the lowest non-zero concentration from the output of 
-#'   [add_calibration_curve_limits()]
+#'   **`calibration_nonzero_pts`**: Extract the lowest non-zero concentration
 #' @rdname calibration_limit_pts
-#' @aliases get_calibration_nonzero_pts
 #' @md
 #' @export
-get_calibration_nonzero_pts <- function(x_se) {
+calibration_nonzero_pts <- function(x_se) {
   SumExp::row_df(x_se)[["non_zero_conc"]]
 }
 #' @description
-#'   **`get_calibration_min_pts`**: 
-#'   Extract the minimum limits from the output of [add_calibration_curve_limits()]
+#'   **`calibration_min_pts`**:   Extract the minimum limits
 #' @rdname calibration_limit_pts
-#' @aliases get_calibration_min_pts
 #' @md
 #' @export
-get_calibration_min_pts <- function(x_se) {
+calibration_min_pts <- function(x_se) {
   SumExp::row_df(x_se)[["min_c_conc"]]
 }
 #' @description
-#'   **`get_calibration_max_pts`**: 
-#'   Extract the maximum limits from the output of [add_calibration_curve_limits()]
+#'   **`calibration_max_pts`**:   Extract the maximum limits
 #' @rdname calibration_limit_pts
-#' @aliases get_calibration_max_pts
 #' @md
 #' @export
-get_calibration_max_pts <- function(x_se) {
+calibration_max_pts <- function(x_se) {
   SumExp::row_df(x_se)[["max_c_conc"]]
 }
+
+#### Post processing calibration working range setting ----------
 
 #' Check if the calibration curve has a proper calibration range
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the calibration curve samples. 
 #'   The object should have the calibration curve limits added by
 #'   [add_calibration_curve_limits()]
+#'   The minimum and maximum points are required.
 #'
 #' @returns A logical vector
+#' @seealso [extract_calibration_limit_pts()], [max_conc_for_curve()] for what the limits mean
 #' @md
 #' @export
 has_proper_calibration_range <- function(x_se) {
-  min_c_conc <- get_calibration_min_pts(x_se)
-  max_c_conc <- get_calibration_max_pts(x_se)
+  min_c_conc <- calibration_min_pts(x_se)
+  max_c_conc <- calibration_max_pts(x_se)
   # No valid concentration point even at the top of the calibration curve
   no_valid_conc <- is.na(min_c_conc)
   # All concentrations are zero
@@ -503,8 +700,7 @@ has_proper_calibration_range <- function(x_se) {
   !(no_valid_conc | all_zero | no_max_conc | not_enough)
 }
 
-
-#' Replace the values outside the concentration range with NA
+#' Replace values outside the concentration range with NA
 #'
 #' @param x [`SumExp::SumExp`] object or a matrix of the calibration curve samples
 #' @param ... Additional arguments. Not used. 
@@ -542,27 +738,10 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
   x[[mat_id]] <- replace_outside_concentration_range_with_na.matrix(
     x = x[[mat_id]], 
     conc = util$spiked_conc_pts(x),
-    min_conc = get_calibration_min_pts(x),
-    max_conc = get_calibration_max_pts(x)
+    min_conc = calibration_min_pts(x),
+    max_conc = calibration_max_pts(x)
   )
   x
-}
-
-#' Get the signals of the calibration curve samples at the minimum valid concentration
-#' 
-#' @param x_se A [`SumExp::SumExp`] object of the calibration curve samples.
-#' @param mat_id The name of a matrix in `x_se`
-#' 
-#' @returns A list of numeric vectors of the signals of the calibration curve samples at the
-#'   minimum valid concentration
-#' @md
-#' @export
-get_signals_of_calibration_nonzero_pts <- function(x_se, mat_id) {
-  cc_mat <- x_se[[mat_id]]
-  nonzero <- get_calibration_nonzero_pts(x_se)
-  cc_conc <- util$spiked_conc_pts(x_se)
-  stats::setNames(1:nrow(x_se), nm = rownames(x_se)) |>  # Through the rows
-    lapply(function(i) cc_mat[i, cc_conc == nonzero[i]])
 }
 
 
@@ -663,41 +842,6 @@ linear_calcurve_model <- function(conc, signal, weights) {
   list(model = model, inv_mod = lmfit)
 }
 
-
-## LOD/LLOQ ----------
-
-
-#' Compute the LLO(Q/D)
-#'
-#' @param v A numeric vector of the peak areas of the calibration samples
-#' @param min_conc The lower limit concentration of calibration curve
-#' @param calcurve_model The calibration curve model
-#' @param conc A numeric vector of the concentrations of the calibration samples. It should be
-#'   the same length as the `v`.
-#' @param times Multiplication factor to the mean of the peak area of the `min_conc`
-#'   concentration. Common values are 3 and 10 for LOD and LLOQ, respectively. 
-#' @returns A numeric value of the LLO(Q/D)
-#' @md
-#' @export
-compute_llox <- function(v, conc, min_conc, calcurve_model, times) {
-  stopifnot(length(conc) == length(v))       # Identical concentrations
-  # Standard deviation of the lowest non-zero concentration
-  v <- v[conc == min_conc]
-  s <- stats::sd(v, na.rm = TRUE)
-  
-  # Slope of calibration curve
-  e <- environment(calcurve_model$best_model)
-  slope <- if (grepl("linear", calcurve_model$best_model_name)) {
-    get("b1", envir = e)
-  } else {
-    a <- get("a", envir = e)
-    b <- get("b", envir = e)
-    2 * a * min_conc + b
-  }
-  # Calculate the LLOx
-  (s * times) / slope
-}
-
 #' Compute the concentration of features
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the samples
@@ -720,6 +864,8 @@ compute_concentration <- function(x_se, mat_id) {
   conc
 }
 
+### Post calibration ----------
+
 #' Replace the values below the LLOQ and LOD
 #' 
 #' @param conc A matrix of concentrations
@@ -729,7 +875,7 @@ compute_concentration <- function(x_se, mat_id) {
 #' @returns A matrix with the values below the LLOQ and LOD replaced
 #' @md
 #' @export
-replace_below_lloq_llod <- function(conc, limits) {
+replace_below_lod_lloq <- function(conc, limits) {
   stopifnot(nrow(conc) == nrow(limits))
   lab <- labelled::get_label_attribute(conc)
   out <- conc

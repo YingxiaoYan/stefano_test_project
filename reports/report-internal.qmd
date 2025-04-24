@@ -153,8 +153,8 @@ Blank subtraction is applied to all samples in the dataset except for the calibr
 #| label: target_mode
 if (!IS_NON_TARGET_MODE) {
   cat("\n\n# Calibration\n\n")
-  cat(knitr::knit_child("code/reports/chapters/_preprocess-calib-conc_range.qmd", quiet = TRUE))
-  cat(knitr::knit_child("code/reports/chapters/_preprocess-calibration.qmd", quiet = TRUE))
+  qmd <- "_preprocess-calibration-llox_from_llox_signal.qmd"
+  cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
   cat("\n\n# Concentration\n\n")
   cat(knitr::knit_child("code/reports/chapters/_preprocess-concentration.qmd", quiet = TRUE))
 }

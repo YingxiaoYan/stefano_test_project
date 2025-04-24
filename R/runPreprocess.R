@@ -23,6 +23,17 @@ runPreprocessUI <- function(uiId) {
         shiny::HTML(paste0("1/x", shiny::tags$sup("2")))
       ),
     ),
+    shiny::radioButtons(
+      inputId = ns("llox_method"),
+      label = "LOD/LLOQ method",
+      selected = "pt_signal_mean_plus_sd",
+      choiceValues = list("pt_signal_mean", "pt_signal_mean_plus_sd"),
+      choiceNames = list(
+        shiny::HTML(paste0("pt. > 3 (or 10) * mean", shiny::tags$sub("nonzero"))),
+        shiny::HTML(paste0("pt. > mean", shiny::tags$sub("nonzero"), " + 3 (or 10) * ", 
+                           "StdDev", shiny::tags$sub("nonzero")))
+      ),
+    ),
     shiny::actionButton(ns("run_button"), label = "Preprocess data"),
     shiny::verbatimTextOutput(ns("script_output")),
     shiny::br(),
@@ -37,7 +48,11 @@ runPreprocessServer <- function(serverId) {
   shiny::moduleServer(serverId, function(input, output, session) {
     
     shiny::observeEvent(input[["run_button"]], {
-      param_weight <- input[["weight"]]
+      # Parameters to be passed to the script
+      params <- rlang::list2(
+        weight = input[["weight"]],
+        llox_method = input[["llox_method"]],
+      )
       output[["script_output"]] <- shiny::renderText("")
       out <- tryCatch(
         withr::with_dir(

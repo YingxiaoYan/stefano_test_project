@@ -57,6 +57,109 @@ feature_id_name_tbl <- SumExp::row_df(raw_se) |>
   dplyr::select(feature_id, feature_name)
 ```
 
+## Calibration curve samples
+
+The data of the samples for the calibration curve is extracted from the quantification samples after the outlier removal and normalization.
+The number of samples in the calibration curve after outlier removal is presented below.
+
+```{r}
+#| label: 'calcurve-samples-summary-calibration'
+# Present the number of samples in the calibration curve
+v <- util$spiked_conc_pts(qc_steps[["normalized - blank"]])
+v <- v[!is.na(v)] |> 
+  labelled::copy_labels_from(v)
+table(v) |> 
+  knitr::kable(
+    align = c("r", "r"),
+    col.names = c(labelled::get_label_attribute(v), "Number of Samples")
+    # col.names = c("Concentration (ng/ml)", "Number of Samples")
+  ) |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+## Calibration curve limits
+
+```{r}
+#| purl: true
+limit_df <- calib_interm_data[["calcurve conc ranges"]]
+```
+
+* LOD and LLOQ
+
+Limit of detection (LOD) and lower-limit of quantification (LLOQ) are identified as described below. 
+
+1. Beginning with the lowest concentration point (e.g. `Cal0`), identify the lowest concentration point with a detected signal (or peak area) greater than zero.
+```{r}
+cat(switch(
+  calib_interm_data[["llox method"]],
+  "pt_signal_mean" = 
+"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the non-zero concentration point.
+3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the mean of the non-zero concentration point.
+    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%.",
+  "pt_signal_mean_plus_sd" =
+"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
+3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
+    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%."
+))
+```
+
+* Calibration working range
+
+In order to fit a calibration curve to a meaningful range of concentration, the fitting range is adjusted.
+The lower-limit of the range is chosen as the LLOQ.
+Concentration points below the limit are excluded from the calibration curve.
+
+As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
+When there are sufficient number (≥ 5) of calibration points, that the points that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
+
+If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
+As a result, `r english::Words(sum(!limit_df$has_proper_range))` chemicals have been excluded from the calibration.
+
+The concentration range for each chemical is detailed below.
+
+```{r}
+#| label: 'calcurve-conc-range-table'
+
+show_df <- limit_df |> 
+  tibble::as_tibble(rownames = "feature_id") |>     # To attach `feature_name`
+  dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
+  dplyr::mutate(
+    Note = dplyr::case_when(
+      !has_proper_range ~ "Excluded", 
+      TRUE ~ ""
+    ),
+    non_zero_conc = scales::number(non_zero_conc),
+    lod = ifelse(is.na(lod), "N.A.", scales::number(lod)),
+    min_c = ifelse(is.na(min_c), "No valid pts.", scales::number(min_c)),
+    max_c = dplyr::case_when(
+      max_c == 0 ~ "All zero",
+      max_c == -9 ~ "No valid max",
+      is.na(max_c) ~ "Not enough range",
+      TRUE ~ scales::number(max_c)
+    )
+  ) |>
+  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
+  dplyr::select("Chemical Name" = feature_name, 
+                "Non-zero conc." = non_zero_conc, 
+                "LOD" = lod, 
+                "Minimum conc. (LLOQ)" = min_c, 
+                "Maximum conc." = max_c, 
+                Note)
+
+knitr::kable(
+  show_df,
+  caption = "Concentration range of the calibration curve samples",
+  align = "lrrrrl",
+) |> 
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
+  kableExtra::scroll_box(height = "350px") |> 
+  # Color the rows that are marked in Note
+  kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
+```
+
+
 ## Calibration curve per chemical
 
 The calibration curve of each of randomly selected 9 chemicals is presented below.
@@ -182,32 +285,6 @@ The count of chemicals favoring each model is shown below.
 SumExp::row_df(concn_se)$calcurve_model |> 
   sapply(\(m) m$best_model_name) |>
   table()
-```
-
-### LOD/LLOQ
-
-The limit of detection (LOD) from a signal perspective is calculated using the formula $\rm{LOD} = m + 3 \times \rm{avg(RSD)} \times m$, where $\rm{avg(RSD)}$ represents the average relative standard deviation from step 2, and $m$ is the mean signal of the lowest non-zero concentration point.
-The LOD in terms of concentration is then derived using the chosen calibration curve model.
-
-In a similar manner, the lower limit of quantification (LLOQ) is calculated by employing a factor of 10 instead of 3, with all other steps remaining consistent with the LOD determination.
-
-The LOD and LLOQ of each chemical is presented below.
-
-```{r}
-#| label: 'calcurve-llodq-table'
-
-show_df <- SumExp::row_df(concn_se) |> 
-  dplyr::mutate(dplyr::across(c(lod, lloq), ~ scales::number(.x))) |>
-  dplyr::select(`Chemical name` = feature_name, LOD = lod, LLOQ = lloq)
-
-knitr::kable(
-  show_df,
-  caption = "LOD and LLOQ of the chemicals",
-  align = "lrr",
-  row.names = FALSE
-) |> 
-  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "350px")
 ```
 
 ### Calibration curves - examples
