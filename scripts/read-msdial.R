@@ -70,6 +70,7 @@ features <- features |>
     std_type = dplyr::case_when(
       std_type %in% c("Quant", "IS", "vIS") ~ std_type,
       grepl("^IS/", std_type) ~ std_type,
+      grepl("^Quant/", std_type) ~ std_type,
       .default = ""
     )
   )

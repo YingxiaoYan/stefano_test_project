@@ -752,7 +752,7 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
 #' @param conc A vector of concentrations
 #' @param signal A vector of signal values
 #' @param weight_method The method to use for weighting the models. The options are:
-#'   - `lowestR2`: The model with the lowest R2 value is used as the weight
+#'   - `largestR2`: The model with the largest R2 value is used as the weight
 #'   - `1`: Constant weight of 1
 #'   - `1/x`: Inverse of the concentration
 #'   - `1/x2`: Inverse of the concentration squared
@@ -772,7 +772,7 @@ NULL
 #' @export
 fit_and_test_calcurve_model <- function(conc,
                                         signal,
-                                        weight_method = "lowestR2",
+                                        weight_method = "largestR2",
                                         penalty_quadratic = 0) {
   if (all(is.na(signal) | signal == 0)) {
     return(list(
@@ -788,7 +788,7 @@ fit_and_test_calcurve_model <- function(conc,
     "1/x2" = 1 / (conc ^ 2),
   )
   # Limit the weight alternatives when one has been chosen
-  if (weight_method != "lowestR2") {
+  if (weight_method != "largestR2") {
     weights_alt <- weights_alt[weight_method]
   }
   

@@ -242,7 +242,7 @@ concn_se <- calib_interm_data[["concn_se with conc"]]
 
 ```{r}
 weight_method <- calib_interm_data[["weight method"]]
-if (weight_method == "lowestR2") {
+if (weight_method == "largestR2") {
   n_models <- 6
   weight_txt <- "three different weights, $1$, $\\frac{1}{x}$ and $\\frac{1}{x^2}$"
 } else {

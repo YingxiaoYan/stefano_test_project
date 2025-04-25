@@ -9,7 +9,7 @@
 if (!exists("params")) {
   # Defaults when they are not given
   params <- rlang::list2(
-    weight = "lowestR2",
+    weight = "largestR2",
     llox_method = "pt_signal_mean_plus_sd",
   )
 }
