@@ -84,7 +84,7 @@ msdialInfoUI <- function(uiId) {
       )
     }),
     shiny::actionButton(inputId = shiny::NS(uiId, "save_param_button"), 
-                        label = "Save the paramters above"),
+                        label = "Save the parameters above"),
     # Display the "saved" message
     shiny::verbatimTextOutput(shiny::NS(uiId, "saved")),
   )
