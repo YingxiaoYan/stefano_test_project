@@ -17,7 +17,7 @@ runPreprocessUI <- function(uiId) {
       selected = "largestR2",
       choiceValues = list("largestR2", "1", "1/x", "1/x2"),
       choiceNames = list(
-        shiny::HTML(paste0("Largest R", shiny::tags$sup("2"))),
+        shiny::HTML(paste0("Largest R", shiny::tags$sup("2"), "(iterative)")),
         "1",
         "1/x",
         shiny::HTML(paste0("1/x", shiny::tags$sup("2")))
