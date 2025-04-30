@@ -100,8 +100,14 @@ The distribution of the features across m/z and retention time is shown below.
 df1 <- SumExp::row_df(raw_se)
 colors <- local({
   x <- unique(df1$std_type)
-  col <- scales::hue_pal()(length(x) - 1)
-  c(rlang::set_names(col, x[x != ""]), "grey")     # grey for non-targeted
+  n_non_target <- sum(x == "")
+  col <- scales::hue_pal()(length(x) - n_non_target)
+  col <- rlang::set_names(col, x[x != ""])
+  if (n_non_target > 0) {
+    c(col, "grey")     # grey for non-targeted
+  } else {
+    col
+  }
 })
 ggplot(df1) +
   geom_point(aes(x = rt, y = mz, color = std_type), 
