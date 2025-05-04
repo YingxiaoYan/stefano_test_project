@@ -71,10 +71,8 @@ The bars are colored by the internal standards and stacked for each sample.
 #| fig-height: 6
 #| out-width: '100%'
 plotly::ggplotly(
-  show$ggplot_col_injection_order(df_show, fill = feature_name) +
-    labs(title = "Internal standards") +
-    # Skip the legend
-    theme(legend.position = "none")
+  show$ggplot_col_injection_order(df_show, fill = .std_type) +
+    labs(title = "Internal standards", fill = "Target class")
 )
 ```
 
