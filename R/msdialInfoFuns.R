@@ -100,7 +100,9 @@ read_or_create_params <- function(file, ids, defaults) {
   if (is.numeric(button)) {
     return(default)
   } else {
-    return(shinyFiles::parseFilePaths(roots, button)$datapath)
+    pth <- shinyFiles::parseFilePaths(roots, button)$datapath
+    pth <- gsub("././", "./", pth, fixed = TRUE)     # Remove redundant "././" from the path
+    return(pth)
   }
 }
 #' @rdname getShinyFileName

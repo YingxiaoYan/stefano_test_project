@@ -171,7 +171,7 @@ set.seed(7579)
 # Randomly selected 9 chemicals to present in calibration curve plots
 i_9chemical_to_show <- local({
   ii <- c(1:nrow(cc_se))
-  ii <- ii[SumExp::row_df(cc_se)$std_type != "IS"]
+  ii <- ii[!util$is_internal_std(cc_se)]
   sample(ii, 9)
 })
 calcurve9_se <- cc_se[i_9chemical_to_show, ]

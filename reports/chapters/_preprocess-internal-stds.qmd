@@ -17,7 +17,7 @@ SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |>
 # Table of internal standard features
 kable_internal_std <- function(se) {
   df <- SumExp::row_df(se) |> 
-    dplyr::select(feature_name, rt, mz, sn_ratio, rsd, num_zeros) |> 
+    dplyr::select(feature_name, .rt, mz, sn_ratio, rsd, num_zeros) |> 
     dplyr::mutate(
       num_zeros = ifelse(num_zeros == 0, "", num_zeros) |> 
         labelled::copy_labels_from(num_zeros)

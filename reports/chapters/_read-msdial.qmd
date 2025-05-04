@@ -78,14 +78,14 @@ show$extract_qc_samples_to_list(raw_se) |>
 ## Features
 
 The data contained `r nrow(raw_se)` features.
-Among them, `r sum(SumExp::row_df(raw_se)$std_type != "")` features were targeted. 
+Among them, `r sum(util$std_type(raw_se) != "")` features were targeted. 
 The rest were not targeted.
 
 For those targeted features, the standard type was specified.
 The number of features for each type is as follows:
 
 ```{r}
-v <- SumExp::row_df(raw_se)$std_type
+v <- util$std_type(raw_se)
 replace(v, v == "", "Not targeted") |>
   show$kable_number_of(what = "Features")
 ```
@@ -97,9 +97,8 @@ The distribution of the features across m/z and retention time is shown below.
 #| fig-width: 16
 #| fig-height: 10
 #| out-width: '100%'
-df1 <- SumExp::row_df(raw_se)
 colors <- local({
-  x <- unique(df1$std_type)
+  x <- unique(util$std_type(raw_se))
   n_non_target <- sum(x == "")
   col <- scales::hue_pal()(length(x) - n_non_target)
   col <- rlang::set_names(col, x[x != ""])
@@ -109,13 +108,14 @@ colors <- local({
     col
   }
 })
+df1 <- SumExp::row_df(raw_se)
 ggplot(df1) +
-  geom_point(aes(x = rt, y = mz, color = std_type), 
-             alpha = ifelse(df1$std_type == "", 0.1, 1)) +
+  geom_point(aes(x = .rt, y = mz, color = .std_type), 
+             alpha = ifelse(df1$.std_type == "", 0.1, 1)) +
   labs(
-    x = show$label_if_has(df1$rt), 
+    x = show$label_if_has(df1$.rt), 
     y = show$label_if_has(df1$mz),
-    color = show$label_if_has(df1$std_type),
+    color = show$label_if_has(df1$.std_type),
   ) +
   scale_color_manual(values = colors)
 ```

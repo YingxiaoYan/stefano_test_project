@@ -1,3 +1,6 @@
+# ------------------------------------------------------------------------------------------- #
+# Functions for processing of the data
+# ------------------------------------------------------------------------------------------- #
 box::use(util = ./msdial_utils)
 
 #' Add intermediate data at each step of quality control
@@ -111,20 +114,56 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
 #'
 #' @param se A [`SumExp::SumExp`] object
 #' @param istd_se A [`SumExp::SumExp`] object of internal standard features
-#' @param mat_id The name of a matrix in `se` 
-#' @param rt The name of the retention time column 
+#' @param mat_id The name of a matrix in `se`
+#' @param verbose A logical value indicating whether to show messages
 #' @returns A numeric matrix of the values of the closest internal standard features
 #' @md
 #' @export
-get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
-  rt_x <- SumExp::row_df(se)[[rt]]
-  rt_istd <- SumExp::row_df(istd_se)[[rt]]
-  # Find the closest internal standard feature
-  i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
-  out <- istd_se[[mat_id]][i_closest, ]
-  rownames(out) <- rownames(se)
+get_value_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
+  out <- get_value_of_closest_istd_in_class(se, istd_se, mat_id)
+  
+  # When any compound target classes are specified
+  istd_std_type <- util$std_type(istd_se)
+  is_sub_istd <- grepl("^IS\\\\", istd_std_type)
+  if (any(is_sub_istd)) {
+    # Identify the compound target classes
+    classes <- unique(istd_std_type[is_sub_istd])
+    if (verbose) cat("Compound target classes: ", paste(classes, collapse = ", "), "\n")
+    # Get the closest internal standard feature for each subgroup
+    for (g in classes) {
+      g_istd_se <- istd_se[istd_std_type == g, ]
+      matched_quant_id <- sub("^IS\\\\", "Quant\\\\", g)
+      # To find which target features are in which compound target class
+      is_sub_quant <- util$std_type(se) == matched_quant_id
+      g_se <- se[is_sub_quant, , drop = FALSE]
+      if (nrow(g_se) == 0) {
+        warning(paste0("No quantification features for the compound class: ", g))
+        next
+      }
+      g_out <- get_value_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
+      # Replace the values of the closest internal standard features in the original matrix
+      # with the values of the closest internal standard features in the compound class
+      out[is_sub_quant, ] <- g_out
+    }
+  }
   return(out)
 }
+#' @rdname get_value_of_closest_istd
+#' [get_value_of_closest_istd_in_class()] is a helper function to get the values of the
+#' closest internal standard features within each subgroup.
+#' @md
+#' @export
+get_value_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
+  rt_x <- util$retention_time(se)
+  rt_istd <- util$retention_time(istd_se)
+  # Find the closest internal standard feature
+  i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
+  # dim(out) == dim(se) Not dim(istd_se)
+  out <- istd_se[[mat_id]][i_closest, , drop = FALSE]
+  rownames(out) <- rownames(se)
+  return(out)
+} 
+
 
 #' Get the LOESS fit model
 #'
@@ -134,15 +173,14 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, rt = "rt") {
 #'   model is expanded
 #' @param span A numeric value for the span of the LOESS fit
 #' @param mat_id The name of a matrix in `istd_se`
-#' @param rt The name of the retention time column
 #'
 #' @returns A list of the LOESS fit models
 #' @md
 #' @export
-get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id, rt = "rt") {
+get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   # Log-transform the data
   istd_log <- log(istd_se[[mat_id]])
-  rt_istd <- SumExp::row_df(istd_se)[[rt]]
+  rt_istd <- util$retention_time(istd_se)
   
   # Normalize the data using the internal standards
   # Mean of each internal standard feature for overall measurement samples

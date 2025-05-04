@@ -49,7 +49,7 @@ cat("\nPreprocessing steps are started.\n")
 # Normalization using internal standards -------------------------------------------------
 
 # Volumetric normalization using volumetric internal standards (vIS)
-is_vIS <- SumExp::row_df(overall_sumexp)$std_type == "vIS"
+is_vIS <- util$std_type(overall_sumexp) == "vIS"
 if (any(is_vIS)) {      # This is optional
   # Store intermediate data during quality control steps
   append_to_qc_steps("volumetric internal std. raw" = overall_sumexp[is_vIS, ])
@@ -61,8 +61,8 @@ if (any(is_vIS)) {      # This is optional
 internal_std_se <- local(
   envir = list(se = overall_sumexp),
   {
-    se <- se[quote(std_type == "IS"), ]
-    se[quote(order(rt)), ]    # Sort by average retention time
+    se <- se[util$is_internal_std(se), ]
+    se[order(util$retention_time(se)), ]    # Sort by average retention time
   }
 )
 # Store intermediate data during quality control steps
@@ -99,15 +99,14 @@ cat("Outliers and failed internal standards are removed.\n")
 closest_istd <- proc$get_value_of_closest_istd(
   se = overall_sumexp, 
   istd_se = internal_std_se, 
-  mat_id = mat_id_for_norm, 
-  rt = "rt"
+  mat_id = mat_id_for_norm
 )
 overall_sumexp[["closest_norm"]] <- (overall_sumexp[[mat_id_for_norm]] / closest_istd) |> 
   labelled::set_variable_labels("Closest RT normalized peak area")
 cat("Closest internal standard normalization is done.\n")
 
 ## LOESS fit over RT normalization     ---------------
-overall_rt_range <- range(SumExp::row_df(overall_sumexp)$rt)    # Fit for RT of all features
+overall_rt_range <- range(util$retention_time(overall_sumexp))    # Fit for RT of all features
 excl_cat <- c("Blank", "CalCurve")
 
 loess_fit <- proc$get_loess_fit(
@@ -115,11 +114,10 @@ loess_fit <- proc$get_loess_fit(
   excl_cat = excl_cat,
   overall_rt_range = overall_rt_range,
   span = 1,
-  mat_id = mat_id_for_norm,
-  rt = "rt"
+  mat_id = mat_id_for_norm
 )
 # Normalize the data by LOESS fit along RT
-rt <- SumExp::row_df(overall_sumexp)$rt
+rt <- util$retention_time(overall_sumexp)
 raw <- overall_sumexp[[mat_id_for_norm]]
 overall_sumexp[["loess_norm"]] <- sapply(
   colnames(overall_sumexp), function(sample_id) {
@@ -166,7 +164,7 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
 
 # Limit to the samples to be calibrated (or quantified)
 # Before excluding out-of-range calibration concentrations
-quant_se0 <- overall_sumexp[quote(std_type == "Quant"), ]
+quant_se0 <- overall_sumexp[util$is_targeted_feature(overall_sumexp), ]
 
 # Per normalization method
 per_norm_lst <- list()       # Collect the output

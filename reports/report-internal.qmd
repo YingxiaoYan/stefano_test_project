@@ -81,7 +81,7 @@ set.seed(7579)
 
 ```{r}
 #| purl: true
-is_vIS <- SumExp::row_df(raw_se)$std_type == "vIS"
+is_vIS <- util$std_type(raw_se) == "vIS"
 # Feature intensity to be used for normalization
 mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
 ```
@@ -113,11 +113,11 @@ The dataset is normalized using the provided ISs. The user can opt to choose bet
 ```{r}
 #| purl: true
 # Find the range of RT values
-wo_vIS_df <- SumExp::row_df(raw_se[!is_vIS, ])
-all_rts <- wo_vIS_df$rt
+wo_vIS <- raw_se[!is_vIS, ]
+all_rts <- util$retention_time(wo_vIS)
 overall_rt_range <- range(all_rts)
-targetted_rt_range <- range(all_rts[wo_vIS_df$std_type == "Quant"])
-rt <- range(all_rts[wo_vIS_df$std_type == "IS"])
+targetted_rt_range <- range(all_rts[util$is_targeted_feature(wo_vIS)])
+rt <- range(all_rts[util$is_internal_std(wo_vIS)])
 ```
 
 The retention time (RT) range of the dataset is between `r overall_rt_range[1]` and `r overall_rt_range[2]` min.

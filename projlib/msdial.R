@@ -1,3 +1,6 @@
+# ------------------------------------------------------------------------------------------- #
+# Functions to read and write MS-DIAL raw/processed data
+# ------------------------------------------------------------------------------------------- #
 
 box::use(io = ./check_io_exist)
 
@@ -278,7 +281,7 @@ export_concentration_tsv <- function(sumexp, file) {
       "Alignment ID" = alignment_id,
       "Chemical" = chem_name,
       "Average Mz" = mz,
-      "Average Rt(min)" = rt,
+      "Average Rt(min)" = .rt,
       "DF%" = perc_detf,
       "Samples (d/n)" = n_d_s,
       "LOD" = lod,

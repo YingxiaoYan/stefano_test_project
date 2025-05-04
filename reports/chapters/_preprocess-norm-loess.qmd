@@ -28,7 +28,7 @@ COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 # Feature intensity to be used for normalization
-is_vIS <- SumExp::row_df(raw_se)$std_type == "vIS"
+is_vIS <- util$std_type(raw_se) == "vIS"
 mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
 
 # Input files
@@ -50,7 +50,7 @@ sample_id_name_tbl <- SumExp::col_df(norm_se) |>
   dplyr::select(sample_id, sample_name)
 
 # Find the range of RT values
-all_rts <- SumExp::row_df(norm_se)$rt
+all_rts <- util$retention_time(norm_se)
 overall_rt_range <- range(all_rts)
 ```
 
@@ -83,8 +83,8 @@ loess_curve_df <- local({
   x <- seq(rg[1], rg[2], length.out = 100)   # X-axis (retention time)
   out <- lapply(i_sel, function(ii) predict(loess_fit[[ii]], newdata = x)) |> 
     as.data.frame() |> 
-    dplyr::mutate(rt = x) |>
-    tidyr::pivot_longer(-rt, names_to = "sample_id", values_to = "Value")
+    dplyr::mutate(.rt = x) |>
+    tidyr::pivot_longer(-.rt, names_to = "sample_id", values_to = "Value")
     # Attach sample names
   dplyr::left_join(out, sample_id_name_tbl, by = "sample_id")
 }, list(
@@ -113,7 +113,7 @@ df_to_show <- SumExp::as_tibble(dev_from_mean) |>
                       names_to = "Data", 
                       values_to = "Value") |> 
   dplyr::mutate(
-    Type = ifelse(std_type == "", "non-target", std_type),
+    Type = ifelse(.std_type == "", "non-target", .std_type),
     Type = factor(Type, levels = c("IS", "Quant", "non-target"))
   ) |> 
   dplyr::arrange(desc(Type)) |>  # To show IS on top
@@ -125,12 +125,12 @@ df_to_show <- SumExp::as_tibble(dev_from_mean) |>
   )
 
 # Plot the normalized and original data
-ggplot(df_to_show, aes(x = rt, y = Value)) + 
+ggplot(df_to_show, aes(x = .rt, y = Value)) + 
   geom_point(aes(color = Data, shape = Type, size = Type, alpha = Type)) +
   geom_line(data = loess_curve_df, alpha = 0.5) +
   labs(
     title = "Normalized and original data",
-    x = labelled::get_label_attribute(rt),
+    x = show$label_if_has(df_to_show$.rt),
     y = "log(Values) - log(avg)"
   ) +
   scale_shape_manual(values = c("IS" = 15, "Quant" = 21, "non-target" = 20)) +
@@ -196,7 +196,7 @@ The bars are colored by the given `Class` of the samples
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 #| out-width: '100%'
-df_show <- norm_se[quote(std_type == "IS"), ] |> 
+df_show <- norm_se[util$is_internal_std(norm_se), ] |> 
   show$df_for_injection_order(mat_ids_to_compare) |> 
   dplyr::mutate(
     batch_id = factor(batch_id) |>         # Discrete color scale
@@ -247,7 +247,7 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| out-width: '100%'
 # PCA
 
-se <- norm_se[quote(std_type == "IS"), ]
+se <- norm_se[util$is_internal_std(norm_se), ]
 # Plot
 p_lst <- lapply(mat_ids_to_compare, \(.x) {
   show$ggplot_pca(se, .x, colour = "Class") +

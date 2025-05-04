@@ -24,7 +24,7 @@ overall_sumexp <- msdial$read_parsed_msdial_data(params)
 set.seed(7579)
 
 # Extract standard features
-is_targeted <- SumExp::row_df(overall_sumexp)$std_type != ""
+is_targeted <- SumExp::row_df(overall_sumexp)$.std_type != ""
 targeted_features_se <- overall_sumexp[is_targeted, ]
 ```
 

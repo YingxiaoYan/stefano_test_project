@@ -2,6 +2,8 @@
 The closest internal standard features to each feature will be identified based on the retention time.
 The measured peak area of each feature will be divided by the peak area of the closest internal standard feature.
 
+When a compound target class is specified, the closest internal standard will be selected from the same compound target class.
+
 #### Evaluation of normalization
 
 ```{r}
@@ -52,7 +54,7 @@ The bars are colored by the given `Class` of the samples
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 #| out-width: '100%'
-df_show <- norm_se[quote(std_type == "IS"), ] |> 
+df_show <- norm_se[util$is_internal_std(norm_se), ] |> 
   show$df_for_injection_order(mat_ids_to_compare)
 
 plotly::ggplotly(
@@ -87,7 +89,7 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| out-width: '100%'
 # PCA
 
-se <- norm_se[quote(std_type == "IS"), ]
+se <- norm_se[util$is_internal_std(norm_se), ]
 # Plot
 p_lst <- lapply(mat_ids_to_compare, \(.x) {
   out <- show$ggplot_pca(se, .x, colour = "Class")

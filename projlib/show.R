@@ -1,3 +1,6 @@
+# ------------------------------------------------------------------------------------------- #
+# Functions to show in reports
+# ------------------------------------------------------------------------------------------- #
 box::use(util = ./msdial_utils)
 
 # Utils ----------------------------------------------------------------------------------
@@ -124,7 +127,7 @@ extract_qc_samples_to_list <- function(se) {
 extract_quant_qc <- function(sumexp) {
   se_lst <- extract_qc_samples_to_list(sumexp)
   lapply(se_lst, \(se) {
-    se[quote(std_type == "Quant"), ]
+    se[util$is_targeted_feature(se), ]
   })
 }
 

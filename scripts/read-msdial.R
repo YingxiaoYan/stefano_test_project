@@ -31,23 +31,13 @@ i_three_sections <- msdial$get_three_section_indices(FILE$i)
 sample_info <- msdial$fetch_sample_info(FILE$i, i_three_sections[["2nd"]])
 
 # Feature Data
-conv_tbl <- tibble::tribble(
-  ~given_id,         ~id,            ~label,
-  "Alignment ID",    "alignment_id", "Alignment ID",
-  "Metabolite name", "feature_name", "Feature Name",
-  "Average Mz",      "mz",           "Average M/Z",
-  "Quant mass",      "mz",           "Quant Mass",
-  "Average Rt(min)", "rt",           "Average Retention Time (min)",
-  "S/N average",     "sn_ratio",     "Average S/N Ratio",
-  "Comment",         "std_type",     "Standard Type", # e.g. "Quant", "IS", "vIS", or NA 
-)
-convert_to_id <- function(given_id, tbl = conv_tbl) {
+convert_to_id <- function(given_id, tbl = util$conv_tbl) {
   m <- match(given_id, tbl$given_id)
   ifelse(is.na(m), given_id, tbl$id[m])
 }
 features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["1st"]])
 # Duplicated "id"s for different type of data
-conv_tbl <- conv_tbl[conv_tbl$given_id %in% colnames(features), ]
+conv_tbl <- util$conv_tbl[util$conv_tbl$given_id %in% colnames(features), ]
 stopifnot(anyDuplicated(conv_tbl$id) == 0)
 # Syntactically valid column names in R
 features <- dplyr::rename_with(features, convert_to_id) |> 
@@ -55,9 +45,9 @@ features <- dplyr::rename_with(features, convert_to_id) |>
     alignment_id,
     feature_name,
     mz,
-    rt,
+    .rt,
     sn_ratio,
-    std_type,
+    .std_type,
   ) |> 
   as.data.frame()        # To have row names
 
@@ -65,20 +55,20 @@ features <- dplyr::rename_with(features, convert_to_id) |>
 rownames(features) <- make.names(features$feature_name, unique = TRUE)
 features <- features |> 
   dplyr::mutate(
-    dplyr::across(c(mz, rt, sn_ratio), as.numeric),
+    dplyr::across(c(mz, .rt, sn_ratio), as.numeric),
     # Ignore other variants
-    std_type = dplyr::case_when(
-      std_type %in% c("Quant", "IS", "vIS") ~ std_type,
-      grepl("^IS/", std_type) ~ std_type,
-      grepl("^Quant/", std_type) ~ std_type,
+    .std_type = dplyr::case_when(
+      .std_type %in% c("Quant", "IS", "vIS") ~ .std_type,
+      grepl("^IS\\\\", .std_type) ~ .std_type,
+      grepl("^Quant\\\\", .std_type) ~ .std_type,
       .default = ""
     )
   )
 # Apply labels for plots and tables
 conv_tbl <- conv_tbl[match(colnames(features), conv_tbl$id), ]  # To make sure the order is right.
 features <- labelled::set_variable_labels(features, .labels = conv_tbl$label)
-stopifnot("`IS` features are required." = any(features$std_type == "IS"))
-if (!any(features$std_type == "Quant")) {
+stopifnot("`IS` features are required." = any(util$is_internal_std(features$.std_type)))
+if (!any(util$is_targeted_feature(features$.std_type))) {
   warning("`Quant` features are missing.")
   is_non_target_mode <- TRUE
 }
