@@ -296,46 +296,49 @@ satisfying_values <- function(cond, values = names(cond)) {
   values[which(cond)]
 }
 
-#' Split a matrix column-wise by the spiked concentration points and sort by the values
+#' Split in columns and sort by the spiked concentration
+#' 
+#' Split a matrix column-wise at the spiked concentration points and sort by the values
 #'
 #' @param cc_se A [`SumExp::SumExp`] object of the calibration curve samples
 #' @param mat_id A matrix ID in the `cc_se`
 #'
-#' @returns A list of matrices of `mat_id` split column-wise. The list is sorted by the values.
+#' @returns A list of matrices of `mat_id` split column-wise. The names of the list are the
+#'   spiked concentration points. 
+#'   Each element of the list is a matrix with the same number of rows as `mat_id` and the number
+#'   of columns equal to the number of samples with the same spiked concentration.
+#'   The list is sorted by the concentration values.
 #' @md
-mat_split_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
+split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
   # Split the columns by the values
   conc <- util$spiked_conc_pts(cc_se)
+  stopifnot("Spiked concentration values are not numeric" = is.numeric(conc))
   sorted <- stats::setNames(nm = sort(unique(conc)))
   lapply(sorted, \(.x) cc_se[[mat_id]][, conc == .x, drop = FALSE])
 }
 
 #' Apply a function to the values in `mat_id` of spiked concentration points
 #' 
-#' @inheritParams mat_split_columns_and_sort_by_spiked_conc
+#' @inheritParams split_in_columns_and_sort_by_spiked_conc
 #' @inheritParams base::apply
 #' @param FUN A function to apply to the values in `mat_id` of spiked concentration points. 
 #'   Ideally, the function should return a single value.
 #' @returns A matrix (or vector when only one point) of the results of applying `FUN` to the
 #'   values in `mat_id` per spiked concentration point
 #' @md
-apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ...) {
-  cc_lst <- mat_split_columns_and_sort_by_spiked_conc(cc_se, mat_id)
-  sapply(cc_lst, apply, MARGIN, FUN, ...)
+apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TRUE) {
+  cc_lst <- split_in_columns_and_sort_by_spiked_conc(cc_se, mat_id)
+  sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }
 
 #' Get means, standard deviation and non-zero concentration
 #'
-#' @description
-#' The output is a list with the following elements:
+#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve
+#' @param mat_id A matrix ID
+#' @returns A list with `mat_m`, `mat_sd` and `non_zero`:
 #' - `mat_m` and `mat_sd` are matrices with the mean and standard deviation of the signal 
 #'   values for each chemical and concentration point.
 #' - `non_zero` is a vector of the concentration points with non-zero signal for each chemical.
-#' - `conc` is a vector of the concentration points.
-#' 
-#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve
-#' @param mat_id A matrix ID
-#' @returns A list with `mat_m`, `mat_sd`, `non_zero` and `conc`
 #' @md
 list_mean_sd_and_nonzero <- function(cc_se, mat_id) {
   # Mean/standard deviation per spiked concentration point
@@ -343,10 +346,12 @@ list_mean_sd_and_nonzero <- function(cc_se, mat_id) {
   mat_m  <- apply_per_spiked_conc(cc_se, mat_id, 1, mean, na.rm = TRUE)
   mat_sd <- apply_per_spiked_conc(cc_se, mat_id, 1, stats::sd, na.rm = TRUE)
   # Concentration values
-  conc <- as.numeric(colnames(mat_m))    # In fact, no need
+  conc <- as.numeric(colnames(mat_m))    # In fact, not required
   # The minimum concentration with non-zero mean
-  non_zero <- apply(mat_m > 0, 1, \(.x) min(satisfying_values(.x, conc)))
+  non_zero <- apply(mat_m > 0, 1, \(.x) min(satisfying_values(.x, values = conc)))
   
+  stopifnot(is.matrix(mat_m), is.matrix(mat_sd), is.vector(non_zero))
+  stopifnot(all(non_zero %in% conc))
   list(mat_m = mat_m, mat_sd = mat_sd, non_zero = non_zero)
 }
 
@@ -357,7 +362,7 @@ list_mean_sd_and_nonzero <- function(cc_se, mat_id) {
 #' @param non_zero A vector of the concentration points with non-zero signal for each chemical
 #'
 #' @returns A vector of the values of the non-zero concentration points
-values_of_non_zero <- function(mat, non_zero) {
+values_of_non_zero_in_mat <- function(mat, non_zero) {
   stopifnot(nrow(mat) == length(non_zero))
   # Concentration values
   conc <- as.numeric(colnames(mat))
@@ -397,8 +402,8 @@ NULL
 compute_llox_signal_using_mean_plus_sd_times <- function(mat_m, mat_sd, non_zero, times) {
   stopifnot(all(dim(mat_m) == dim(mat_sd)))
   # Extract the mean and standard deviation of the lowest non-zero concentration point
-  m_nz <- values_of_non_zero(mat_m, non_zero)
-  sd_nz <- values_of_non_zero(mat_sd, non_zero)
+  m_nz <- values_of_non_zero_in_mat(mat_m, non_zero)
+  sd_nz <- values_of_non_zero_in_mat(mat_sd, non_zero)
   # Compute LOD/LLOQ using mean + SD * times
   llox_signal <- m_nz + times * sd_nz
   # Set the chemical IDs as names 
@@ -415,7 +420,7 @@ compute_llox_signal_using_mean_plus_sd_times <- function(mat_m, mat_sd, non_zero
 #' @export
 compute_llox_signal_using_mean_times <- function(mat_m, mat_sd, non_zero, times) {
   # Extract the mean of the lowest non-zero concentration point
-  m_nz <- values_of_non_zero(mat_m, non_zero)
+  m_nz <- values_of_non_zero_in_mat(mat_m, non_zero)
   # Compute LOD/LLOQ using mean * times
   llox_signal <- m_nz * times
   # Set the chemical IDs as names 

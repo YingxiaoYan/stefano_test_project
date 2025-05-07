@@ -30,15 +30,21 @@ kable_internal_std <- function(se) {
   ) |> 
     kableExtra::kable_styling(full_width = FALSE)
 }
+```
+
+```{r}
 kable_internal_std(internal_std_se)
 ```
 
 ### Outliers
 
-Samples deviating too much from others may be considered as outliers based on the values of internal standard (IS) features, which were supposed to be the same across all the samples. 
-For each internal standard, the samples with values greater than 3 standard deviations from the mean of all samples after log-transformation ($log(1 + x)$) were marked as outlying samples for the feature.
-In the other way, the feature was marked as an outlier for the sample.
-When the number of outlying IS features of a sample exceeds 20% of the total number of IS, the sample was considered as outliers and eventually excluded from the data.
+Samples that exhibit substantial deviation from the majority may be classified as outliers based on the values of internal standard (IS) features.
+As the values of each IS were supposed to be the same across all the samples, any significant variation can indicate a problem with the sample.
+For each internal standard, the mean value and the standard deviation from all the samples post-log-transformation is computed after log-transformation ($log(1 + x)$).
+A sample is then marked as an outlier for a specific IS feature if its value lies greater than three standard deviations from the calculated mean.
+Conversely, a feature was flagged as an outlier for a specific sample.
+If the number of IS features in a sample categorized as outliers exceeds 20% of the total number of IS features evaluated, the sample itself is deemed an outlier. 
+The outlier samples are then removed from the data.
 
 ```{r}
 #| label: 'outliers-table'
@@ -48,17 +54,19 @@ n_out_istd <- qc_steps[["internal std. number of outliers per sample"]]
 if (all(! is_outlier)) {
   cat("No outliers were identified.\n")
 } else {
-  cat("The following samples were identified as outliers.\n\n")
+  cat("The following samples were identified as outliers and excluded.\n\n")
   stopifnot(identical(names(is_outlier), names(n_out_istd)))
+  # To retrieve the sample_name, Class, sample_type
   tb <- tibble::as_tibble(SumExp::col_df(internal_std_se), rownames = "sample_id")
   show_tb <- tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
+    dplyr::mutate(is_outlier = is_outlier) |>
     labelled::set_variable_labels(
       "value" = "Number of Outlying IS",
       "sample_id" = "Sample ID"
     ) |>
-    # Retrieve the sample_name
+    # Retrieve the sample_name, Class, sample_type
     dplyr::left_join(tb, by = "sample_id") |> 
-    dplyr::filter(value > 0) |> 
+    dplyr::filter(is_outlier) |> 
     dplyr::select(sample_name, Class, sample_type, value)
   knitr::kable(
     show_tb,
