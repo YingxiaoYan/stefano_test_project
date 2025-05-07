@@ -1,14 +1,14 @@
 # ------------------------------------------------------------------------------------------- #
-# A Shiny module to run a preprocessing script allowing some selections
+# A Shiny module to run a processing script allowing some selections
 # ------------------------------------------------------------------------------------------- #
 
-#' A Shiny UI module to run a preprocessing script allowing some selections
+#' A Shiny UI module to run a processing script allowing some selections
 #'
 #' @param uiId A string that identifies the UI module.
 #' 
 #' @returns A list of UI elements
 #' @export
-runPreprocessUI <- function(uiId) {
+runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
     shiny::radioButtons(
@@ -34,7 +34,7 @@ runPreprocessUI <- function(uiId) {
                            "StdDev", shiny::tags$sub("nonzero")))
       ),
     ),
-    shiny::actionButton(ns("run_button"), label = "Preprocess data"),
+    shiny::actionButton(ns("run_button"), label = "Process data"),
     shiny::verbatimTextOutput(ns("script_output")),
     shiny::br(),
   )
@@ -44,7 +44,7 @@ runPreprocessUI <- function(uiId) {
 #'
 #' @param serverId A string that identifies the server module.
 #' @export
-runPreprocessServer <- function(serverId) {
+runProcessServer <- function(serverId) {
   shiny::moduleServer(serverId, function(input, output, session) {
     
     shiny::observeEvent(input[["run_button"]], {
@@ -57,7 +57,7 @@ runPreprocessServer <- function(serverId) {
       out <- tryCatch(
         withr::with_dir(
           new = "..",     # Every script is written to be executed at the root of the project
-          utils::capture.output(source("code/scripts/preprocess.R", local = TRUE))
+          utils::capture.output(source("code/scripts/process.R", local = TRUE))
         ),
         warning = function(w) w,
         error = function(e) e
@@ -68,15 +68,15 @@ runPreprocessServer <- function(serverId) {
 }
 
 #' A Shiny app for module testing purposes
-runPreprocessApp <- function() {
+runProcessApp <- function() {
   ui <- shiny::fluidPage(
-    runPreprocessUI("proc1"),
+    runProcessUI("proc1"),
   )
   server <- function(input, output, session) {
-    runPreprocessServer("proc1")
+    runProcessServer("proc1")
   }
   shiny::shinyApp(ui = ui, server = server)
 }
 
 # Module test on `code/` where `app.R` is located
-# shiny::runApp(runPreprocessApp())
+# shiny::runApp(runProcessApp())

@@ -81,7 +81,7 @@ The scripts are written in R and qmd, and can be run in the following way.
 ```sh
 cd <project>
 Rscript code/scripts/read-msdial.R
-Rscript code/scripts/preprocess.R
+Rscript code/scripts/process.R
 Rscript code/scripts/export_data.R
 
 cd <project>/code/reports

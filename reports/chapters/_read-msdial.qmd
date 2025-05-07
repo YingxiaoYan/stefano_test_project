@@ -14,7 +14,7 @@ The number of samples for each class is as follows:
 show$kable_number_of(SumExp::col_df(raw_se)$Class)
 ```
 
-### Special categories for preprocessing
+### Special categories for processing
 
 There are `r length(table(util$ctrl_smpl_cat(raw_se), exclude = ""))` special sample categories for in the data.
 The data of those are important in the following processing steps.

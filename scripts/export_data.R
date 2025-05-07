@@ -33,7 +33,7 @@ FILE <- list(
 io$chq_all_files_exist(FILE$i[c("raw", "qc")])
 # Load the normalized data
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+stopifnot("Processing NOT completed." = qc_steps[["Processing Completed"]])
 norm_mat_ids <- qc_steps[["normalized matrix ids"]]      # `mat_ids` e.g. "loess_norm"
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 is_non_target_mode <- SumExp::metadata(raw_se)$is_non_target_mode

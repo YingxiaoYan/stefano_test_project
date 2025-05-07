@@ -15,7 +15,7 @@ format:
 #| label: 'setup-read-msdial'
 #| purl: true
 #| output: false
-# The preprocessed data used for calibration.
+# The processed data used for calibration.
 DATA_ID <- params$data_id
 
 # Load packages and project local libraries
@@ -24,7 +24,7 @@ box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
   util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  projlib/proc,       # Preprocessing functions
+  projlib/proc,       # Processing functions
   projlib/show,       # Functions to present data
   io = projlib/check_io_exist,       # Check input/output files
   patchwork,           # Combine ggplot objects. `+`
@@ -55,7 +55,7 @@ io$check_io_exist(FILE)
 
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+stopifnot("Processing NOT completed." = qc_steps[["Processing Completed"]])
 calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
@@ -102,7 +102,7 @@ if (any(is_vIS)) {
 
 ## Internal standards (ISs) 
 
-{{< include chapters/_preprocess-internal-stds.qmd >}}
+{{< include chapters/_process-internal-stds.qmd >}}
 
 ## Normalization by ISs
 
@@ -131,18 +131,18 @@ The RT range of the internal standards is from `r range(rt)[1]` to `r range(rt)[
 norm_se <- qc_steps[["normalized"]]
 ```
 
-{{< include chapters/_preprocess-norm-closest.qmd >}}
+{{< include chapters/_process-norm-closest.qmd >}}
 
 ### LOESS (IS) normalization
 
 ```{r}
-#| child: code/reports/chapters/_preprocess-norm-loess.qmd
+#| child: code/reports/chapters/_process-norm-loess.qmd
 
 ```
 
 ### Comparison of normalization methods
 
-{{< include chapters/_preprocess-norm-comparison.qmd >}}
+{{< include chapters/_process-norm-comparison.qmd >}}
 
 
 ### Blank subtraction
@@ -154,10 +154,10 @@ Blank subtraction is applied to all samples in the dataset except for the calibr
 #| label: target_mode
 if (!IS_NON_TARGET_MODE) {
   cat("\n\n# Calibration\n\n")
-  qmd <- "_preprocess-calibration-llox_from_llox_signal.qmd"
+  qmd <- "_process-calibration-llox_from_llox_signal.qmd"
   cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
   cat("\n\n# Concentration\n\n")
-  cat(knitr::knit_child("code/reports/chapters/_preprocess-concentration.qmd", quiet = TRUE))
+  cat(knitr::knit_child("code/reports/chapters/_process-concentration.qmd", quiet = TRUE))
 }
 ```
 

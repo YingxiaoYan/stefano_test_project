@@ -23,7 +23,7 @@ format:
 ```{r}
 #| label: 'setup'
 #| purl: true
-# The preprocessed data used for calibration.
+# The processed data used for calibration.
 DATA_ID <- params$data_id
 
 # Load packages and project local libraries
@@ -62,7 +62,7 @@ io$check_io_exist(FILE)
 
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Preprocessing NOT completed." = qc_steps[["Preprocessing Completed"]])
+stopifnot("Processing NOT completed." = qc_steps[["Processing Completed"]])
 calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 
 concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]

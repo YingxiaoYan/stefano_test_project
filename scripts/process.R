@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------------------- #
-# Read a parsed MS-Dial file, preprocess, and save the data to an `rds` file
+# Read a parsed MS-Dial file, process, and save the data to an `rds` file
 #
-# During preprocessing for quality control, the intermediate data is saved to an `rds` file
+# During processing for quality control, the intermediate data is saved to an `rds` file
 # using the `proc$initialize_qc_steps` and `proc$append_to_qc_steps` functions. 
 # ------------------------------------------------------------------------------------------- #
 
@@ -14,7 +14,7 @@ if (!exists("params")) {
   )
 }
 cat(
-  "\nPreprocessing parameters:\n",
+  "\nProcessing parameters:\n",
   "  - Weight method:", params$weight, "\n",
   "  - LOD/LLOQ method:", params$llox_method, "\n"
 )
@@ -25,7 +25,7 @@ box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
   util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  projlib/proc,       # Preprocessing functions
+  projlib/proc,       # Processing functions
 )
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input("input_file", "intermediate_dir", "concentration_unit")
@@ -44,7 +44,7 @@ append_to_qc_steps <- function(...) proc$append_to_qc_steps(..., file = FILE$qc)
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
 overall_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
 mat_id_for_norm <- "raw"  # `raw` or `vol_norm`
-cat("\nPreprocessing steps are started.\n")
+cat("\nProcessing steps are started.\n")
 
 # Normalization using internal standards -------------------------------------------------
 
@@ -150,10 +150,10 @@ cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
 
-#' Mark the expected preprocessing has been completed
+#' Mark the expected processing has been completed
 mark_completed <- function() {
-  append_to_qc_steps("Preprocessing Completed" = TRUE)
-  cat("The intermediate objects during preprocessing saved to:", FILE$qc, "\n")
+  append_to_qc_steps("Processing Completed" = TRUE)
+  cat("The intermediate objects during processing saved to:", FILE$qc, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
 if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
@@ -241,7 +241,7 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
 }
 # Save the processed data
 saveRDS(per_norm_lst, file = FILE$proc)
-cat("The `SumExp` object after preprocessing saved to:", FILE$proc, "\n")
+cat("The `SumExp` object after processing saved to:", FILE$proc, "\n")
 
-# Mark the preprocessing step as completed
+# Mark the processing step as completed
 mark_completed()

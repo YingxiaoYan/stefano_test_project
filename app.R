@@ -14,7 +14,7 @@ ui <- shiny::fluidPage(
     shiny::column(
       width = 6,
       runScriptUI("read_msdial", label = "Read MS-Dial output files"),
-      runPreprocessUI("proc"),
+      runProcessUI("proc"),
       runScriptUI("export_data", label = "Export data into tables"),
       shiny::hr(),
       genReportUI("report"),
@@ -29,7 +29,7 @@ server <- function(input, output, session) {
   
   # Run scripts and display output
   runScriptServer("read_msdial", "code/scripts/read-msdial.R")
-  runPreprocessServer("proc")
+  runProcessServer("proc")
   runScriptServer("export_data", "code/scripts/export_data.R")
   
   genReportServer("report", data_info = data_info)
