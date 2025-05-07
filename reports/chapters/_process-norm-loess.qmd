@@ -95,7 +95,7 @@ loess_curve_df <- local({
 ))
 
 # Deviation from the mean
-dev_from_mean <- local({
+dev_from_mean <- local(envir = list(se = norm_se, i_sel = i_sel, to_excl = to_excl), {
   # Log-transform the data
   mat <- log(se[[mat_id_for_norm]][, !to_excl, drop = FALSE])
   mat[!is.finite(mat)] <- NA    # nan = -Inf - -Inf. Replace -Inf by `log` with NA
@@ -105,17 +105,21 @@ dev_from_mean <- local({
   for (ii in c(mat_id_for_norm, "loess_norm")) {
     out_se[[ii]] <- sweep(log(out_se[[ii]]), 1, mean_log, FUN = "-")
   }
+  # Reclassify standard types for compound classes
+  SumExp::row_df(out_se)[["Type"]] <- dplyr::case_when(
+    util$is_internal_std(out_se) ~ "IS",
+    util$is_targeted_feature(out_se) ~ "Quant",
+    util$std_type(out_se) == "" ~ "non-target",
+    TRUE ~ NA_character_
+  )
   out_se
-}, list(se = norm_se, i_sel = i_sel, to_excl = to_excl))
+})
 
 df_to_show <- SumExp::as_tibble(dev_from_mean) |>
   tidyr::pivot_longer(cols = c(dplyr::all_of(mat_id_for_norm), loess_norm), 
                       names_to = "Data", 
                       values_to = "Value") |> 
-  dplyr::mutate(
-    Type = ifelse(.std_type == "", "non-target", .std_type),
-    Type = factor(Type, levels = c("IS", "Quant", "non-target"))
-  ) |> 
+  dplyr::mutate(Type = factor(Type, levels = c("IS", "Quant", "non-target"))) |> 
   dplyr::arrange(desc(Type)) |>  # To show IS on top
   dplyr::mutate(
     Data = dplyr::case_when(
