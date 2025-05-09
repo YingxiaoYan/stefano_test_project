@@ -8,7 +8,7 @@
 # User project parameters
 .user_params <- tibble::tribble(
   ~id,                  ~type,      ~label,
-  "title",              "text",     "Title",
+  "project_title",      "text",     "Project title",
   "input_file",         "file",     "Input file (relative path from `home/`)",
   "intermediate_dir",   "dir",      "Directory to save intermediate files",
   "table_dir",          "dir",      "Directory to save the exported tables",
@@ -16,7 +16,6 @@
   "concentration_unit", "text",     "Concentration unit",
   "user",               "text",     "User",
   "university",         "text",     "University",
-  "project_title",      "text",     "Project title",
   "free_text",          "textArea", "Free text to the external report",
 )
 

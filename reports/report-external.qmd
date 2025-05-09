@@ -1,8 +1,8 @@
 ---
 params:
   data_id: loess_norm_blk
-  title: "Test"
-title: "Report on `r params$title`"
+  project_title: "Test"
+title: "Report on `r params$project_title`"
 format:
   titlepage-pdf:
     titlepage: academic

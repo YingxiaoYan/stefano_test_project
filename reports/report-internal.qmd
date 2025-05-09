@@ -1,7 +1,7 @@
 ---
 params:
   data_id: loess_norm_blk
-  title: Test
+  project_title: "Test"        # No need here but needed by `report-external.qmd`
 title: "Data quality evaluation"
 format:
   html: 
