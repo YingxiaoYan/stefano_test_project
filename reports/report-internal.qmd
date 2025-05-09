@@ -55,7 +55,7 @@ io$check_io_exist(FILE)
 
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Processing NOT completed." = qc_steps[["Processing Completed"]])
+stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
 calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)

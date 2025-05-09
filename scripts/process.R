@@ -2,7 +2,6 @@
 # Read a parsed MS-Dial file, process, and save the data to an `rds` file
 #
 # During processing for quality control, the intermediate data is saved to an `rds` file
-# using the `proc$initialize_qc_steps` and `proc$append_to_qc_steps` functions. 
 # ------------------------------------------------------------------------------------------- #
 
 # Handle the parameters selected by the user in the Shiny app
@@ -37,9 +36,8 @@ FILE <- rlang::list2(
   # Intermediate status of the data
   qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
 )
-# To store intermediate data during quality control steps. `append_to_qc_steps` will append
-proc$initialize_qc_steps(FILE$qc)
-append_to_qc_steps <- function(...) proc$append_to_qc_steps(..., file = FILE$qc)
+# For reports, store intermediate data during quality control steps.
+qc_steps <- list()
 
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
 overall_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
@@ -51,8 +49,7 @@ cat("\nProcessing steps are started.\n")
 # Volumetric normalization using volumetric internal standards (vIS)
 is_vIS <- util$std_type(overall_sumexp) == "vIS"
 if (any(is_vIS)) {      # This is optional
-  # Store intermediate data during quality control steps
-  append_to_qc_steps("volumetric internal std. raw" = overall_sumexp[is_vIS, ])
+  qc_steps[["is volumetric internal std."]] <- is_vIS    # For reports
   overall_sumexp <- proc$normalize_volumetric(overall_sumexp, is_vIS, "raw")
   mat_id_for_norm <- "vol_norm"  # `raw` or `vol_norm`
 } 
@@ -65,8 +62,8 @@ internal_std_se <- local(
     se[order(util$retention_time(se)), ]    # Sort by average retention time
   }
 )
-# Store intermediate data during quality control steps
-append_to_qc_steps("internal std. before norm" = internal_std_se)
+# For reports, store intermediate data during quality control steps.
+qc_steps[["internal std. before norm"]] <- internal_std_se
 
 ## Outlier removal     ---------------
 # Number of outlying internal standard features per sample
@@ -74,10 +71,8 @@ n_outlier <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, ti
 n_feature <- nrow(internal_std_se)
 # Outlying samples
 is_outlier <- n_outlier > (0.2 * n_feature)
-append_to_qc_steps(
-  "internal std. number of outliers per sample" = n_outlier,
-  "internal std. outlying samples" = is_outlier, 
-)
+qc_steps[["internal std. number of outliers per sample"]] <- n_outlier    # For reports
+qc_steps[["internal std. outlying samples"]] <- is_outlier    # For reports
 if (any(is_outlier)) {
   # Exclude the outlying samples
   stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
@@ -89,7 +84,7 @@ if (any(is_outlier)) {
 ## Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]])
 is_failed <- num_zeros > 0
-append_to_qc_steps("internal std. failed IS" = is_failed)
+qc_steps[["internal std. failed IS"]] <- is_failed    # For reports
 # Remove failed internal standard features
 internal_std_se <- internal_std_se[!is_failed, ]
 
@@ -108,6 +103,7 @@ cat("Closest internal standard normalization is done.\n")
 ## LOESS fit over RT normalization     ---------------
 overall_rt_range <- range(util$retention_time(overall_sumexp))    # Fit for RT of all features
 excl_cat <- c("Blank", "CalCurve")
+qc_steps[["excluded categories in normalization"]] <- excl_cat    # For reports
 
 loess_fit <- proc$get_loess_fit(
   istd_se = internal_std_se,
@@ -116,6 +112,7 @@ loess_fit <- proc$get_loess_fit(
   span = 1,
   mat_id = mat_id_for_norm
 )
+qc_steps[["LOESS fit"]] <- loess_fit    # For reports
 # Normalize the data by LOESS fit along RT
 rt <- util$retention_time(overall_sumexp)
 raw <- overall_sumexp[[mat_id_for_norm]]
@@ -130,29 +127,24 @@ cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm")
+qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
 norm_blk_mat_ids <- proc$mat_id_of_blank_subtracted(norm_mat_ids)
-overall_sumexp_before_blank <- overall_sumexp
-overall_sumexp <- proc$add_blank_substracted_sumexp(
+qc_steps[["normalized"]] <- overall_sumexp    # Before blank subtraction. For reports
+overall_sumexp <- proc$add_blank_subtracted_sumexp(
   x_se = overall_sumexp,
   no_change = util$ctrl_smpl_cat(overall_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
-
-append_to_qc_steps(
-  "excluded categories in normalization" = excl_cat, 
-  "LOESS fit" = loess_fit,
-  "normalized matrix ids" = norm_mat_ids,
-  "normalized" = overall_sumexp_before_blank, 
-  "normalized - blank" = overall_sumexp, 
-)
+qc_steps[["normalized - blank"]] <- overall_sumexp    # For reports
 cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
 
 #' Mark the expected processing has been completed
 mark_completed <- function() {
-  append_to_qc_steps("Processing Completed" = TRUE)
+  qc_steps[["Completed"]] <- TRUE
+  saveRDS(qc_steps, FILE$qc)
   cat("The intermediate objects during processing saved to:", FILE$qc, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
@@ -170,7 +162,6 @@ quant_se0 <- overall_sumexp[util$is_targeted_feature(overall_sumexp), ]
 per_norm_lst <- list()       # Collect the output
 for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Collect intermediate data during calibration.
-  # `append_to_qc_steps` takes too long to save
   interm_data <- list()
   
   quant_se <- quant_se0     # Keep the unmodified for the next normalized data
@@ -231,9 +222,8 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
   concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
   
-  # Store the intermediate data in a file
-  do.call("append_to_qc_steps", 
-          setNames(list(interm_data), paste0("calibration/", mat_id)))
+  # Store the intermediate data
+  qc_steps[[paste0("calibration/", mat_id)]] <- interm_data
   # Collect the output
   per_norm_lst[[mat_id]] <- concn_se
   # Progress message

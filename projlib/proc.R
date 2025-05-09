@@ -240,7 +240,7 @@ mat_id_of_blank_subtracted <- function(mat_id) {
 #'   The columns of the blanks are removed from the `x_se`.
 #' @md
 #' @export
-add_blank_substracted_sumexp <- function(x_se, 
+add_blank_subtracted_sumexp <- function(x_se, 
                                          no_change,
                                          mat_ids, 
                                          out_mat_ids) {
@@ -292,7 +292,9 @@ add_blank_substracted_sumexp <- function(x_se,
 satisfying_values <- function(cond, values = names(cond)) {
   stopifnot(length(cond) == length(values))
   values <- as.numeric(values)
-  if (all(!cond)) return(NA_real_)
+  if (all(!cond | is.na(cond))) {
+    return(NA_real_)
+  }
   values[which(cond)]
 }
 
@@ -351,7 +353,6 @@ list_mean_sd_and_nonzero <- function(cc_se, mat_id) {
   non_zero <- apply(mat_m > 0, 1, \(.x) min(satisfying_values(.x, values = conc)))
   
   stopifnot(is.matrix(mat_m), is.matrix(mat_sd), is.vector(non_zero))
-  stopifnot(all(non_zero %in% conc))
   list(mat_m = mat_m, mat_sd = mat_sd, non_zero = non_zero)
 }
 
@@ -366,9 +367,12 @@ values_of_non_zero_in_mat <- function(mat, non_zero) {
   stopifnot(nrow(mat) == length(non_zero))
   # Concentration values
   conc <- as.numeric(colnames(mat))
-  stopifnot(all(non_zero %in% conc), anyDuplicated(conc) == 0)
+  stopifnot(all(non_zero[!is.na(non_zero)] %in% conc), anyDuplicated(conc) == 0)
   # Extract the mean of the lowest non-zero concentration point
   sapply(1:nrow(mat), \(ii) {
+    if (is.na(non_zero[ii])) {
+      return(NA_real_)
+    }
     mat[ii, conc == non_zero[ii]]
   })
 }
