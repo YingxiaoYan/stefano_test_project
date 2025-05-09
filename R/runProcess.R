@@ -11,6 +11,12 @@
 runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    # Quality control: outlier removal
+    shiny::checkboxInput(
+      inputId = ns("outlier_removal"),
+      label = "Quality control: remove outlier samples?",
+      value = TRUE,
+    ),
     shiny::radioButtons(
       inputId = ns("weight"),
       label = "Weighting method",
@@ -50,6 +56,7 @@ runProcessServer <- function(serverId) {
     shiny::observeEvent(input[["run_button"]], {
       # Parameters to be passed to the script
       params <- rlang::list2(
+        is_outlier_removal = input[["outlier_removal"]],
         weight = input[["weight"]],
         llox_method = input[["llox_method"]],
       )

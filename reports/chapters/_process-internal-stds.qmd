@@ -36,45 +36,6 @@ kable_internal_std <- function(se) {
 kable_internal_std(internal_std_se)
 ```
 
-### Outliers
-
-Each internal standard (IS) is expected to have consistent values across all samples.
-After applying a log-transformation ($log(1 + x)$), the mean and standard deviation for each IS are calculated.
-A sample is flagged as an outlier for a given IS if its value deviates by more than 3 standard deviations from the IS mean.
-If more than 20% of IS features in a sample are flagged this way, the sample itself is classified as an outlier.
-The outlier samples are then removed from the data.
-
-```{r}
-#| label: 'outliers-table'
-is_outlier <- qc_steps[["internal std. outlying samples"]]
-n_out_istd <- qc_steps[["internal std. number of outliers per sample"]]
-
-if (all(! is_outlier)) {
-  cat("No outliers were identified.\n")
-} else {
-  cat("The following samples were identified as outliers and excluded.\n\n")
-  stopifnot(identical(names(is_outlier), names(n_out_istd)))
-  # To retrieve the sample_name, Class, sample_type
-  tb <- tibble::as_tibble(SumExp::col_df(internal_std_se), rownames = "sample_id")
-  show_tb <- tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
-    dplyr::mutate(is_outlier = is_outlier) |>
-    labelled::set_variable_labels(
-      "value" = "Number of Outlying IS",
-      "sample_id" = "Sample ID"
-    ) |>
-    # Retrieve the sample_name, Class, sample_type
-    dplyr::left_join(tb, by = "sample_id") |> 
-    dplyr::filter(is_outlier) |> 
-    dplyr::select(sample_name, Class, sample_type, value)
-  knitr::kable(
-    show_tb,
-    col.names = labelled::get_variable_labels(show_tb),
-    align = "lccr"
-  ) |> 
-    kableExtra::kable_classic(full_width = FALSE)
-}
-```
-
 ### Failed internal standards
 
 Internal standard (IS) features that satisfy the following conditions were considered as failed IS:
@@ -84,7 +45,7 @@ Internal standard (IS) features that satisfy the following conditions were consi
 ```{r}
 #| out-width: 100%
 
-is_failed_istd <- qc_steps[["internal std. failed IS"]]
+is_failed_istd <- qc_steps[["is failed internal std."]]
 
 box_scatter_plot_of_one_feature <- function(se, ii, widths) {
   feature_name <- SumExp::row_df(se)$feature_name[ii]
@@ -114,29 +75,82 @@ box_scatter_plot_of_one_feature <- function(se, ii, widths) {
 if (any(is_failed_istd)) {
   cat("The following internal standard features were identified as failed IS,",
       "which were removed.\n\n")
-  failed_istd <- internal_std_se[is_failed_istd, !is_outlier]
+  failed_istd <- internal_std_se[is_failed_istd, ]
   # Table of failed internal standard features
   print(kable_internal_std(failed_istd))
   # Box and scatter plots of the failed internal standard features 
   for(ii in 1:nrow(failed_istd)) {
     print(box_scatter_plot_of_one_feature(failed_istd, ii, widths = c(0.3, 0.7)))
   }
+  # Remove the failed internal standard features
+  internal_std_se <- internal_std_se[!is_failed_istd, ]
 } else {
   cat("No failed internal standard features were identified.\n")
 }
 ```
 
+
 ```{r}
-if (any(is_outlier) || any(is_failed_istd)) {
-  internal_std_se <- internal_std_se[!is_failed_istd, !is_outlier]
+#| label: 'outlier-removal'
+is_outlier <- qc_steps[["is outlier sample"]]
+# Only when outlier removal is performed
+if (! is.null(is_outlier)) {
+  cat(
+    "### Outliers\n\n",
+    "Each internal standard (IS) is expected to have consistent values across all samples.\n",
+    "After applying a log-transformation ($log(1 + x)$),", 
+    "the mean and standard deviation for each IS are calculated.\n",
+    "A sample is flagged as an outlier for a given IS", 
+    "if its value deviates by more than 3 standard deviations from the IS mean.\n",
+    "If more than 20% of IS features in a sample are flagged this way,", 
+    "the sample itself is classified as an outlier.\n",
+    "The outlier samples are then removed from the data.\n\n"
+  )
+  # Number of outlying internal standard features per sample
+  n_out_istd <- qc_steps[["number of outlier internal std. per sample"]]
+  
+  if (all(! is_outlier)) {
+    cat("No outliers were identified.\n")
+  } else {
+    cat("The following samples were identified as outliers and excluded.\n\n")
+    stopifnot(identical(names(is_outlier), names(n_out_istd)))
+    # To retrieve the sample_name, Class, sample_type
+    tb <- tibble::as_tibble(SumExp::col_df(internal_std_se), rownames = "sample_id")
+    show_tb <- tibble::as_tibble(n_out_istd, rownames = "sample_id") |> 
+      dplyr::mutate(is_outlier = is_outlier) |>
+      labelled::set_variable_labels(
+        "value" = "Number of Outlying IS",
+        "sample_id" = "Sample ID"
+      ) |>
+      # Retrieve the sample_name, Class, sample_type
+      dplyr::left_join(tb, by = "sample_id") |> 
+      dplyr::filter(is_outlier) |> 
+      dplyr::select(sample_name, Class, sample_type, value)
+    knitr::kable(
+      show_tb,
+      col.names = labelled::get_variable_labels(show_tb),
+      align = "lccr"
+    ) |> 
+      kableExtra::kable_classic(full_width = FALSE)
+    
+    # Remove the outlier samples  
+    internal_std_se <- internal_std_se[, !is_outlier]
+  }
+}
+```
+
+```{r}
+if (any(is_failed_istd) || any(is_outlier)) {      # any(NULL) == FALSE
   SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
     dplyr::mutate(
       num_zeros = proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
       rsd = show$compute_rsd_per_feature(internal_std_se[[mat_id_for_norm]]),
     )
   # Update the table of internal standard features
-  cat("\n\nAfter excluding the outliers and failed internal standards,", 
-      "the table of internal standard features is as follows.\n\n")
+  cat("\n\nAfter excluding failed internal standards", 
+      if (is.null(is_outlier)) "" else " and outliers samples",
+      ", the table of internal standard features is as follows.\n\n",
+      sep = "")
   kable_internal_std(internal_std_se)
 }
 ```

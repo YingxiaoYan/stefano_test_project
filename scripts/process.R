@@ -8,12 +8,14 @@
 if (!exists("params")) {
   # Defaults when they are not given
   params <- rlang::list2(
+    is_outlier_removal = TRUE,
     weight = "largestR2",
     llox_method = "pt_signal_mean_plus_sd",
   )
 }
 cat(
   "\nProcessing parameters:\n",
+  "  - Outlier removal:", params$is_outlier_removal, "\n",
   "  - Weight method:", params$weight, "\n",
   "  - LOD/LLOQ method:", params$llox_method, "\n"
 )
@@ -65,30 +67,33 @@ internal_std_se <- local(
 # For reports, store intermediate data during quality control steps.
 qc_steps[["internal std. before norm"]] <- internal_std_se
 
-## Outlier removal     ---------------
-# Number of outlying internal standard features per sample
-n_outlier <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, times = 3)
-n_feature <- nrow(internal_std_se)
-# Outlying samples
-is_outlier <- n_outlier > (0.2 * n_feature)
-qc_steps[["internal std. number of outliers per sample"]] <- n_outlier    # For reports
-qc_steps[["internal std. outlying samples"]] <- is_outlier    # For reports
-if (any(is_outlier)) {
-  # Exclude the outlying samples
-  stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
-  internal_std_se <- internal_std_se[, !is_outlier]
-  stopifnot(identical(names(is_outlier), colnames(overall_sumexp)))
-  overall_sumexp <- overall_sumexp[, !is_outlier]
-}
-
 ## Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]])
 is_failed <- num_zeros > 0
-qc_steps[["internal std. failed IS"]] <- is_failed    # For reports
+qc_steps[["is failed internal std."]] <- is_failed    # For reports
 # Remove failed internal standard features
 internal_std_se <- internal_std_se[!is_failed, ]
+cat("Failed internal standards are removed.\n")
 
-cat("Outliers and failed internal standards are removed.\n")
+## Outlier sample removal     ---------------
+
+if (params$is_outlier_removal) {
+  # Number of outlying internal standard features per sample
+  n_out <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, times = 3)
+  n_feature <- nrow(internal_std_se)
+  # Outlier samples: number of outlying features > 20% of the total number of features
+  is_outlier <- n_out > (0.2 * n_feature)
+  qc_steps[["number of outlier internal std. per sample"]] <- n_out    # For reports
+  qc_steps[["is outlier sample"]] <- is_outlier    # For reports
+  if (any(is_outlier)) {
+    # Exclude the outlying samples
+    stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
+    internal_std_se <- internal_std_se[, !is_outlier]
+    stopifnot(identical(names(is_outlier), colnames(overall_sumexp)))
+    overall_sumexp <- overall_sumexp[, !is_outlier]
+  }
+  cat("Outlier samples are removed.\n")
+}
 
 ## Normalize the data using closest internal standard features     ---------------
 closest_istd <- proc$get_value_of_closest_istd(
