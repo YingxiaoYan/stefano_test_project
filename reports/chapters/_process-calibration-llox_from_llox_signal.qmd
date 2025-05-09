@@ -1,15 +1,15 @@
 ---
 title: Calibration
 params:
-  data_id: loess_norm_blk
+  norm_method: loess_norm
 ---
 
 ```{r}
 #| label: 'setup-calibration'
 #| purl: true
 #| eval: !expr '!knitr::opts_knit$get("child")'
-# The processed data used for calibration.
-DATA_ID <- params$data_id
+# The processed data used for calibration. Blank subtracted
+DATA_ID <- paste0(params$norm_method, "_blk")
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -192,7 +192,7 @@ calcurve_to_show_df <- local({
 ```
 
 The peak areas were normalized by the internal standards applying the `r show$label_if_has(calcurve_to_show_df[[DATA_ID]], DATA_ID)`.
-The concentration range was narrowed down to the range after the trimming step described in the [previous section](#concentration-ranges).
+The concentration range was narrowed down to the range after the trimming step described in the [previous section](#calibration-curve-limits).
 
 - **Full range**
 
@@ -255,9 +255,10 @@ if (weight_method == "largestR2") {
   )
   weight_txt <- paste(weight_txt, "weight")
 }
+
 ```
 
-The calibration curve is fitted to the [normalized data](#normalization) using `r n_models` different models.
+The calibration curve is fitted to the `r switch(params$norm_method, "loess_norm" = "LOESS", "closest_norm" = "Closest RT")` normalized data using `r n_models` different models.
 Linear models and quadratic models are fitted to the data with `r weight_txt`.
 The best model is selected based on the $R^2$ value.
 Preferring simpler models, the measures of explained variation of quadratic models were penalized by 0.01.

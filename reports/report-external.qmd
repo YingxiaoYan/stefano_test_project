@@ -1,6 +1,6 @@
 ---
 params:
-  data_id: loess_norm_blk
+  norm_method: loess_norm
   project_title: "Test"
 title: "Report on `r params$project_title`"
 format:
@@ -23,8 +23,8 @@ format:
 ```{r}
 #| label: 'setup'
 #| purl: true
-# The processed data used for calibration.
-DATA_ID <- params$data_id
+# The processed data used for calibration. Blank subtracted
+DATA_ID <- paste0(params$norm_method, "_blk")
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
