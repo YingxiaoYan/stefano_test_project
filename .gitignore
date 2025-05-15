@@ -5,15 +5,16 @@
 .DS_Store
 ._*
 
-# IDEs
-.Rproj.user/
-*.Rproj
-.vscode/
-
 # Apptainer container
 *.sif
 
-# Local (hidden) for applications
+# Local dirs/files for IDEs
+.Rproj.user/
+*.Rproj
+.vscode/
+*.code-workspace
+
+# Local (hidden) files and directories for some applications
 .snakemake/
 .quarto/
 _*.local
@@ -44,5 +45,3 @@ test.*
 # Accidentally created output files
 *.html
 *.pdf
-
-

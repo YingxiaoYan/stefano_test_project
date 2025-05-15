@@ -86,6 +86,7 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| fig-height: 6
 #| out-width: '100%'
 # PCA
+box::use(patchwork)           # Combine ggplot objects. `+`
 
 se <- norm_se[util$is_internal_std(norm_se), ]
 # Plot

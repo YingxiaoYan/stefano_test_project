@@ -183,6 +183,11 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Exclude the chemicals having no appropriate concentration range
   has_proper_range <- proc$has_proper_calibration_range(quant_se)
   interm_data[["calcurve conc ranges"]] <- cbind(limits_df, has_proper_range)
+  if (sum(has_proper_range) == 0) {     # No chemicals with proper range
+    warning("NO Valid calibration points for any chemical. But reports can be generated.")
+    qc_steps[[paste0("calibration/", mat_id)]] <- interm_data
+    next
+  }
   quant_se <- quant_se[has_proper_range, ]
   # Data is divided into two parts.
   # `calcurve_se` : calibration curve samples

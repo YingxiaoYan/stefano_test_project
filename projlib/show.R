@@ -516,7 +516,7 @@ ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @param mat_id The matrix ID in the `sumexp` to be used for PCA
-#' @param ... Additional arguments to [ggplot2::autoplot()]
+#' @param ... Additional arguments to [ggfortify::autoplot.prcomp()]
 #'
 #' @returns A [ggplot2::ggplot()] object
 #' @md
@@ -534,6 +534,7 @@ ggplot_pca <- function(sumexp, mat_id, ...) {
   if (is.null(pca_res)) {
     return(NULL)
   }
-  ggplot2::autoplot(pca_res, data = SumExp::col_df(sumexp), ...) +
+  # `autoplot.prcomp` is exported via `S3method`, so it is not available in the namespace
+  ggfortify:::autoplot.prcomp(pca_res, data = SumExp::col_df(sumexp), ...) +
     ggplot2::labs(title = lab)
 }

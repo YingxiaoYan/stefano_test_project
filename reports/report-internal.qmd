@@ -12,60 +12,14 @@ format:
 ---
 
 ```{r}
-#| label: 'setup-read-msdial'
 #| purl: true
-#| output: false
-# The processed data used for calibration. Blank subtracted
-DATA_ID <- paste0(params$norm_method, "_blk")
+#| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
+params <- list(norm_method = "loess_norm", project_title = "Test") 
+source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
+```
 
-# Load packages and project local libraries
-options(box.path = "code/")           # Path to project local libraries
-box::use(
-  SumExp,           # Light SummarizedExperiment, `[`
-  projlib/msdial,     # Handle MS-Dial files
-  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  projlib/proc,       # Processing functions
-  projlib/show,       # Functions to present data
-  io = projlib/check_io_exist,       # Check input/output files
-  patchwork,           # Combine ggplot objects. `+`
-  ggplot2[...],        # Too long to write and usually specific enough
-  ggfortify,           # PCA plot (autoplot)
-)
-# Get the input file name provided by the user
-user_inputs <- msdial$get_user_input()
-# To keep constants consistent across reports
-constants_yml <- yaml::read_yaml("code/constants.yml")
-COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
-raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-IS_NON_TARGET_MODE <- SumExp::metadata(raw_se)$is_non_target_mode
-# For consistency throughout the report
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
-
-# Input/Output files
-FILE <- list(
-  i = rlang::list2(
-    # Processed data
-    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
-    # Intermediate status of the data
-    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
-  )
-)
-# Check if input files and output directories exist
-io$check_io_exist(FILE)
-
-# Load the intermediate data during QC
-qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
-calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
-
-# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
-# These are used for presenting tables and figures in reports
-sample_id_name_tbl <- SumExp::col_df(raw_se) |> 
-  tibble::rownames_to_column("sample_id") |> 
-  dplyr::select(sample_id, sample_name)
-feature_id_name_tbl <- SumExp::row_df(raw_se) |> 
-  tibble::rownames_to_column("feature_id") |> 
-  dplyr::select(feature_id, feature_name)
+```{r}
+#| purl: true
 set.seed(7579)
 ```
 
@@ -80,6 +34,7 @@ set.seed(7579)
 ## Volumetric internal standard (vIS)
 
 ```{r}
+#| label: 'vIS-variable-setup'
 #| purl: true
 is_vIS <- util$std_type(raw_se) == "vIS"
 # Feature intensity to be used for normalization
@@ -136,8 +91,7 @@ norm_se <- qc_steps[["normalized"]]
 ### LOESS (IS) normalization
 
 ```{r}
-#| child: code/reports/chapters/_process-norm-loess.qmd
-
+#| child: code/reports/chapters/process-norm-loess.qmd
 ```
 
 ### Comparison of normalization methods
@@ -152,12 +106,20 @@ Blank subtraction is applied to all samples in the dataset except for the calibr
 
 ```{r}
 #| label: target_mode
-if (!IS_NON_TARGET_MODE) {
+if (!SumExp::metadata(raw_se)$is_non_target_mode) {
   cat("\n\n# Calibration\n\n")
-  qmd <- "_process-calibration-llox_from_llox_signal.qmd"
+  qmd <- "process-calibration-llox_from_llox_signal.qmd"
   cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
-  cat("\n\n# Concentration\n\n")
-  cat(knitr::knit_child("code/reports/chapters/_process-concentration.qmd", quiet = TRUE))
+  # Stop here if the calibration is not performed
+  if (is.null(calib_interm_data[["calcurve_se all range"]])) {
+    cat("\n\n# No calibration\n\n")
+    cat("Because it is not possible to perform calibration with the provided data.\n\n")
+  } else {
+    qmd <- "process-calibration-curves.qmd"
+    cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
+    cat("\n\n# Concentration\n\n")
+    cat(knitr::knit_child("code/reports/chapters/_process-concentration.qmd", quiet = TRUE))
+  }
 }
 ```
 

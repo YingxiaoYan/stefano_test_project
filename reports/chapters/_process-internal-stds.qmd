@@ -2,6 +2,7 @@
 ```{r}
 #| purl: true
 internal_std_se <- qc_steps[["internal std. before norm"]]
+box::use(projlib/proc[count_zeros_per_feature])
 ```
 
 There are `r nrow(internal_std_se)` internal standard (IS) features in the data.
@@ -9,9 +10,10 @@ Those features are listed below, in the order of average retention time.
 
 ```{r}
 #| purl: true
+
 SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
   dplyr::mutate(
-    num_zeros = proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
+    num_zeros = count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
     rsd = show$compute_rsd_per_feature(internal_std_se[[mat_id_for_norm]]),
   )
 # Table of internal standard features
@@ -44,6 +46,7 @@ Internal standard (IS) features that satisfy the following conditions were consi
 
 ```{r}
 #| out-width: 100%
+box::use(patchwork)           # Combine ggplot objects. `+`
 
 is_failed_istd <- qc_steps[["is failed internal std."]]
 
@@ -143,7 +146,7 @@ if (! is.null(is_outlier)) {
 if (any(is_failed_istd) || any(is_outlier)) {      # any(NULL) == FALSE
   SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
     dplyr::mutate(
-      num_zeros = proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
+      num_zeros = count_zeros_per_feature(internal_std_se[[mat_id_for_norm]]),
       rsd = show$compute_rsd_per_feature(internal_std_se[[mat_id_for_norm]]),
     )
   # Update the table of internal standard features

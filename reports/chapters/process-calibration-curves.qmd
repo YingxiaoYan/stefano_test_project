@@ -1,164 +1,19 @@
 ---
-title: Calibration
+title: Calibration - curves
 params:
   norm_method: loess_norm
 ---
 
 ```{r}
-#| label: 'setup-calibration'
 #| purl: true
+#| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
-# The processed data used for calibration. Blank subtracted
-DATA_ID <- paste0(params$norm_method, "_blk")
-
-# Load packages and project local libraries
-options(box.path = "code/")           # Path to project local libraries
-box::use(
-  SumExp,           # Light SummarizedExperiment, `[`
-  projlib/msdial,     # Handle MS-Dial files
-  projlib/show,       # Functions to present data
-  ggplot2[...],        # Too long to write and usually specific enough
-  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  io = projlib/check_io_exist,       # Check input/output files
-)
-# Get the input file name provided by the user
-user_inputs <- msdial$get_user_input()
-# To keep constants consistent across reports
-constants_yml <- yaml::read_yaml("code/constants.yml")
-COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
-# For consistency throughout the report
-raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
-
-# Input/Output files
-FILE <- list(
-  i = rlang::list2(
-    # Processed data
-    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
-    # Intermediate status of the data
-    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
-  )
-)
-# Check if input files and output directories exist
-io$check_io_exist(FILE)
-
-# Load the intermediate data during QC
-qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
-calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
-
-# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
-# These are used for presenting tables and figures in reports
-sample_id_name_tbl <- SumExp::col_df(raw_se) |> 
-  tibble::rownames_to_column("sample_id") |> 
-  dplyr::select(sample_id, sample_name)
-feature_id_name_tbl <- SumExp::row_df(raw_se) |> 
-  tibble::rownames_to_column("feature_id") |> 
-  dplyr::select(feature_id, feature_name)
 ```
-
-## Calibration curve samples
-
-The data of the samples for the calibration curve is extracted from the quantification samples after the outlier removal and normalization.
-The number of samples in the calibration curve after outlier removal is presented below.
-
-```{r}
-#| label: 'calcurve-samples-summary-calibration'
-# Present the number of samples in the calibration curve
-v <- util$spiked_conc_pts(qc_steps[["normalized - blank"]])
-v <- v[!is.na(v)] |> 
-  labelled::copy_labels_from(v)
-table(v) |> 
-  knitr::kable(
-    align = c("r", "r"),
-    col.names = c(labelled::get_label_attribute(v), "Number of Samples")
-    # col.names = c("Concentration (ng/ml)", "Number of Samples")
-  ) |> 
-  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
-```
-
-## Calibration curve limits
 
 ```{r}
 #| purl: true
-limit_df <- calib_interm_data[["calcurve conc ranges"]]
+set.seed(7579)             # To get the same results in a separate child report run
 ```
-
-* LOD and LLOQ
-
-Limit of detection (LOD) and lower-limit of quantification (LLOQ) are identified as described below. 
-
-1. Beginning with the lowest concentration point (e.g. `Cal0`), identify the lowest concentration point with a detected signal (or peak area) greater than zero.
-```{r}
-cat(switch(
-  calib_interm_data[["llox method"]],
-  "pt_signal_mean" = 
-"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the non-zero concentration point.
-3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the mean of the non-zero concentration point.
-    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%.",
-  "pt_signal_mean_plus_sd" =
-"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
-3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
-    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%."
-))
-```
-
-* Calibration working range
-
-In order to fit a calibration curve to a meaningful range of concentration, the fitting range is adjusted.
-The lower-limit of the range is chosen as the LLOQ.
-Concentration points below the limit are excluded from the calibration curve.
-
-As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
-When there are sufficient number (≥ 5) of calibration points, that the points that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
-
-If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
-As a result, `r english::Words(sum(!limit_df$has_proper_range))` chemicals have been excluded from the calibration.
-
-The concentration range for each chemical is detailed below.
-
-```{r}
-#| label: 'calcurve-conc-range-table'
-
-show_df <- limit_df |> 
-  tibble::as_tibble(rownames = "feature_id") |>     # To attach `feature_name`
-  dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
-  dplyr::mutate(
-    Note = dplyr::case_when(
-      !has_proper_range ~ "Excluded", 
-      TRUE ~ ""
-    ),
-    non_zero_conc = scales::number(non_zero_conc),
-    lod = ifelse(is.na(lod), "N.A.", scales::number(lod)),
-    min_c = ifelse(is.na(min_c), "No valid pts.", scales::number(min_c)),
-    max_c = dplyr::case_when(
-      max_c == 0 ~ "All zero",
-      max_c == -9 ~ "No valid max",
-      is.na(max_c) ~ "Not enough range",
-      TRUE ~ scales::number(max_c)
-    )
-  ) |>
-  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
-  dplyr::select("Chemical Name" = feature_name, 
-                "First calibration pt with signal" = non_zero_conc, 
-                "LOD" = lod, 
-                "Minimum conc. (LLOQ)" = min_c, 
-                "Maximum conc." = max_c, 
-                Note)
-
-knitr::kable(
-  show_df,
-  caption = "Concentration range of the calibration curve samples",
-  align = "lrrrrl",
-) |> 
-  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "350px") |> 
-  # Color the rows that are marked in Note
-  kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
-```
-
 
 ## Calibration curve per chemical
 
@@ -167,7 +22,6 @@ The calibration curve of each of randomly selected 9 chemicals is presented belo
 ```{r}
 #| purl: true
 cc_se <- calib_interm_data[["calcurve_se within range"]]
-set.seed(7579)
 # Randomly selected 9 chemicals to present in calibration curve plots
 i_9chemical_to_show <- local({
   ii <- c(1:nrow(cc_se))

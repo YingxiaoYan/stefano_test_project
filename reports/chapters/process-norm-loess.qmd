@@ -3,52 +3,20 @@ title: LOESS fit along RT
 ---
 
 ```{r}
-#| label: 'setup-norm-loess'
+#| purl: true
+#| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
+#| eval: !expr '!knitr::opts_knit$get("child")'
+```
+
+```{r}
+#| label: 'loaded-varibles-before-norm-loess'
 #| purl: true
 #| eval: !expr '!knitr::opts_knit$get("child")'
 
-# Load packages and project local libraries
-options(box.path = "code/")           # Path to project local libraries
-box::use(
-  SumExp,           # Light SummarizedExperiment, `[`
-  projlib/msdial,     # Handle MS-Dial files
-  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  projlib/show,       # Functions to present data
-  io = projlib/check_io_exist,       # Check input/output files
-  patchwork,           # Combine ggplot objects. `+`
-  ggplot2[...],        # Too long to write and usually specific enough
-  ggfortify,           # PCA plot (autoplot)
-)
-# Get the input file name provided by the user if `user_inputs` not inherited from the parent
-if (! exists("user_inputs")) user_inputs <- msdial$get_user_input()
-# To keep constants consistent across reports
-constants_yml <- yaml::read_yaml("code/constants.yml")
-COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
-# For consistency throughout the report
-raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 # Feature intensity to be used for normalization
 is_vIS <- util$std_type(raw_se) == "vIS"
 mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
-
-# Input files
-FILE <- list(
-  i = rlang::list2(
-    # Intermediate status of the data
-    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
-  )
-)
-# Check if input files and output directories exist
-io$check_io_exist(FILE)
-
-qc_steps <- readRDS(FILE$i$qc)
 norm_se <- qc_steps[["normalized"]]
-
-# Conversion tables between IDs (syntactically acceptable) and names (human-readable)
-sample_id_name_tbl <- SumExp::col_df(norm_se) |> 
-  tibble::rownames_to_column("sample_id") |> 
-  dplyr::select(sample_id, sample_name)
-
 # Find the range of RT values
 all_rts <- util$retention_time(norm_se)
 overall_rt_range <- range(all_rts)
@@ -250,6 +218,7 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| fig-height: 6
 #| out-width: '100%'
 # PCA
+box::use(patchwork)           # Combine ggplot objects. `+`
 
 se <- norm_se[util$is_internal_std(norm_se), ]
 # Plot
