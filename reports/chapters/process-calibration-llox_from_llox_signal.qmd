@@ -41,19 +41,18 @@ limit_df <- calib_interm_data[["calcurve conc ranges"]]
 
 Limit of detection (LOD) and lower-limit of quantification (LLOQ) are identified as described below. 
 
-1. Beginning with the lowest concentration point (e.g. `Cal0`), identify the lowest concentration point with a detected signal (or peak area) greater than zero.
 ```{r}
 cat(switch(
   calib_interm_data[["llox method"]],
   "pt_signal_mean" = 
-"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the non-zero concentration point.
-3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the mean of the non-zero concentration point.
+"1. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the calibration point of zero concentration.
+2. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the mean of the zero concentration point.
     2) The relative standard deviation (RSD) of the signal is equal to or less than 20%.",
   "pt_signal_mean_plus_sd" =
-"2. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
-3. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the standard deviation of the non-zero concentration point plus the mean of the non-zero point.
+"1. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the calibration point of zero concentration plus the mean of the zero point.
+2. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
+    1) The average signal exceeds ten times the standard deviation of the zero concentration point plus the mean of the zero point.
     2) The relative standard deviation (RSD) of the signal is equal to or less than 20%."
 ))
 ```
@@ -83,7 +82,6 @@ show_df <- limit_df |>
       !has_proper_range ~ "Excluded", 
       TRUE ~ ""
     ),
-    non_zero_conc = scales::number(non_zero_conc),
     lod = ifelse(is.na(lod), "N.A.", scales::number(lod)),
     min_c = ifelse(is.na(min_c), "No valid pts.", scales::number(min_c)),
     max_c = dplyr::case_when(
@@ -95,7 +93,6 @@ show_df <- limit_df |>
   ) |>
   dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
   dplyr::select("Chemical Name" = feature_name, 
-                "First calibration pt with signal" = non_zero_conc, 
                 "LOD" = lod, 
                 "Minimum conc. (LLOQ)" = min_c, 
                 "Maximum conc." = max_c, 
@@ -104,7 +101,7 @@ show_df <- limit_df |>
 knitr::kable(
   show_df,
   caption = "Concentration range of the calibration curve samples",
-  align = "lrrrrl",
+  align = "lrrrl",
 ) |> 
   kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
   kableExtra::scroll_box(height = "350px") |> 

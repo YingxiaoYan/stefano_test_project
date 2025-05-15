@@ -126,7 +126,8 @@ if (is_non_target_mode) {
   cc_conc <- sample_info[[nm_c]][sample_info$.ctrl_cat == "CalCurve"]
   stopifnot(
     "Error in Calibration sample IDs" = all(!is.na(cc_conc)), 
-    "Multiple curve samples per concentration are required." = all(table(cc_conc) > 1)
+    "Multiple curve samples per concentration are required." = all(table(cc_conc) > 1),
+    "Zero concentration is required." = any(cc_conc == 0)
   )
 }
 

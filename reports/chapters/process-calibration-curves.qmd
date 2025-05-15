@@ -37,7 +37,6 @@ calcurve_to_show_df <- local({
     dplyr::rename(.cc_pt = util$spiked_conc_pts_name) |>    # Rename for clarity
     dplyr::mutate(
       "c_type" = dplyr::case_when(
-        .cc_pt == non_zero_conc ~ "First non-zero",
         .cc_pt >= min_c_conc & .cc_pt <= max_c_conc ~ "Within limits",
         TRUE ~ "Out-of-range"
       )
@@ -64,9 +63,10 @@ calcurve_plot <- function(df, y = DATA_ID) {
       color = "Concentration\ncategory"
     ) +
     scale_color_manual(
-      values = c("First non-zero" = "red3", 
-                 "Within limits" = "green4",
-                 "Out-of-range" = "gray")
+      values = c(
+        "Within limits" = "green4",
+        "Out-of-range" = "gray"
+      )
     ) +
     facet_wrap(~ feature_name, scales = "free", ncol = 3)
 }

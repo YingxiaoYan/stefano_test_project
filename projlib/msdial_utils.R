@@ -17,7 +17,7 @@ conv_tbl <- tibble::tribble(
   "Quant mass",      "mz",           "Quant Mass",
   "Average Rt(min)", ".rt",          "Average Retention Time (min)",
   "S/N average",     "sn_ratio",     "Average S/N Ratio",
-  "Comment",         ".std_type",    "Standard Type", # e.g. "Quant", "IS", "vIS", or NA 
+  "Comment",         ".std_type",    "Standard Type", # e.g. "Quant", "IS", "vIS", or NA
 )
 
 #' Get the retention time of the calibration curve samples
@@ -33,7 +33,7 @@ retention_time <- function(x_se) {
 
 #' Get the standard type of the features
 #'
-#' @param x_se A [`SumExp::SumExp`] object 
+#' @param x_se A [`SumExp::SumExp`] object
 #' @returns A character vector of the standard types
 #' @export
 std_type <- function(x_se) {
@@ -55,12 +55,12 @@ is_targeted_feature <- function(x, ...) {
 #' @export
 is_targeted_feature.character <- function(x) {
   stopifnot(inherits(x, "character"))
-  x == "Quant" | grepl("^Quant\\\\", x) 
+  x == "Quant" | grepl("^Quant\\\\", x)
 }
 #' @rdname is_targeted_feature
 #' @export
 is_targeted_feature.SumExp <- function(x) {
-  std_type(x) |> 
+  std_type(x) |>
     is_targeted_feature.character()
 }
 
@@ -80,7 +80,7 @@ is_internal_std.character <- function(x) {
 }
 #' @rdname is_internal_std
 is_internal_std.SumExp <- function(x) {
-  std_type(x) |> 
+  std_type(x) |>
     is_internal_std.character()
 }
 
@@ -91,7 +91,7 @@ is_internal_std.SumExp <- function(x) {
 spiked_conc_pts_name <- "c_conc"
 
 #' Get the spiked concentration points
-#' 
+#'
 #' @param cc_se A [`SumExp::SumExp`] object including the calibration curve samples
 #' @returns A numeric vector of the concentrations of the calibration curve samples
 #' @md
@@ -104,9 +104,9 @@ spiked_conc_pts <- function(cc_se) {
 #' Special control sample categories
 #'
 #' @param x_se A [`SumExp::SumExp`] object
-#' @returns 
-#' [ctrl_smpl_cat()]: A character vector of the control sample categories. 
-#' 
+#' @returns
+#' [ctrl_smpl_cat()]: A character vector of the control sample categories.
+#'
 #' @md
 #' @export
 ctrl_smpl_cat <- function(x_se) {
@@ -116,7 +116,7 @@ ctrl_smpl_cat <- function(x_se) {
 #' @rdname ctrl_smpl_cat
 #' @description
 #' [exclude_ctrl_smpl_cat()]: Exclude one or more special control sample categories
-#' 
+#'
 #' @param cat A character vector of the control sample categories to be excluded
 #' @returns
 #' [exclude_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
@@ -171,10 +171,10 @@ split_into_calcurve_and_other <- function(x_se, out_names = c("CalCurve", "Other
 #' @param times Multiplication factor to the standard deviation.
 #' @param na.rm A logical value indicating whether to remove NA values
 #'
-#' @returns A numeric vector of the average plus the standard deviation multiplied by `times` 
+#' @returns A numeric vector of the average plus the standard deviation multiplied by `times`
 #' @md
 #' @export
-avg_plus_std_times <- function(v, times, na.rm = TRUE) {
+avg_plus_std_times <- function(v, times, na.rm = TRUE) { # nolint
   s <- stats::sd(v, na.rm = na.rm)
   m <- mean(v, na.rm = na.rm)
   s * times + m
@@ -185,7 +185,6 @@ avg_plus_std_times <- function(v, times, na.rm = TRUE) {
 #' @param x A numeric vector
 #' @param na.rm A logical value indicating whether to remove NA values
 #' @returns A numeric value of RSD%
-.rsd_perc <- function(x, na.rm = FALSE) {
+.rsd_perc <- function(x, na.rm = FALSE) { # nolint
   100 * stats::sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
 }
-

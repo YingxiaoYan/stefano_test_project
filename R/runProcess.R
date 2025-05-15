@@ -35,9 +35,9 @@ runProcessUI <- function(uiId) {
       selected = "pt_signal_mean_plus_sd",
       choiceValues = list("pt_signal_mean", "pt_signal_mean_plus_sd"),
       choiceNames = list(
-        shiny::HTML(paste0("pt. > 3 (or 10) * mean", shiny::tags$sub("nonzero"))),
-        shiny::HTML(paste0("pt. > mean", shiny::tags$sub("nonzero"), " + 3 (or 10) * ", 
-                           "StdDev", shiny::tags$sub("nonzero")))
+        shiny::HTML(paste0("pt. > 3 (or 10) * mean", shiny::tags$sub("Cal0"))),
+        shiny::HTML(paste0("pt. > mean", shiny::tags$sub("Cal0"), " + 3 (or 10) * ", 
+                           "StdDev", shiny::tags$sub("Cal0")))
       ),
     ),
     shiny::actionButton(ns("run_button"), label = "Process data"),

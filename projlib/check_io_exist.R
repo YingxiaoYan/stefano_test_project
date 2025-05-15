@@ -13,10 +13,10 @@ chq_all_files_exist <- function(fns) {
 }
 
 #' Make directories if not exist
-#' 
+#'
 #' If the directories do not exist, it will be created with the specified mode.
 #' Write permission is required to the parent directories.
-#' 
+#'
 #' @param dirs directory names, or list of list of ... directories
 #' @param mode The mode of the creating directories, when they do not exist
 #' @return The directory paths
@@ -40,7 +40,7 @@ mkdir_if_not_exist <- function(dirs, mode = "0777") {
 }
 
 #' Check input files and output directories
-#' 
+#'
 #' @param FILE a list that contains input files in `i` and output in `o`
 #' @return a logical vector for input and output existence
 #' @export

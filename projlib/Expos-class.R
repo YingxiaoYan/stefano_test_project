@@ -5,7 +5,7 @@ box::use(SumExp)
 #' @description
 #' This class inherits [`SumExp::SumExp`] class and enhances it with additional information for
 #' calibration curves.
-#' 
+#'
 #' @slot spiked A matrix of the spiked values, likely to be used for calibration.
 #'
 #' @examples
@@ -105,4 +105,3 @@ as_Expos.SumExp <- function(x, spiked) {
 }
 
 # Methods --------------------------------------------------------------------------------
-
