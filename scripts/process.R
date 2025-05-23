@@ -69,10 +69,11 @@ qc_steps[["internal std. before norm"]] <- internal_std_se
 
 ## Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]])
-is_failed <- num_zeros > 0
+is_failed <- num_zeros > ncol(internal_std_se) * 0.1
 qc_steps[["is failed internal std."]] <- is_failed    # For reports
 # Remove failed internal standard features
 internal_std_se <- internal_std_se[!is_failed, ]
+internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, mat_id_for_norm)
 cat("Failed internal standards are removed.\n")
 
 ## Outlier sample removal     ---------------
@@ -177,7 +178,7 @@ for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
     "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
   )
   interm_data[["llox method"]] <- params$llox_method
-  limits_df <- proc$find_calibration_limit_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
+  limits_df <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
   SumExp::row_df(quant_se) <- cbind(SumExp::row_df(quant_se), limits_df)
   
   # Exclude the chemicals having no appropriate concentration range

@@ -102,7 +102,8 @@ spiked_conc_pts <- function(cc_se) {
 }
 
 #' Special control sample categories
-#'
+#' 
+#' For example, "CalCurve", "QC", and "Blank" are special control sample categories.
 #' @param x_se A [`SumExp::SumExp`] object
 #' @returns
 #' [ctrl_smpl_cat()]: A character vector of the control sample categories.

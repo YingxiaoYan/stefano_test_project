@@ -68,12 +68,12 @@ kable_number_of <- function(x, what = "Samples", exclude = NULL, lab, ...) {
   tb <- janitor::tabyl(x, ...) |>
     janitor::adorn_pct_formatting() |>
     dplyr::filter(!x %in% exclude)
-    knitr::kable(
-      tb,
-      row.names = FALSE,          # To avoid excluded row numbers
-      col.names = c(lab, paste("Number of", what), "Percent"),
-      align = "lrr"
-    ) |>
+  knitr::kable(
+    tb,
+    row.names = FALSE,          # To avoid excluded row numbers
+    col.names = c(lab, paste("Number of", what), "Percent"),
+    align = "lrr"
+  ) |>
     kableExtra::kable_styling(full_width = FALSE)
 }
 
@@ -97,7 +97,7 @@ get_colors_of_classes <- function(sumexp, color_cat) {
   rest <- unlist(by_cat[! names(by_cat) %in% names(color_cat)])
   n <- length(rest)
   # Use ggplot2 default colors excluding the first red, which is similar to 'red'
-  ggcolor <- grDevices::hcl(seq(15, 375, length.out = n + 2), 100, 65)[2:(n+1)]
+  ggcolor <- grDevices::hcl(seq(15, 375, length.out = n + 2), 100, 65)[2:(n + 1)]
   names(ggcolor) <- rest
   c(color_given, ggcolor)
 }
@@ -148,7 +148,7 @@ calc_rsd_qstd <- function(qc_se_lst, mat_ids) {
   }) |>
     # `QC` has the name of the QC samples
     dplyr::bind_rows(.id = "QC")
-  for(ii in mat_ids) {
+  for (ii in mat_ids) {
     out[[ii]] <- labelled::copy_labels(qc_se_lst[[1]][[ii]], out[[ii]])
   }
   out  

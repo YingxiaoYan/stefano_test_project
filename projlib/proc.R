@@ -80,6 +80,33 @@ count_zeros_per_feature <- function(mat) {
     labelled::set_label_attribute("Number of zeros")
 }
 
+#' Impute zeros with the mean of the same sample type
+#' 
+#' @param se A [`SumExp::SumExp`] object
+#' @param mat_id The name of a matrix in `se` to be imputed
+#' @returns A [`SumExp::SumExp`] object with the imputed matrix
+#' @md
+#' @export
+impute_zeros_with_mean_of_same_type <- function(se, mat_id) {
+  by_type <- SumExp::split_columns(se, SumExp::col_df(se)[["sample_type"]])
+  avg_by_type <- purrr::map(by_type, function(ea) {
+    # Get the mean of the same sample type
+    mat <- ea[[mat_id]]
+    mat[mat == 0] <- NA
+    rowMeans(mat, na.rm = TRUE)
+  })
+  # Impute zeros with the mean of the same type
+  for (typ in names(by_type)) {
+    i_typ <- SumExp::col_df(se)[["sample_type"]] == typ
+    for (ii in seq_len(nrow(se))) {
+      # Replace the zeros with the mean of the same type
+      old_values <- se[[mat_id]][ii, i_typ]
+      se[[mat_id]][ii, i_typ][old_values == 0] <- avg_by_type[[typ]][ii]
+    }
+  }
+  se
+}
+
 #' Identify outliers
 #'
 #' @param times A numeric value for the threshold. mean +/- times * sd
@@ -585,9 +612,9 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts,
 #' @md
 #' @seealso [max_conc_for_curve()]
 #' @export
-find_calibration_limit_pts_and_llox_from_llox_signal <- function(x_se,
-                                                                 mat_id,
-                                                                 compute_llox_signal_fun) {
+find_calib_lim_pts_and_llox_from_llox_signal <- function(x_se,
+                                                         mat_id,
+                                                         compute_llox_signal_fun) {
   se <- util$split_into_calcurve_and_other(x_se, out_names = c("cc", "quant"))
   lx <- list_mean_and_sd(se$cc, mat_id)
   mat_m <- lx$mat_m             # `mat_m` is the mean signal matrix
