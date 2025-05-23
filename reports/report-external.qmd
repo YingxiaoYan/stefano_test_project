@@ -111,9 +111,10 @@ plot_pca <- function(se, mat_id) {
   # Plot
   ggplot2::autoplot(pca_res, data = se_df, colour = "Class")
 }
-norm_se <- qc_steps[["normalized - blank"]]
-p1 <- util$exclude_ctrl_smpl_cat(norm_se, c("QC", "CalCurve", "Blank")) |> 
-  plot_pca(DATA_ID) + ggtitle("Target + Non-target")
+both_se <- qc_steps[["normalized - blank"]] |>
+  util$exclude_ctrl_smpl_cat(c("QC", "CalCurve", "Blank"))
+both_se <- both_se[!util$is_targeted_feature(both_se), ]       # Exclude internal standards
+p1 <- plot_pca(both_se, DATA_ID) + ggtitle("Target + Non-target")
 p2 <- plot_pca(concn_se, DATA_ID) +
   ggtitle("Target")
 p1 + p2 + patchwork::plot_layout(guides = "collect")
@@ -214,7 +215,7 @@ calcurve_se <- calib_interm_data[["calcurve_se within range"]]
 c_concs <- util$spiked_conc_pts(calcurve_se)
 lowest_c <- min(c_concs[c_concs > 0])
 
-for(i_chem in 1:nrow(concn_se)) {       # For each chemical
+for (i_chem in seq_len(nrow(concn_se))) {       # For each chemical
   chem_name <- SumExp::row_df(concn_se)$feature_name[i_chem]
   cat("\n\n## ", chem_name, "\n")
   
