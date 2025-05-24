@@ -16,6 +16,7 @@ dependencies:
   - r-ggfortify
   - r-ggtext
   - r-plotly
+  - r-ggpubr
 
   # Rmarkdown
   - r-english

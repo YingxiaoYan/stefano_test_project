@@ -237,7 +237,8 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
   cc_se <- cc_se[feature_ids, ]
   cc_df <- SumExp::as_tibble(cc_se) |>
     # Drop concentrations outside the range
-    tidyr::drop_na(tidyselect::all_of(unname(mat_id)))
+    tidyr::drop_na(tidyselect::all_of(unname(mat_id))) |>
+    dplyr::mutate(txt = paste("inj:", injection_order))   # Label for the points
   # LLOQ, LOD, max_c_conc of each `feature_id`
   lim_df <- SumExp::row_df(x_se) |>
     # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
@@ -245,34 +246,42 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
     tibble::rownames_to_column("feature_id")
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |>
-    tidyr::drop_na(conc)
+    tidyr::drop_na(conc) |>
+    dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
  
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     geom_calibration_curve_line(lim_df) +
-    # Remaining calibration samples
-    ggplot2::geom_point(ggplot2::aes(x = c_conc), data = cc_df) +
-    # Samples to measure
-    ggplot2::geom_point(ggplot2::aes(color = Class)) +
-    # Density of points at the edges of the plot
-    ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
-    ggplot2::labs(
-      x = label_if_has(x_df$conc, "Concentration"),
-      y = label_if_has(x_se[[mat_id]], mat_id),
-    ) + 
-    ggplot2::geom_rect(         # Shade the region below the LLOQ
+    # Shade the region below the LLOQ
+    ggplot2::geom_rect(
       ggplot2::aes(xmin = 0, xmax = lloq, ymin = 0, ymax = Inf),
       data = lim_df,
       fill = "grey30",
       alpha = 0.5,
       inherit.aes = FALSE
     ) +
-    ggplot2::geom_rect(         # Shade the region below the LOD
+    # Shade the region below the LOD
+    ggplot2::geom_rect(
       ggplot2::aes(xmin = 0, xmax = lod, ymin = 0, ymax = Inf),
       data = lim_df,
       fill = "grey25",
       alpha = 0.5,
       inherit.aes = FALSE
     )
+  out <- suppressWarnings(     # Unknown aesthetics: text
+    out +
+      # Remaining calibration samples
+      ggplot2::geom_point(ggplot2::aes(x = c_conc, text = txt), data = cc_df) +
+      # Samples to measure
+      ggplot2::geom_point(ggplot2::aes(color = Class, text = txt)) +
+      ggplot2::guides(text = "none")
+  )
+  out <- out +
+    # Density of points at the edges of the plot
+    ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +
+    ggplot2::labs(
+      x = label_if_has(x_df$conc, "Concentration"),
+      y = label_if_has(x_se[[mat_id]], mat_id),
+    ) 
   if (missing(colors_of_classes)) {
     return(out)
   }
@@ -299,7 +308,7 @@ ggplot_calcurve_samples_facet <- function(x_se,
 CoordZoomInByCC <- ggplot2::ggproto(
   "CoordZoomInByCC", ggplot2::CoordCartesian,
   # Data for calibration points. Matched with `ggplot_calcurve_samples`
-  i_data = 3,
+  i_data = 5,   # The index of the data for calibration points
   n_cc = 4,   # Number of calibration points
   c_conc = "c_conc",       # Concentration column name
   mat_id = NULL,           # Matrix ID column name

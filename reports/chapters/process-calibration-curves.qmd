@@ -8,31 +8,29 @@ params:
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
-```
-
-```{r}
-#| purl: true
-set.seed(7579)             # To get the same results in a separate child report run
+params <- list(norm_method = "loess_norm", project_title = "Test") 
+source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
 ```
 
 ## Calibration curve per chemical
 
-The calibration curve of each of randomly selected 9 chemicals is presented below.
+The calibration curve of each of the chemicals is presented below.
 
 ```{r}
 #| purl: true
-cc_se <- calib_interm_data[["calcurve_se within range"]]
-# Randomly selected 9 chemicals to present in calibration curve plots
-i_9chemical_to_show <- local({
-  ii <- c(1:nrow(cc_se))
-  ii <- ii[!util$is_internal_std(cc_se)]
-  sample(ii, 9)
-})
-calcurve9_se <- cc_se[i_9chemical_to_show, ]
+calib_se <- calib_interm_data[["calcurve_se within range"]]
+
+# Figure dimensions
+n_chem <- nrow(calib_se)
+fig_dim <- c(
+  if (n_chem >= 3) 12 else n_chem * 4,  # Width
+  ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
+)
+out_width <- paste0(round(fig_dim[1] / 12 * 100), "%")
 
 calcurve_to_show_df <- local({
-  cc9_se <- calib_interm_data[["calcurve_se all range"]][i_9chemical_to_show, ]
-  SumExp::as_tibble(cc9_se) |> 
+  cc_se <- calib_interm_data[["calcurve_se all range"]]
+  SumExp::as_tibble(cc_se) |> 
     tidyr::drop_na(all_of(DATA_ID)) |>         # Drop concentrations outside the range
     dplyr::rename(.cc_pt = util$spiked_conc_pts_name) |>    # Rename for clarity
     dplyr::mutate(
@@ -47,19 +45,20 @@ calcurve_to_show_df <- local({
 The peak areas were normalized by the internal standards applying the `r show$label_if_has(calcurve_to_show_df[[DATA_ID]], DATA_ID)`.
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#calibration-curve-limits).
 
-- **Full range**
-
 ```{r}
-#| label: 'calcurve-all-data-pts'
-#| fig-width: 12
-#| fig-height: 11
+#| fig-width: 10
+#| fig-height: 1
+#| out-width: 100%
 # Plot calibration curves
-calcurve_plot <- function(df, y = DATA_ID) {
-  ggplot(df, aes(x = .cc_pt, y = .data[[y]])) +
-    geom_point(aes(color = c_type)) +
+calcurve_plot <- function(dfm, y = DATA_ID) {
+  dfm <- dfm |>
+    dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
+  ggplot(dfm, aes(x = .cc_pt, y = .data[[y]])) +
+    geom_point(aes(color = c_type, text = txt)) +
+    guides(text = "none") +
     labs(
-      x = show$label_if_has(df$.cc_pt, "Calibrant Concentration"),
-      y = show$label_if_has(df[[y]], "Signal"),
+      x = show$label_if_has(dfm$.cc_pt, "Calibrant Concentration"),
+      y = show$label_if_has(dfm[[y]], "Signal"),
       color = "Concentration\ncategory"
     ) +
     scale_color_manual(
@@ -70,20 +69,22 @@ calcurve_plot <- function(df, y = DATA_ID) {
     ) +
     facet_wrap(~ feature_name, scales = "free", ncol = 3)
 }
-calcurve_plot(calcurve_to_show_df)
+p <- calcurve_plot(calcurve_to_show_df)
+leg <- ggpubr::get_legend(p, position = "top")
+ggpubr::as_ggplot(leg)
 ```
-
-- **Zoom-in (upto minimum $\times$ 5)**
 
 ```{r}
-#| label: 'calcurve-all-data-pts-zoom-in'
-#| fig-width: 12
-#| fig-height: 11
-calcurve_to_show_df |> 
-  dplyr::filter(.cc_pt <= min_c_conc * 5) |> 
-  calcurve_plot()
+#| label: 'calcurve-all-data-pts'
+#| fig-width: !expr fig_dim[1]
+#| fig-height: !expr fig_dim[2]
+#| out-width: !expr out_width
+plotly::ggplotly(
+  p + theme(legend.position = "none"),
+  tooltip = c("text")
+) |> 
+  plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 50))
 ```
-
 
 ## Calibration of the chemicals
 
@@ -142,13 +143,7 @@ SumExp::row_df(concn_se)$calcurve_model |>
   table()
 ```
 
-### Calibration curves - examples
-
-```{r}
-#| purl: true
-# Table of the samples to show with the calibration curve
-to_show_se <- concn_se[i_9chemical_to_show, ]
-```
+### Calibration curves
 
 The concentration of the sample classes, `r knitr::combine_words(unique(SumExp::col_df(concn_se)$Class), before = "\x60")`,
 are computed using the calibration curve.
@@ -163,27 +158,26 @@ After the computation, the following steps are applied to the data:
 
 The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
-- **Full range**
+```{r}
+#| fig-width: 10
+#| fig-height: 1
+#| out-width: 100%
+p <- show$ggplot_calcurve_samples_facet(concn_se, calib_se, DATA_ID, COLORS_OF_CLASSES) +
+  labs(y = "Peak area (Normalized)")
+leg <- ggpubr::get_legend(p, position = "top")
+ggpubr::as_ggplot(leg)
+```
 
 ```{r}
 #| label: 'calibration-curve-with-samples'
-#| fig-width: 12
-#| fig-height: 11
-p <- show$ggplot_calcurve_samples_facet(to_show_se,
-                                        calcurve9_se,
-                                        DATA_ID,
-                                        COLORS_OF_CLASSES) +
-  labs(y = "Peak area (Normalized)")
-print(p)
-```
-
-- **Zoom-in (3 calibration points)**
-
-```{r}
-#| label: 'calibration-curve-with-samples-zoom-in'
-#| fig-width: 12
-#| fig-height: 11
-p + show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID)
+#| fig-width: !expr fig_dim[1]
+#| fig-height: !expr fig_dim[2]
+#| out-width: !expr out_width
+plotly::ggplotly(
+  p + theme(legend.position = "none"),
+  tooltip = c("text")
+) |> 
+  plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 50))
 ```
 
 #### All except `QC` samples
@@ -201,27 +195,28 @@ The data of those `r english::words(length(classes_excl_qc_blank))` classes are 
 The best model name is displayed at the bottom right corner of each plot.
 The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
-- **Full range**
+```{r}
+#| fig-width: 10
+#| fig-height: 1
+#| out-width: 100%
+to_show_excl_qc <- concn_se[, quote(Class %in% classes_excl_qc_blank)]
+p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, COLORS_OF_CLASSES) +
+  show$geom_best_model_text(to_show_excl_qc)
+leg <- ggpubr::get_legend(p, position = "top")
+ggpubr::as_ggplot(leg)
+```
 
 ```{r}
 #| label: 'calibration-curve-with-quant-sample'
-#| fig-width: 12
-#| fig-height: 11
-
-to_show_excl_qc <- to_show_se[, quote(Class %in% classes_excl_qc_blank)]
-p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, 
-                                        calcurve9_se, DATA_ID, COLORS_OF_CLASSES) +
-  show$geom_best_model_text(to_show_excl_qc)
-print(p)
-```
-
-- **Zoom-in (3 calibration points)**
-
-```{r}
-#| label: 'calibration-curve-with-quant-sample-zoom-in'
-#| fig-width: 12
-#| fig-height: 11
-p + show$coord_zoom_in_by_cc(n_cc = 3, mat_id = DATA_ID)
+#| fig-width: !expr fig_dim[1]
+#| fig-height: !expr fig_dim[2]
+#| out-width: !expr out_width
+p + theme(legend.position = "none")
+# plotly::ggplotly(
+#   p + theme(legend.position = "none"),
+#   tooltip = c("text")
+# ) |> 
+#   plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 50))
 ```
 
 ## Removal of the chemicals with no measurement samples
@@ -232,4 +227,3 @@ concn_se <- readRDS(FILE$i$proc)[[DATA_ID]]
 
 If all values of non-QC samples were below LLOQ, the chemical was removed from the final reports.
 After the removal, the number of reported chemicals is `r nrow(concn_se)`.
-
