@@ -9,7 +9,7 @@ format:
     titlepage-logo: "../projlib/images/SciLifeLab_Logotype_Green_POS.pdf"
     logo-align: center
     logo-size: 10
-     mainfont: cursive
+    #mainfont: cursive
     echo: false 
     fig-align: center  # Assure line breaks between figures
     documentclass: report
