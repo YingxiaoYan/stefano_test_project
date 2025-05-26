@@ -22,7 +22,7 @@ calib_se <- calib_interm_data[["calcurve_se within range"]]
 
 # Figure dimensions
 n_chem <- nrow(calib_se)
-n_cols <- 1    # Number of columns in the plot (facets)
+n_cols <- 2    # Number of columns in the plot (facets)
 fig_dim <- c(
   # ## 3 columns
   # if (n_chem >= 3) 12 else n_chem * 4,  # Width
