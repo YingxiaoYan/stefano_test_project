@@ -56,7 +56,7 @@ The concentration range was narrowed down to the range after the trimming step d
 ```{r}
 #| fig-width: 10
 #| fig-height: 1
-#| out-width: 100%
+#| out-width: 50%
 # Plot calibration curves
 calcurve_plot <- function(dfm, y = cal_data_id) {
   dfm <- dfm |>
