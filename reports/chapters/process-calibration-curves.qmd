@@ -47,7 +47,7 @@ calcurve_to_show_df <- local({
 })
 cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
 txt <- show$label_if_has(calcurve_to_show_df[[cal_data_id]], cal_data_id) |>
-  sub("normalized peak area", "normalization", x = _, fixed = TRUE)
+  sub("normalized", "normalization", x = _, fixed = TRUE)
 ```
 
 The peak areas were normalized by the internal standards applying the `r txt`.
