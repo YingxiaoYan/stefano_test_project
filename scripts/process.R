@@ -103,7 +103,7 @@ closest_istd <- proc$get_value_of_closest_istd(
   mat_id = mat_id_for_norm
 )
 overall_sumexp[["closest_norm"]] <- (overall_sumexp[[mat_id_for_norm]] / closest_istd) |> 
-  labelled::set_variable_labels("Closest RT normalized peak area")
+  labelled::set_variable_labels("Closest RT normalized")
 cat("Closest internal standard normalization is done.\n")
 
 ## LOESS fit over RT normalization     ---------------
