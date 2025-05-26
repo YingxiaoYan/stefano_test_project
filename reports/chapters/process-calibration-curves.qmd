@@ -22,7 +22,7 @@ calib_se <- calib_interm_data[["calcurve_se within range"]]
 
 # Figure dimensions
 n_chem <- nrow(calib_se)
-n_cols <- 1    # Number of columns in the plot (facets)
+n_cols <- 2    # Number of columns in the plot (facets)
 fig_dim <- c(
   # ## 3 columns
   # if (n_chem >= 3) 12 else n_chem * 4,  # Width
@@ -56,7 +56,7 @@ The concentration range was narrowed down to the range after the trimming step d
 ```{r}
 #| fig-width: 10
 #| fig-height: 1
-#| out-width: 50%
+#| out-width: 100%
 # Plot calibration curves
 calcurve_plot <- function(dfm, y = cal_data_id) {
   dfm <- dfm |>
