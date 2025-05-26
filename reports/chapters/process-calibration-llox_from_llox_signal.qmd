@@ -8,6 +8,8 @@ params:
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
+params <- list(norm_method = "loess_norm", project_title = "Test") 
+source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
 ```
 
 ## Calibration curve samples
@@ -82,8 +84,8 @@ show_df <- limit_df |>
       !has_proper_range ~ "Excluded", 
       TRUE ~ ""
     ),
-    lod = ifelse(is.na(lod), "N.A.", scales::number(lod)),
-    min_c = ifelse(is.na(min_c), "No valid pts.", scales::number(min_c)),
+    lod = ifelse(is.na(lod), "N.A.", as.character(lod)),
+    min_c = ifelse(is.na(min_c), "No valid pts.", as.character(min_c)),
     max_c = dplyr::case_when(
       max_c == 0 ~ "All zero",
       max_c == -9 ~ "No valid max",
@@ -108,5 +110,3 @@ knitr::kable(
   # Color the rows that are marked in Note
   kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
 ```
-
-

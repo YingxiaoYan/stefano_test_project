@@ -22,9 +22,14 @@ calib_se <- calib_interm_data[["calcurve_se within range"]]
 
 # Figure dimensions
 n_chem <- nrow(calib_se)
+n_cols <- 1    # Number of columns in the plot (facets)
 fig_dim <- c(
-  if (n_chem >= 3) 12 else n_chem * 4,  # Width
-  ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
+  # ## 3 columns
+  # if (n_chem >= 3) 12 else n_chem * 4,  # Width
+  # ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
+  ## 1 column
+  9,  # Width
+  n_chem * 8 + 1    # Height
 )
 out_width <- paste0(round(fig_dim[1] / 12 * 100), "%")
 
@@ -40,9 +45,12 @@ calcurve_to_show_df <- local({
       )
     )
 })
+cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
+txt <- show$label_if_has(calcurve_to_show_df[[cal_data_id]], cal_data_id) |>
+  sub("normalized peak area", "normalization", x = _, fixed = TRUE)
 ```
 
-The peak areas were normalized by the internal standards applying the `r show$label_if_has(calcurve_to_show_df[[DATA_ID]], DATA_ID)`.
+The peak areas were normalized by the internal standards applying the `r txt`.
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#calibration-curve-limits).
 
 ```{r}
@@ -50,12 +58,11 @@ The concentration range was narrowed down to the range after the trimming step d
 #| fig-height: 1
 #| out-width: 100%
 # Plot calibration curves
-calcurve_plot <- function(dfm, y = DATA_ID) {
+calcurve_plot <- function(dfm, y = cal_data_id) {
   dfm <- dfm |>
     dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
   ggplot(dfm, aes(x = .cc_pt, y = .data[[y]])) +
-    geom_point(aes(color = c_type, text = txt)) +
-    guides(text = "none") +
+    suppressWarnings(geom_point(aes(color = c_type, text = txt))) +
     labs(
       x = show$label_if_has(dfm$.cc_pt, "Calibrant Concentration"),
       y = show$label_if_has(dfm[[y]], "Signal"),
@@ -67,7 +74,7 @@ calcurve_plot <- function(dfm, y = DATA_ID) {
         "Out-of-range" = "gray"
       )
     ) +
-    facet_wrap(~ feature_name, scales = "free", ncol = 3)
+    facet_wrap(~ feature_name, scales = "free", ncol = n_cols)
 }
 p <- calcurve_plot(calcurve_to_show_df)
 leg <- ggpubr::get_legend(p, position = "top")
@@ -110,7 +117,6 @@ if (weight_method == "largestR2") {
   )
   weight_txt <- paste(weight_txt, "weight")
 }
-
 ```
 
 The calibration curve is fitted to the `r switch(params$norm_method, "loess_norm" = "LOESS", "closest_norm" = "Closest RT")` normalized data using `r n_models` different models.
@@ -162,8 +168,8 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-width: 10
 #| fig-height: 1
 #| out-width: 100%
-p <- show$ggplot_calcurve_samples_facet(concn_se, calib_se, DATA_ID, COLORS_OF_CLASSES) +
-  labs(y = "Peak area (Normalized)")
+p <- show$ggplot_calcurve_samples_facet(concn_se, calib_se, DATA_ID, 
+                                        COLORS_OF_CLASSES, ncol = n_cols)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
@@ -200,7 +206,8 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-height: 1
 #| out-width: 100%
 to_show_excl_qc <- concn_se[, quote(Class %in% classes_excl_qc_blank)]
-p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, COLORS_OF_CLASSES) +
+p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, 
+                                        COLORS_OF_CLASSES, ncol = n_cols) +
   show$geom_best_model_text(to_show_excl_qc)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)

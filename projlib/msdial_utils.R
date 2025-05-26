@@ -163,6 +163,23 @@ split_into_calcurve_and_other <- function(x_se, out_names = c("CalCurve", "Other
   SumExp::split_columns(x_se, g)
 }
 
+# Variables created during processing ----------------------------------------------------
+
+#' Get the matrix ID of the blank-subtracted matrix
+#'
+#' @param mat_id The name of a matrix
+#'
+#' @returns The name of the blank-subtracted matrix
+#' @export
+mat_id_of_blank_subtracted <- function(mat_id) {
+  paste0(mat_id, "_blk")
+}
+#' Get the matrix ID before blank subtraction
+#' @rdname mat_id_of_blank_subtracted
+#' @export
+mat_id_before_blank_subtraction <- function(mat_id) {
+  sub("_blk$", "", mat_id)
+}
 
 # Utils ----------------------------------------------------------------------------------
 

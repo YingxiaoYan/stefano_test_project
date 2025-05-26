@@ -41,6 +41,7 @@ tmp
 
 # Test files
 test.*
+test_*
 
 # Accidentally created output files
 *.html

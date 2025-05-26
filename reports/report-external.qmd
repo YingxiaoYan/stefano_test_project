@@ -1,6 +1,6 @@
 ---
 params:
-  norm_method: loess_norm
+  norm_method: closest_norm
   project_title: "Test"
 title: "Report on `r params$project_title`"
 format:
@@ -24,6 +24,7 @@ format:
 #| label: 'setup'
 #| purl: true
 # The processed data used for calibration. Blank subtracted
+if (!exists("params")) params <- list(norm_method = "closest_norm") # For "Run Cell" functionality
 DATA_ID <- paste0(params$norm_method, "_blk")
 
 # Load packages and project local libraries

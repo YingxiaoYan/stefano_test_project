@@ -15,6 +15,7 @@ options(box.path = "code/")           # Path to project local libraries
 box::use(
   SumExp,           # Light SummarizedExperiment, `[`
   projlib/msdial,     # Handle MS-Dial files
+  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
   io = projlib/check_io_exist,
 )
 # Get the input file name provided by the user
@@ -69,7 +70,7 @@ for(ii in seq(norm_mat_ids)) {
 
   msdial$export_data_with_feature_table_tsv(
     sumexp = qc_steps[["normalized - blank"]],
-    mat_id = msdial$mat_id_of_blank_subtracted(norm_mat_ids[ii]),
+    mat_id = util$mat_id_of_blank_subtracted(norm_mat_ids[ii]),
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]]
   )
@@ -82,7 +83,7 @@ if (!is_non_target_mode) {
   concn_lst <- readRDS(FILE$i$proc)
 
   for(ii in seq(norm_mat_ids)) {
-    norm_blk_mat_id <- msdial$mat_id_of_blank_subtracted(norm_mat_ids[ii])
+    norm_blk_mat_id <- util$mat_id_of_blank_subtracted(norm_mat_ids[ii])
     concn_se <- concn_lst[[ norm_blk_mat_id ]]
     # Sort the chemicals by name
     concn_se <- concn_se[order(SumExp::row_df(concn_se)$feature_name), ]

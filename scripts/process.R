@@ -134,7 +134,7 @@ cat("LOESS normalization is done.\n")
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm")
 qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
-norm_blk_mat_ids <- proc$mat_id_of_blank_subtracted(norm_mat_ids)
+norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
 qc_steps[["normalized"]] <- overall_sumexp    # Before blank subtraction. For reports
 overall_sumexp <- proc$add_blank_subtracted_sumexp(
   x_se = overall_sumexp,

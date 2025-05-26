@@ -13,14 +13,14 @@ date-format: full
 toc: true
 number-sections: true
 bibliography: "bibliography.bib"
-tbl-cap-location: top
 
 format:
   html: 
+    theme: default
     css: "styles.css"
-    toc-depth: 3
     echo: false
     code-fold: true
+    toc-depth: 3
     toc-location: left
     embed-resources: true
     page-layout: full

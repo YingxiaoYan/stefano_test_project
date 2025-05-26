@@ -243,16 +243,6 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
 
 ## Blank subtraction ------------------
 
-#' Get the matrix ID of the blank-subtracted matrix
-#'
-#' @param mat_id The name of a matrix
-#'
-#' @returns The name of the blank-subtracted matrix
-#' @export
-mat_id_of_blank_subtracted <- function(mat_id) {
-  paste0(mat_id, "_blk")
-}
-
 #' Subtract the average values of the blank samples from the samples
 #'
 #' @param x_se A [`SumExp::SumExp`] object of the samples
