@@ -64,7 +64,7 @@ normalize_volumetric <- function(se, is_vIS, mat_id) { # nolint: object_name_lin
   mat <- t(replicate(nrow(se), v))  # Column-wise normalization
   # <<---- Volumetric normalization ---->> #
   se[["vol_norm"]] <- se[[mat_id]] / mat * mean(v, na.rm = TRUE)
-  labelled::label_attribute(se[["vol_norm"]]) <- "Volumetric normalized peak area"
+  labelled::label_attribute(se[["vol_norm"]]) <- "Volumetric normalized"
   se
 }
 

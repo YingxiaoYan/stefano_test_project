@@ -128,7 +128,7 @@ overall_sumexp[["loess_norm"]] <- sapply(
     exp(log(raw[, sample_id]) - norm_factor)     # Normalize in log scale
   }
 ) |> 
-  labelled::set_variable_labels("LOESS normalized peak area")
+  labelled::set_variable_labels("LOESS normalized")
 cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
