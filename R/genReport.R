@@ -68,7 +68,7 @@ genReportServer <- function(serverId, data_info) {
               odir <- file.path("../..", out_dir())      # Matched with the with_dir() above
               quarto::quarto_render(
                 qmd,
-                output_format = tools::file_ext(out_fname()),
+                output_format = tools::file_ext(out_fname()),  # "html" or "pdf"
                 output_file = out_fname(),
                 execute_params = rlang::list2(
                   norm_method = input[["norm_method"]],
