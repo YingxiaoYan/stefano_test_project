@@ -3,7 +3,6 @@
 # - Requires: 
 #   - `params$norm_method`
 # ------------------------------------------------------------------------------------------- #
-DATA_ID <- paste0(params$norm_method, "_blk")
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -15,6 +14,8 @@ box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   io = projlib/check_io_exist,       # Check input/output files
 )
+
+DATA_ID <- util$mat_id_of_blank_subtracted(params$norm_method)
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports

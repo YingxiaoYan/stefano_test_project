@@ -25,7 +25,6 @@ format:
 #| purl: true
 # The processed data used for calibration. Blank subtracted
 if (!exists("params")) params <- list(norm_method = "closest_norm") # For "Run Cell" functionality
-DATA_ID <- paste0(params$norm_method, "_blk")
 
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
@@ -39,6 +38,7 @@ box::use(
   ggplot2[...],        # Too long to write and usually specific enough
   ggfortify,           # PCA plot (autoplot)
 )
+DATA_ID <- util$mat_id_of_blank_subtracted(params$norm_method)
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
@@ -104,8 +104,14 @@ show$kable_number_of(SumExp::col_df(concn_se)$Class)
 
 plot_pca <- function(se, mat_id) {
   mat <- t(se[[mat_id]])
-  mat <- mat[, colSums(mat, na.rm = TRUE) > 0]       # Scale is not possible with all zeros
-  mat <- mat[, apply(mat, 2, var, na.rm = TRUE) > 0]        # Remove constant rows
+  # Scale is not possible with all zeros
+  mat <- mat[, colSums(mat, na.rm = TRUE) > 0, drop = FALSE]
+  # Remove constant rows
+  mat <- mat[, apply(mat, 2, var, na.rm = TRUE) > 0, drop = FALSE]
+  # If there are no features, return an empty plot
+  if (ncol(mat) <= 1) {
+    return(ggplot() + ggtitle("No features for PCA"))
+  }
   pca_res <- stats::prcomp(mat, scale. = TRUE)
   
   se_df <- SumExp::col_df(se)      # `data` in ggplot2::autoplot
