@@ -31,6 +31,7 @@ format:
     fig-align: "default"
   
   pdf:
+    mainfont: Arial
     echo: false 
     fig-align: center  # Assure line breaks between figures
     documentclass: report
