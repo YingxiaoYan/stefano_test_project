@@ -4,19 +4,16 @@ params:
   project_title: "Test"
 title: "Report on `r params$project_title`"
 format:
-  titlepage-pdf:
-    titlepage: academic
-    titlepage-logo: "../projlib/images/SciLifeLab_Logotype_Green_POS.pdf"
-    logo-align: center
-    logo-size: 10
+  pdf:
     echo: false 
     fig-align: center  # Assure line breaks between figures
     documentclass: report
-    papersize: a4
     classoption: landscape
+    papersize: a4
     geometry:
       - margin=20mm
       - heightrounded
+    mainfont: Lato
 ---
 
 ```{r}
