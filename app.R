@@ -4,6 +4,10 @@
 
 options(readr.show_progress = FALSE)      # Avoids progress stored in the "capture.output"
 
+# Settings for Docker container
+options(shiny.host = "0.0.0.0")
+options(shiny.port = 7579)
+
 # Define UI for application
 ui <- shiny::fluidPage(
   shiny::fluidRow(

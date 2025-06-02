@@ -1,0 +1,44 @@
+# Use the micromamba base image
+FROM mambaorg/micromamba:2.1.1
+LABEL description="Docker image for NBIS 7579 Exposome project"
+
+# Set the working directory
+WORKDIR /project
+# Set the user to mamba
+COPY --chown=$MAMBA_USER:$MAMBA_USER environment.yml /tmp/environment.yml
+COPY --chown=$MAMBA_USER:$MAMBA_USER SumExp_0.1.2.tar.gz /tmp/SumExp_0.1.2.tar.gz
+
+USER root
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sudo \
+    curl \
+    git
+
+# Install Quarto, which is not available in conda
+ARG QUARTO_VERSION=1.7.31
+RUN sudo mkdir -p /opt/quarto/${QUARTO_VERSION}
+RUN sudo curl -o quarto.tar.gz -L \
+    "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-arm64.tar.gz"
+RUN sudo tar -zxvf quarto.tar.gz \
+    -C "/opt/quarto/${QUARTO_VERSION}" \
+    --strip-components=1
+RUN sudo rm quarto.tar.gz
+
+# Create a conda environment and install required packages
+RUN micromamba install --yes --name base --file /tmp/environment.yml && \
+    micromamba clean --all --yes
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+# Install R packages not available in conda
+RUN Rscript -e "install.packages(c('box'), repos='https://cloud.r-project.org/')"
+# Install a local package
+RUN R CMD INSTALL /tmp/SumExp_0.1.2.tar.gz
+
+ENV TZ=EUROPE/STOCKHOLM
+
+# Expose the port for Shiny app
+EXPOSE 7579
+
+# Start bash shell by default
+CMD ["/bin/bash"]
+
