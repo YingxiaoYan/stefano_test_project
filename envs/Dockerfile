@@ -5,6 +5,8 @@ LABEL description="Docker image for NBIS 7579 Exposome project"
 # Set the working directory
 WORKDIR /proj
 COPY SumExp_0.1.2.tar.gz /tmp/SumExp_0.1.2.tar.gz
+COPY Lato/ /usr/local/share/fonts/Lato/
+
 
 # Install system dependencies for Quarto and other packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN wget https://quarto.org/download/latest/quarto-linux-amd64.deb && \
     gdebi --non-interactive quarto-linux-amd64.deb && \
     rm quarto-linux-amd64.deb
+
+RUN quarto install tinytex
 
 # Install R packages
 RUN install2.r --error --skipinstalled --ncpus -1 \
