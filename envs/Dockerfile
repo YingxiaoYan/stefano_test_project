@@ -12,14 +12,14 @@ COPY Lato/ /usr/local/share/fonts/Lato/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
-    gdebi-core \
-    libcurl4-openssl-dev \
-    libssl-dev \
-    libxml2-dev \
-    libfontconfig1-dev \
-    libharfbuzz-dev \
-    libfribidi-dev \
-    libglpk-dev \
+    # gdebi-core \
+    # libcurl4-openssl-dev \
+    # libssl-dev \
+    # libxml2-dev \
+    # libfontconfig1-dev \
+    # libharfbuzz-dev \
+    # libfribidi-dev \
+    # libglpk-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Quarto
@@ -53,4 +53,7 @@ ENV TZ=EUROPE/STOCKHOLM
 
 # Expose the port for Shiny app
 EXPOSE 7579
+
+# Start bash shell by default
+CMD ["/bin/bash"]
 
