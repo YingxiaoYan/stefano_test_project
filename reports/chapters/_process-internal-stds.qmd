@@ -135,7 +135,8 @@ if (! is.null(is_outlier)) {
       col.names = labelled::get_variable_labels(show_tb),
       align = "lccr"
     ) |> 
-      kableExtra::kable_classic(full_width = FALSE)
+      kableExtra::kable_classic(full_width = FALSE) |>
+      print()
     
     # Remove the outlier samples  
     internal_std_se <- internal_std_se[, !is_outlier]
