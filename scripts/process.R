@@ -1,21 +1,35 @@
 # ------------------------------------------------------------------------------------------- #
 # Read a parsed MS-Dial file, process, and save the data to an `rds` file
-#
 # During processing for quality control, the intermediate data is saved to an `rds` file
 # ------------------------------------------------------------------------------------------- #
 
-# Handle the parameters selected by the user in the Shiny app
-if (!exists("params")) {
-  # Defaults when they are not given
-  params <- rlang::list2(
-    is_outlier_removal = TRUE,
-    weight = "largestR2",
-    llox_method = "pt_signal_mean_plus_sd",
-  )
-}
+option_list <- rlang::list2(
+  optparse::make_option(
+    c("--rm_outlier"), type = "logical", default = TRUE,
+    help = "Remove outlier samples? [default: %default]"
+  ),
+  optparse::make_option(
+    c("--weight"), type = "character", default = "largestR2",
+    help = paste(
+      "Weighting method for calibration curve fitting.",
+      "Possible values are: `largestR2`, `1`, `1_div_x`, `1_div_x2`.",
+      "[default: %default]"
+    )
+  ),
+  optparse::make_option(
+    c("--llox_method"), type = "character", default = "pt_signal_mean_plus_sd",
+    help = "Method to compute LOD/LLOQ"
+  ),
+)
+opt_parser <- optparse::OptionParser(
+  option_list = option_list,
+  usage = "Usage: %prog [options]",
+  description = "Process MS-Dial parsed data and save the results."
+)
+params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
-  "  - Outlier removal:", params$is_outlier_removal, "\n",
+  "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Weight method:", params$weight, "\n",
   "  - LOD/LLOQ method:", params$llox_method, "\n"
 )
@@ -78,7 +92,7 @@ cat("Failed internal standards are removed.\n")
 
 ## Outlier sample removal     ---------------
 
-if (params$is_outlier_removal) {
+if (params$rm_outlier) {
   # Number of outlying internal standard features per sample
   n_out <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, times = 3)
   n_feature <- nrow(internal_std_se)
@@ -149,9 +163,10 @@ cat("Blank subtraction is done.\n")
 
 #' Mark the expected processing has been completed
 mark_completed <- function() {
+  cat("Processing steps are completed.\nSaving intermediate data during the processing...\n")
   qc_steps[["Completed"]] <- TRUE
   saveRDS(qc_steps, FILE$qc)
-  cat("The intermediate objects during processing saved to:", FILE$qc, "\n")
+  cat("The intermediate data saved to:", FILE$qc, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
 if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
@@ -166,7 +181,7 @@ quant_se0 <- overall_sumexp[util$is_targeted_feature(overall_sumexp), ]
 
 # Per normalization method
 per_norm_lst <- list()       # Collect the output
-for(mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
+for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Collect intermediate data during calibration.
   interm_data <- list()
   

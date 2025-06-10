@@ -22,27 +22,38 @@ runScriptUI <- function(uiId, label) {
 #'
 #' @param serverId A string that identifies the server module.
 #' @param script_path A string that specifies the path to the script to be run.
-#' @param what A string that specifies the context or purpose of the script (default is "Read
-#'   MS-Dial").
+#' @param what A string that specifies the context or purpose of the script.
+#' @param param_ids A list of parameter IDs to be passed to the script (optional).
 #'
 #' @export
-runScriptServer <- function(serverId, script_path, what = "Read MS-Dial") {
+runScriptServer <- function(serverId, script_path, what, param_ids = NULL) {
   shiny::moduleServer(serverId, function(input, output, session) {
     output_txt <- shiny::reactiveVal("")
     proc <- shiny::reactiveVal(NULL)
     timer <- shiny::reactiveTimer(1000)
-
+    
     shiny::observeEvent(input[["run_button"]], {
       # Launch the script
       tryCatch({
         # Ensure the script path is valid
         script_path <- normalizePath(script_path, mustWork = TRUE)
+        args <- c(script_path)
+        if (!is.null(param_ids)) {
+          # If parameter IDs are provided, append parameter values to the args
+          for (param_id in param_ids) {
+            param_value <- input[[param_id]]
+            if (!is.null(param_value)) {
+              args <- c(args, paste0("--", param_id, "=", param_value))
+            }
+          }
+        }
         p <- processx::process$new(
           command = "Rscript",
-          args = c(script_path),
+          args = args,
           stdout = "|",   # Pipe output to R
           stderr = "|",   # Pipe errors to R
-          poll_connection = TRUE  # Poll the connection for output
+          poll_connection = TRUE,  # Poll the connection for output
+          wd = ".."   # Every script is written to be executed at the root of the project
         )
         proc(p)  # Store the process object
         output_txt(paste(what, "is running...\nTime:", Sys.time(), "\n"))
@@ -75,14 +86,6 @@ runScriptServer <- function(serverId, script_path, what = "Read MS-Dial") {
         }
       })
     })
-    # out <- tryCatch(
-    #   withr::with_dir(
-    #     new = "..",     # Every script is written to be executed at the root of the project
-    #     utils::capture.output(source(script_path, local = TRUE))
-    #   ),
-    #   warning = function(w) w,
-    #   error = function(e) e
-    # )
 
     output[["script_output"]] <- shiny::renderText({
       # Render the output text
@@ -98,7 +101,7 @@ runScriptApp <- function() {
     runScriptUI("script1", "Run script 1"),
   )
   server <- function(input, output, session) {
-    runScriptServer("script1", "scripts/read-msdial.R")
+    runScriptServer("script1", "scripts/read-msdial.R", "Read MS-Dial")
   }
   shiny::shinyApp(ui = ui, server = server)
 }

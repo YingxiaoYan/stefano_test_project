@@ -13,7 +13,7 @@ runProcessUI <- function(uiId) {
   shiny::tagList(
     # Quality control: outlier removal
     shiny::checkboxInput(
-      inputId = ns("outlier_removal"),
+      inputId = ns("rm_outlier"),
       label = "Quality control: remove outlier samples?",
       value = TRUE,
     ),
@@ -21,7 +21,7 @@ runProcessUI <- function(uiId) {
       inputId = ns("weight"),
       label = "Weighting method",
       selected = "largestR2",
-      choiceValues = list("largestR2", "1", "1/x", "1/x2"),
+      choiceValues = list("largestR2", "1", "1_div_x", "1_div_x2"),
       choiceNames = list(
         shiny::HTML(paste0("Largest R", shiny::tags$sup("2"), "(iterative)")),
         "1",
@@ -51,27 +51,16 @@ runProcessUI <- function(uiId) {
 #' @param serverId A string that identifies the server module.
 #' @export
 runProcessServer <- function(serverId) {
-  shiny::moduleServer(serverId, function(input, output, session) {
-    
-    shiny::observeEvent(input[["run_button"]], {
-      # Parameters to be passed to the script
-      params <- rlang::list2(
-        is_outlier_removal = input[["outlier_removal"]],
-        weight = input[["weight"]],
-        llox_method = input[["llox_method"]],
-      )
-      output[["script_output"]] <- shiny::renderText("")
-      out <- tryCatch(
-        withr::with_dir(
-          new = "..",     # Every script is written to be executed at the root of the project
-          utils::capture.output(source("code/scripts/process.R", local = TRUE))
-        ),
-        warning = function(w) w,
-        error = function(e) e
-      )
-      output[["script_output"]] <- shiny::renderText(paste(out, collapse = "\n"))
-    })
-  })
+  runScriptServer(
+    serverId, 
+    script_path = "scripts/process.R", 
+    what = "Processing data", 
+    param_ids = c(
+      "rm_outlier", 
+      "weight", 
+      "llox_method"
+    )
+  )
 }
 
 #' A Shiny app for module testing purposes

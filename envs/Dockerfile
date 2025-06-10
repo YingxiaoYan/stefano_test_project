@@ -44,6 +44,7 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
     janitor \
     shinyFiles \
     quarto \
+    optparse \
     && rm -rf /tmp/downloaded_packages
 
 # Install a local package

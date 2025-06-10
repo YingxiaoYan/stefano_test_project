@@ -792,8 +792,8 @@ fit_and_test_calcurve_model <- function(conc,
   # Weight alternatives
   weights_alt <- rlang::list2(
     "1" = rep(1, length(conc)),
-    "1/x" = 1 / conc,
-    "1/x2" = 1 / (conc ^ 2),
+    "1_div_x" = 1 / conc,
+    "1_div_x2" = 1 / (conc ^ 2),
   )
   # Limit the weight alternatives when one has been chosen
   if (weight_method != "largestR2") {
