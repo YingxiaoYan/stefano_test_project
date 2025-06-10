@@ -13,8 +13,8 @@ runScriptUI <- function(uiId, label) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
     shiny::actionButton(ns("run_button"), label),
-    shiny::verbatimTextOutput(ns("script_output")),
-    shiny::br(),
+    shiny::verbatimTextOutput(ns("script_output"), placeholder = TRUE),
+    shiny::br(),   # Add a line break for better spacing
   )
 }
 
@@ -22,19 +22,71 @@ runScriptUI <- function(uiId, label) {
 #'
 #' @param serverId A string that identifies the server module.
 #' @param script_path A string that specifies the path to the script to be run.
+#' @param what A string that specifies the context or purpose of the script (default is "Read
+#'   MS-Dial").
+#'
 #' @export
-runScriptServer <- function(serverId, script_path) {
+runScriptServer <- function(serverId, script_path, what = "Read MS-Dial") {
   shiny::moduleServer(serverId, function(input, output, session) {
+    output_txt <- shiny::reactiveVal("")
+    proc <- shiny::reactiveVal(NULL)
+    timer <- shiny::reactiveTimer(1000)
+
     shiny::observeEvent(input[["run_button"]], {
-      out <- tryCatch(
-        withr::with_dir(
-          new = "..",     # Every script is written to be executed at the root of the project
-          utils::capture.output(source(script_path, local = TRUE))
-        ),
-        warning = function(w) w,
-        error = function(e) e
-      )
-      output[["script_output"]] <- shiny::renderText(paste(out, collapse = "\n"))
+      # Launch the script
+      tryCatch({
+        # Ensure the script path is valid
+        script_path <- normalizePath(script_path, mustWork = TRUE)
+        p <- processx::process$new(
+          command = "Rscript",
+          args = c(script_path),
+          stdout = "|",   # Pipe output to R
+          stderr = "|",   # Pipe errors to R
+          poll_connection = TRUE  # Poll the connection for output
+        )
+        proc(p)  # Store the process object
+        output_txt(paste(what, "is running...\nTime:", Sys.time(), "\n"))
+      }, error = function(e) {
+        output_txt(paste(getwd(), "\nError running script:", e$message, sep = "\n"))
+        proc(NULL)  # Clear the process object on error
+      })
+    })
+    
+    shiny::observe({
+      timer()  # Trigger the timer to poll the process output
+      p <- proc()
+      if (is.null(p)) return()  # If process is not set, do nothing
+      # Read output/error lines from the process
+      out <- p$read_output_lines()
+      err <- p$read_error_lines()
+      shiny::isolate({
+        output_txt(paste0(output_txt(), "#"))
+        all_lines <- c(out, err) |>
+          paste(collapse = "\n")  # Combine all lines into a single string
+        if (p$is_alive()) {
+          if (length(out) > 0 || length(err) > 0) {
+            # Append new output to the existing text
+            output_txt(paste(output_txt(), all_lines, "", sep = "\n"))
+          }
+        } else {
+          # Process has finished
+          output_txt(paste(output_txt(), all_lines, "Done", sep = "\n"))
+          proc(NULL)  # Clear the process object
+        }
+      })
+    })
+    # out <- tryCatch(
+    #   withr::with_dir(
+    #     new = "..",     # Every script is written to be executed at the root of the project
+    #     utils::capture.output(source(script_path, local = TRUE))
+    #   ),
+    #   warning = function(w) w,
+    #   error = function(e) e
+    # )
+
+    output[["script_output"]] <- shiny::renderText({
+      # Render the output text
+      output_txt()
     })
     NULL
   })
