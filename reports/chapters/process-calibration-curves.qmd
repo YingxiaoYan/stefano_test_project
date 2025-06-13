@@ -8,8 +8,9 @@ params:
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
+# For "Run Chunk" functionality
 params <- list(norm_method = "loess_norm", project_title = "Test") 
-source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Chunk" functionality
+source("code/reports/chapters/_internal-shared_setup_chunk.R")
 ```
 
 ## Calibration curve per chemical
@@ -22,7 +23,7 @@ calib_se <- calib_interm_data[["calcurve_se within range"]]
 
 # Figure dimensions
 n_chem <- nrow(calib_se)
-n_cols <- 2    # Number of columns in the plot (facets)
+n_cols <- 1    # Number of columns in the plot (facets)
 n_rows <- ceiling(n_chem / n_cols)    # Number of rows in the plot
 fig_dim <- c(
   # ## 3 columns
@@ -30,7 +31,7 @@ fig_dim <- c(
   # ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
   ## 1 column
   9,  # Width
-  n_rows * 4 + 1    # Height
+  n_rows * (7 / n_cols) + 1    # Height
 )
 out_width <- paste0(round(fig_dim[1] / 10 * 100), "%")
 
@@ -48,22 +49,17 @@ calcurve_to_show_df <- local({
     )
 })
 cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
-# Split the data by 2 features for plotting
-lst_calcurve_to_show_df <- split(calcurve_to_show_df, calcurve_to_show_df$feature_name)
-calcurve_to_show_df_by_2_chem <- seq_len(n_chem / 2) |>     # seq_len(2.5) == 1:2
-  lapply(\(ii) {
-    dplyr::bind_rows(lst_calcurve_to_show_df[((ii - 1) * 2 + 1):(ii * 2)]) |>
-      labelled::copy_labels_from(calcurve_to_show_df)
-  })
-if (n_chem %% 2 == 1) {     # If odd number of chemicals
-  calcurve_to_show_df_by_2_chem[[length(calcurve_to_show_df_by_2_chem) + 1]] <- 
-    lst_calcurve_to_show_df[[n_chem]]
-}
-txt <- show$label_if_has(calcurve_to_show_df[[cal_data_id]], cal_data_id) |>
+# Split the data by feature
+lst_calcurve_to_show_df <- split(calcurve_to_show_df, calcurve_to_show_df$.row_id)
+```
+
+```{r}
+# Adjust the normalization method text
+txt_norm <- show$label_if_has(calcurve_to_show_df[[cal_data_id]], cal_data_id) |>
   sub("normalized", "normalization", x = _, fixed = TRUE)
 ```
 
-The peak areas were normalized by the internal standards applying the `r txt`.
+The peak areas were normalized by the internal standards applying the `r txt_norm`.
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#calibration-curve-limits).
 
 ```{r}
@@ -90,38 +86,39 @@ calcurve_plot <- function(dfm, y = cal_data_id) {
         "Cal0" = "blue"
       )
     ) +
-    facet_wrap(~ feature_name, scales = "free", ncol = 2)
+    facet_wrap(~ feature_name, scales = "free", ncol = 1)
 }
-p <- calcurve_plot(calcurve_to_show_df)
 # Show legend only at the top
+p <- calcurve_plot(calcurve_to_show_df)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
-# Plot per 2 chemicals
-p_by_2_chem <- lapply(calcurve_to_show_df_by_2_chem, \(dfm) {
+```
+
+```{r}
+#| results: 'asis'
+p_by_feature <- lapply(lst_calcurve_to_show_df, \(dfm) {
   p <- calcurve_plot(dfm)
   plotly::ggplotly(
     p + theme(legend.position = "none"),
     tooltip = c("text")
   ) |> 
-    plotly::layout(margin = list(t = 25, b = 50, l = 70, r = 5)) |>
-    htmltools::tagList()
+    plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
 })
-```
 
-```{r}
-#| label: 'calcurve-all-data-pts'
-#| fig-width: 9
-#| fig-height: 5.2
-#| out.width: 90%
-for (p in p_by_2_chem[seq_len(n_chem / 2)]) {     # seq_len(2.5) == 1:2
-  print(p)
-}
-```
-
-```{r, out.width = "50%"}
-if (n_chem %% 2 == 1) {
-  print(p_by_2_chem[[length(p_by_2_chem)]])
-}
+sapply(names(p_by_feature), \(ii) {
+  rlang::chr(
+    "```{r}",
+    "#| label: 'calcurve-cal_pts-{{ii}}'",
+    "#| fig-width: 7",
+    "#| fig-height: 7",
+    "#| out-width: '70%'",
+    "p_by_feature${{ii}}",
+    "```",
+  ) |> 
+    knitr::knit_expand(text = _)
+}) |>
+  knitr::knit_child(text = _, quiet = TRUE) |> 
+  knitr::asis_output()    # print `asis`
 ```
 
 ## Calibration of the chemicals
