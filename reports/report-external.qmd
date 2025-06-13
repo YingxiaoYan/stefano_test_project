@@ -96,8 +96,6 @@ show$kable_number_of(SumExp::col_df(concn_se)$Class)
 #| label: 'pca'
 #| fig-width: 8
 #| fig-height: 4
-#| out-width: '100%'
-
 plot_pca <- function(se, mat_id) {
   mat <- t(se[[mat_id]])
   # Scale is not possible with all zeros
@@ -194,8 +192,6 @@ After the computation of concentration, the following steps are applied to the d
 #| label: 'individual-chemicals'
 #| fig-width: 12
 #| fig-height: 6
-#| out-width: '100%'
-
 #' Text box to describe a calibration curve model
 #' 
 textbox_of_a_width <- function(txt, width) {

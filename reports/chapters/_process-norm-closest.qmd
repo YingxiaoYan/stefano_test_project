@@ -8,7 +8,7 @@ When a compound target class is specified, the closest internal standard will be
 
 ```{r}
 #| label: 'evaluation-normalization-closest-istd'
-#| out-width: '80%'
+#| out.width: '80%'
 
 # Quantification standard samples
 qc_se <- show$extract_quant_qc(norm_se)
@@ -53,7 +53,6 @@ The bars are colored by the given `Class` of the samples
 ```{r}
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 df_show <- norm_se[util$is_internal_std(norm_se), ] |> 
   show$df_for_injection_order(mat_ids_to_compare)
 
@@ -69,7 +68,6 @@ The bars are colored by the internal standards and stacked for each sample.
 ```{r}
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 plotly::ggplotly(
   show$ggplot_col_injection_order(df_show, fill = .std_type) +
     labs(title = "Internal standards", fill = "Target class")
@@ -84,7 +82,6 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| label: 'pca-normalization-closest-istd'
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 # PCA
 box::use(patchwork)           # Combine ggplot objects. `+`
 

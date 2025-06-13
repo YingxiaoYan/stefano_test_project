@@ -13,7 +13,7 @@ max_nchar_feature <- max(nchar(cl))
 ```{r}
 #| fig-height: !expr 'max_nchar_feature * 0.1 + 2'
 #| fig-width: !expr 'n_class * 0.4 + 0.7'
-#| out-width: !expr 'paste0(n_class * 4 + 7, "%")'
+#| out.width: !expr 'paste0(n_class * 4 + 7, "%")'
 show_df <- SumExp::as_tibble(concn_se)
 show_df_by_feature <- split(show_df, show_df$feature_name)
 for(df1 in show_df_by_feature) {

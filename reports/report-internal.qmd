@@ -7,8 +7,10 @@ format:
   html: 
     fig-width : 10
     fig-height: 6
-    out-width: "100%"
     fig-align: "default"
+knitr:
+  opts_chunk:
+    out.width: "100%"
 ---
 
 ```{r}

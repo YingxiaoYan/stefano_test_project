@@ -96,7 +96,6 @@ The distribution of the features across m/z and retention time is shown below.
 #| label: 'distribution-features'
 #| fig-width: 16
 #| fig-height: 10
-#| out-width: '100%'
 colors <- local({
   x <- unique(util$std_type(raw_se))
   n_non_target <- sum(x == "")
@@ -127,7 +126,6 @@ The bin width is set to 0.5.
 #| label: 'distribution-mz'
 #| fig-width: 16
 #| fig-height: 8
-#| out-width: '100%'
 df1 <- SumExp::row_df(raw_se)
 ggplot(df1) +
   geom_histogram(aes(x = mz), binwidth = 0.5) +
@@ -147,7 +145,6 @@ As shown below, the values are distributed in a skewed manner.
 #| label: 'distribution-values-overall-linear'
 #| fig-width: 16 
 #| fig-height: 6
-#| out-width: '100%'
 
 p <- SumExp::ggplot(raw_se) +
     geom_histogram(aes(x = raw), bins = 50)

@@ -3,7 +3,7 @@ The RSD% of the quantification standard samples is calculated for the raw data a
 
 ```{r}
 #| label: 'norm-method-comparison'
-#| out-width: '80%'
+#| out.width: '80%'
 
 labs <- SumExp::name_labs(norm_se)
 names(labs) <- gsub(" .*", "", names(labs))    # First word only

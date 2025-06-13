@@ -45,7 +45,6 @@ Internal standard (IS) features that satisfy the following conditions were consi
 * More than 10% samples have zero values.
 
 ```{r}
-#| out-width: 100%
 box::use(patchwork)           # Combine ggplot objects. `+`
 
 is_failed_istd <- qc_steps[["is failed internal std."]]
@@ -166,7 +165,6 @@ if (any(is_failed_istd) || any(is_outlier)) {      # any(NULL) == FALSE
 #| label: 'distribution-values-internal-standards'
 #| fig-width: 13
 #| fig-height: 4
-#| out-width: 100%
 # Internal standard features to show
 se_show <- internal_std_se
 for (ii in seq_len(nrow(se_show))) {

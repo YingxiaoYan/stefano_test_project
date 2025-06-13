@@ -121,7 +121,7 @@ The normalized data are evaluated by the changes of relative standard deviation 
 
 ```{r}
 #| label: 'rsd-eval'
-#| out-width: '80%'
+#| out.width: '80%'
 
 # Quantification standard features of QC samples
 qc_se <- show$extract_quant_qc(norm_se)
@@ -167,7 +167,6 @@ The bars are colored by the given `Class` of the samples
 ```{r}
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 df_show <- norm_se[util$is_internal_std(norm_se), ] |> 
   show$df_for_injection_order(mat_ids_to_compare) |> 
   dplyr::mutate(
@@ -187,7 +186,6 @@ The bars are colored by the given `Batch ID` of the samples
 ```{r}
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 plotly::ggplotly(
   show$ggplot_col_injection_order(df_show, fill = batch_id) +
     labs(title = "Internal standards") 
@@ -199,7 +197,6 @@ The bars are colored by the internal standards and stacked for each sample.
 ```{r}
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 plotly::ggplotly(
   show$ggplot_col_injection_order(df_show, fill = feature_name) +
     labs(title = "Internal standards") +
@@ -216,7 +213,6 @@ Principal component analysis (PCA) is performed to evaluate the normalization.
 #| label: 'pca-normalization-loess'
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
-#| out-width: '100%'
 # PCA
 box::use(patchwork)           # Combine ggplot objects. `+`
 
