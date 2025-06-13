@@ -7,9 +7,9 @@
 
 The input file contains the data in a table format described as below. 
 
-| Lines    |      1st      |       2nd        | 3rd column section |
-| :------- | :-----------: | :--------------: | :----------------: |
-| 1st-4th  |    *empty*    |   Sample info    |      *empty*       |
+| Lines    |      1st     |       2nd        | 3rd column section |
+| :------- | :----------: | :--------------: | :----------------: |
+| 1st-4th  |    *empty*   |   Sample info    |      *empty*       |
 | From 5th | Feature info | Measurement data |    Extra stats     |
 
 ## First 4 lines

@@ -20,7 +20,7 @@ box::use(
 #' @returns TRUE if all required inputs are provided
 .stop_unless_has_required_inputs <- function(userin, ...) {
   for (p in c(...)) {
-    if(is.null(userin[[p]])) stop(paste(p, "is required, but not provided."))
+    if (is.null(userin[[p]])) stop(paste(p, "is required, but not provided."))
   } 
   invisible(TRUE)
 }
@@ -37,7 +37,6 @@ get_user_input <- function(...) {
   userin
 }
 
-
 #' Get the file name of the parsed data
 #' 
 #' The file name has the same name as the `input_file` in the `user_inputs` with a `suffix`
@@ -50,7 +49,7 @@ get_user_input <- function(...) {
 #' @returns A text string of the file name
 #' @md
 #' @export
-get_raw_data_file_name <- function(user_inputs, suffix = '') {
+get_raw_data_file_name <- function(user_inputs, suffix = "") {
   .stop_unless_has_required_inputs(user_inputs, "input_file", "intermediate_dir")
   file <- user_inputs$input_file
   dir <- io$mkdir_if_not_exist(user_inputs$intermediate_dir)
@@ -68,7 +67,7 @@ get_raw_data_file_name <- function(user_inputs, suffix = '') {
 #' @md
 #' @export
 read_parsed_msdial_data <- function(user_inputs) {
-  sumexp_file <- get_raw_data_file_name(user_inputs, suffix = '')
+  sumexp_file <- get_raw_data_file_name(user_inputs, suffix = "")
   stopifnot("Run `read-msdial.R first" = file.exists(sumexp_file))
   # Load the parsed data
   sumexp <- readRDS(sumexp_file)
@@ -227,7 +226,6 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   out
 }
 
-
 #' Export data with the feature table to a tab-separated file
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
@@ -270,6 +268,9 @@ export_concentration_tsv <- function(sumexp, file) {
   
   # Prepare the chemical summary table
   chem_cols <- tbl_chemical_summary(sumexp) |> 
+    dplyr::mutate(
+      unit  = SumExp::metadata(sumexp)$concentration_unit,  # Add the unit
+    ) |>
     dplyr::mutate(      # Tidy up the table
       perc_detf = round(perc_detf, 1),
       n_d_s = paste0("(", n_det, "/", n_samples, ")"),
@@ -283,6 +284,7 @@ export_concentration_tsv <- function(sumexp, file) {
       "Average Rt(min)" = .rt,
       "DF%" = perc_detf,
       "Samples (d/n)" = n_d_s,
+      "Concentration" = unit,
       "LOD" = lod,
       "LLOQ" = lloq,
       "R2" = model_r2,

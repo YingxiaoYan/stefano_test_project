@@ -14,24 +14,42 @@ box::use(
 )
 
 # Get the input file name provided by the user
-user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
+user_inputs <- msdial$get_user_input("input_file", "intermediate_dir", "concentration_unit")
 # Input/Output files
-FILE <- list(i = user_inputs$input_file)
-# Output file name, the base name of the input file with .rds extension
-FILE$o <- msdial$get_raw_data_file_name(user_inputs)
+FILE <- list(
+  i = user_inputs$input_file,
+  # Output file name, the base name of the input file with .rds extension
+  o = msdial$get_raw_data_file_name(user_inputs)
+)
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
-# When there is missing information for calibration of targeted chemicals
+# "non-target mode": When there is missing information for calibration of targeted chemicals
 is_non_target_mode <- FALSE
 
 # Parse the Data into Elements of SumExp -------------------------------------------------
+
+# The input file contains the data in a table format described as below. 
+# 
+# | Lines    |      1st     |       2nd        | 3rd column section |
+# | :------- | :----------: | :--------------: | :----------------: |
+# | 1st-4th  |    *empty*   |   Sample info    |      *empty*       |
+# | From 5th | Feature info | Measurement data |    Extra stats     |
 
 i_three_sections <- msdial$get_three_section_indices(FILE$i)
 # Sample Info
 sample_info <- msdial$fetch_sample_info(FILE$i, i_three_sections[["2nd"]])
 
 # Feature Data
-convert_to_id <- function(given_id, tbl = util$conv_tbl) {
+
+# util$conv_tbl <- tibble::tribble(
+#   ~given_id,         ~id,            ~label,
+#   "Alignment ID",    "alignment_id", "Alignment ID",
+#   "Average Rt(min)", ".rt",          "Average Retention Time (min)",
+#   "Comment",         ".std_type",    "Standard Type",      # e.g. "Quant", "IS", "vIS", or NA
+#   ...
+# )
+to_valid_id <- function(given_id, tbl = util$conv_tbl) {
+  # `match` to allow unknown IDs
   m <- match(given_id, tbl$given_id)
   ifelse(is.na(m), given_id, tbl$id[m])
 }
@@ -40,8 +58,8 @@ features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["1st"]])
 conv_tbl <- util$conv_tbl[util$conv_tbl$given_id %in% colnames(features), ]
 stopifnot(anyDuplicated(conv_tbl$id) == 0)
 # Syntactically valid column names in R
-features <- dplyr::rename_with(features, convert_to_id) |> 
-  dplyr::select(        # Required 
+features <- dplyr::rename_with(features, to_valid_id) |> 
+  dplyr::select(        # Required, many other columns are not used
     alignment_id,
     feature_name,
     mz,
@@ -101,7 +119,7 @@ sample_info <- sample_info |>
       labelled::set_label_attribute("Control Sample Category")
   )
 stopifnot("`Blank` samples are required." = any(sample_info$.ctrl_cat == "Blank"))
-for(cat in c("CalCurve", "QC")) {
+for (cat in c("CalCurve", "QC")) {
   if (!any(sample_info$.ctrl_cat == cat)) {
     warning("`", cat, "` samples are missing.")
     is_non_target_mode <- TRUE
@@ -120,8 +138,8 @@ if (is_non_target_mode) {
   # Known concentration of calibration curves, which have been saved into the `sample_info`
   nm_c <- util$spiked_conc_pts_name
   sample_info[[nm_c]] <- ifelse(sample_info$.ctrl_cat == "CalCurve", 
-                              catch_concentration(sample_info$sample_name), 
-                              NA_real_) |> 
+                                catch_concentration(sample_info$sample_name), 
+                                NA_real_) |> 
     labelled::set_label_attribute("Calibrant Concentration")
   cc_conc <- sample_info[[nm_c]][sample_info$.ctrl_cat == "CalCurve"]
   stopifnot(
@@ -148,10 +166,12 @@ sumexp <- SumExp::SumExp(
     file_name = basename(FILE$i),
     file_md5 = digest::digest(FILE$i, algo = "md5", file = TRUE),
     is_non_target_mode = is_non_target_mode,
+    concentration_unit = user_inputs$concentration_unit,
   )
 )
+
+# SAVE -----
 
 # Save the "SumExp" object
 saveRDS(sumexp, file = FILE$o)
 cat("`SumExp` object saved to:", FILE$o, "\n")
-

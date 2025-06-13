@@ -43,7 +43,7 @@ box::use(
   projlib/proc,       # Processing functions
 )
 # Get the input file name provided by the user
-user_inputs <- msdial$get_user_input("input_file", "intermediate_dir", "concentration_unit")
+user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
 
 # Output files
 FILE <- rlang::list2(
@@ -232,9 +232,10 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data[["weight method"]] <- params$weight
   
   # Compute the concentration of the samples using the calibration curve
+  unit <- SumExp::metadata(concn_se)$concentration_unit
   concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id) |> 
     labelled::set_label_attribute(
-      paste0("Concentration [", user_inputs$concentration_unit, "]")
+      paste0("Concentration [", unit, "]")
     ) |> 
     proc$replace_below_lod_lloq(limits = SumExp::row_df(concn_se)[, c("lod", "lloq")])
   # Label for the normalized data. To label the output of this function
