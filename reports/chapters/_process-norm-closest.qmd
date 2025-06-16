@@ -36,7 +36,7 @@ rsd_qstd |>
   janitor::tabyl(QC, sign)
 ```
 
-#### Samples by run order
+#### Samples by injection order
 
 ```{r}
 #| purl: true
@@ -54,12 +54,27 @@ The bars are colored by the given `Class` of the samples
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 df_show <- norm_se[util$is_internal_std(norm_se), ] |> 
-  show$df_for_injection_order(mat_ids_to_compare)
+  show$df_for_injection_order(mat_ids_to_compare) |>
+  dplyr::mutate(
+    batch_id = factor(batch_id) |>         # Discrete color scale
+      labelled::copy_labels_from(batch_id)
+  )
 
 plotly::ggplotly(
   show$ggplot_col_injection_order(df_show, fill = Class) +
     labs(title = "Internal standards") +
     scale_fill_manual(values = COLORS_OF_CLASSES)
+)
+```
+
+The bars are colored by the given `Batch ID` of the samples
+
+```{r}
+#| fig-width: !expr if (has_vol_norm) 20 else 14
+#| fig-height: 6
+plotly::ggplotly(
+  show$ggplot_col_injection_order(df_show, fill = batch_id) +
+    labs(title = "Internal standards") 
 )
 ```
 
@@ -69,10 +84,21 @@ The bars are colored by the internal standards and stacked for each sample.
 #| fig-width: !expr if (has_vol_norm) 20 else 14
 #| fig-height: 6
 plotly::ggplotly(
+  show$ggplot_col_injection_order(df_show, fill = feature_name) +
+    labs(title = "Internal standards") +
+    # Skip the legend. Too long feature names make the plots too narrow.
+    theme(legend.position = "none")
+)
+```
+
+<!-- ```{r}
+#| fig-width: !expr if (has_vol_norm) 20 else 14
+#| fig-height: 6
+plotly::ggplotly(
   show$ggplot_col_injection_order(df_show, fill = .std_type) +
     labs(title = "Internal standards", fill = "Target class")
 )
-```
+``` -->
 
 #### Principal component analysis
 

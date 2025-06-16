@@ -43,7 +43,7 @@ Randomly selected 3 samples are shown below.
 # Plot the normalized and original data for randomly selected 3 samples excluding those not
 # used in normalization
 to_excl <- util$ctrl_smpl_cat(norm_se) %in% excl_cat
-i_sel <- sample(c(1:ncol(norm_se))[!to_excl], 3)
+i_sel <- sample(seq_len(ncol(norm_se))[!to_excl], 3)
 i_sel <- setNames(i_sel, colnames(norm_se)[i_sel])
 
 # To include LOESS smooth line
@@ -53,7 +53,7 @@ loess_curve_df <- local({
     as.data.frame() |> 
     dplyr::mutate(.rt = x) |>
     tidyr::pivot_longer(-.rt, names_to = "sample_id", values_to = "Value")
-    # Attach sample names
+  # Attach sample names
   dplyr::left_join(out, sample_id_name_tbl, by = "sample_id")
 }, list(
   loess_fit = qc_steps[["LOESS fit"]],
