@@ -21,22 +21,8 @@ The calibration curve of each of the chemicals is presented below.
 #| purl: true
 calib_se <- calib_interm_data[["calcurve_se within range"]]
 
-# Figure dimensions
-n_chem <- nrow(calib_se)
-n_cols <- 1    # Number of columns in the plot (facets)
-n_rows <- ceiling(n_chem / n_cols)    # Number of rows in the plot
-fig_dim <- c(
-  # ## 3 columns
-  # if (n_chem >= 3) 12 else n_chem * 4,  # Width
-  # ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
-  ## 1 column
-  9,  # Width
-  n_rows * (7 / n_cols) + 1    # Height
-)
-out_width <- paste0(round(fig_dim[1] / 10 * 100), "%")
-
 calcurve_to_show_df <- local({
-  cc_se <- calib_interm_data[["calcurve_se all range"]]
+  cc_se <- calib_interm_data[["calcurve_se incl failed"]]
   SumExp::as_tibble(cc_se) |> 
     tidyr::drop_na(all_of(DATA_ID)) |>         # Drop concentrations outside the range
     dplyr::rename(.cc_pt = util$spiked_conc_pts_name) |>    # Rename for clarity
@@ -63,6 +49,7 @@ The peak areas were normalized by the internal standards applying the `r txt_nor
 The concentration range was narrowed down to the range after the trimming step described in the [previous section](#calibration-curve-limits).
 
 ```{r}
+#| label: 'calibration-curve-by-chemical-legend'
 #| fig-width: 10
 #| fig-height: 1
 # Plot calibration curves
@@ -72,6 +59,7 @@ calcurve_plot <- function(dfm, y = cal_data_id) {
       # Label for the points
       txt = paste0("inj: ", injection_order, ", conc: ", .cc_pt)
     )
+  facet_fill <- if (dfm$has_proper_range[1]) "lightgray" else "lightcoral"
   ggplot(dfm, aes(x = .cc_pt, y = .data[[y]])) +
     suppressWarnings(geom_point(aes(color = c_type, text = txt))) +
     labs(
@@ -86,7 +74,10 @@ calcurve_plot <- function(dfm, y = cal_data_id) {
         "Cal0" = "blue"
       )
     ) +
-    facet_wrap(~ feature_name, scales = "free", ncol = 1)
+    facet_wrap(~ feature_name, scales = "free", ncol = 1) +
+    theme(
+      strip.background = element_rect(fill = facet_fill),
+    )
 }
 # Show legend only at the top
 p <- calcurve_plot(calcurve_to_show_df)
@@ -193,24 +184,41 @@ After the computation, the following steps are applied to the data:
 The shaded gray area represents the region below the lower-limit of quantification (LLOQ) for each chemical.
 
 ```{r}
+#| label: 'calibration-curve-with-all-samples-legend'
 #| fig-width: 10
 #| fig-height: 1
-p <- show$ggplot_calcurve_samples_facet(concn_se, calib_se, DATA_ID, 
-                                        COLORS_OF_CLASSES, ncol = n_cols)
+p <- show$ggplot_calcurve_samples(concn_se, calib_se, DATA_ID, COLORS_OF_CLASSES)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
 
 ```{r}
-#| label: 'calibration-curve-with-samples'
-#| fig-width: !expr fig_dim[1]
-#| fig-height: !expr fig_dim[2]
-#| out.width: !expr out_width
-plotly::ggplotly(
-  p + theme(legend.position = "none"),
-  tooltip = c("text")
-) |> 
-  plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+#| results: 'asis'
+lst_concn_se <- SumExp::split_rows(concn_se, rownames(SumExp::row_df(concn_se)))
+
+p_by_feature <- lapply(lst_concn_se, \(se) {
+  p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, ncol = 1)
+  plotly::ggplotly(
+    p + theme(legend.position = "none"),
+    tooltip = c("text")
+  ) |> 
+    plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+})
+
+sapply(names(p_by_feature), \(ii) {
+  rlang::chr(
+    "```{r}",
+    "#| label: 'calcurve-with-all-samples-{{ii}}'",
+    "#| fig-width: 7",
+    "#| fig-height: 7",
+    "#| out-width: '70%'",
+    "p_by_feature${{ii}}",
+    "```",
+  ) |> 
+    knitr::knit_expand(text = _)
+}) |>
+  knitr::knit_child(text = _, quiet = TRUE) |> 
+  knitr::asis_output()    # print `asis`
 ```
 
 #### All except `QC` samples
@@ -232,6 +240,19 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| fig-width: 10
 #| fig-height: 1
 to_show_excl_qc <- concn_se[, quote(Class %in% classes_excl_qc_blank)]
+# Figure dimensions
+n_chem <- nrow(calib_se)
+n_cols <- 2    # Number of columns in the plot (facets)
+n_rows <- ceiling(n_chem / n_cols)    # Number of rows in the plot
+fig_dim <- c(
+  # ## 3 columns
+  # if (n_chem >= 3) 12 else n_chem * 4,  # Width
+  # ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
+  ## 1 column
+  9,  # Width
+  n_rows * (7 / n_cols) + 1    # Height
+)
+out_width <- paste0(round(fig_dim[1] / 10 * 100), "%")
 p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, 
                                         COLORS_OF_CLASSES, ncol = n_cols) +
   show$geom_best_model_text(to_show_excl_qc)
