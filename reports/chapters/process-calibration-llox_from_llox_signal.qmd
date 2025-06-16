@@ -41,21 +41,19 @@ limit_df <- calib_interm_data[["calcurve conc ranges"]]
 
 * LOD and LLOQ
 
-Limit of detection (LOD) and lower-limit of quantification (LLOQ) are identified as described below. 
-
 ```{r}
 cat(switch(
   calib_interm_data[["llox method"]],
-  "pt_signal_mean" = 
-"1. Identify LOD as the lowest concentration point at which the average signal exceeds three times the mean of the calibration point of zero concentration.
-2. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the mean of the zero concentration point.
-    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%.",
-  "pt_signal_mean_plus_sd" =
-"1. Identify LOD as the lowest concentration point at which the average signal exceeds three times the standard deviation of the calibration point of zero concentration plus the mean of the zero point.
-2. Identify LLOQ as the lowest concentration point satisfying the following two conditions:
-    1) The average signal exceeds ten times the standard deviation of the zero concentration point plus the mean of the zero point.
-    2) The relative standard deviation (RSD) of the signal is equal to or less than 20%."
+  "pt_signal_mean" = paste(
+    "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded 3×",
+    "or 10× the mean signal of the blank (zero concentration point) respectively; LLOQ",
+    "additionally required a signal RSD ≤ 20%."
+  ),
+  "pt_signal_mean_plus_sd" = paste(
+    "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded the",
+    "mean signal of the blank (zero concentration point) plus 3× or 10× its standard deviation,",
+    "respectively; LLOQ additionally required a signal RSD ≤ 20%."
+  )
 ))
 ```
 
