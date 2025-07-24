@@ -6,6 +6,9 @@ When a compound target class is specified, the closest internal standard will be
 
 #### Evaluation of normalization
 
+Normalization is evaluated by comparing the relative standard deviation (RSD) of the peak areas of quantification standards before and after normalization.
+Quality control (QC) samples are used for this evaluation because they are technical replicates and should have low RSD values.
+
 ```{r}
 #| label: 'evaluation-normalization-closest-istd'
 #| out.width: '80%'
