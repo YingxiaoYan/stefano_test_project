@@ -37,6 +37,9 @@ calcurve_to_show_df <- local({
 cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
 # Split the data by feature
 lst_calcurve_to_show_df <- split(calcurve_to_show_df, calcurve_to_show_df$.row_id)
+# Sort the features by name
+f_names <- sapply(lst_calcurve_to_show_df, \(dfm) dfm$feature_name[1])
+lst_calcurve_to_show_df <- lst_calcurve_to_show_df[order(f_names)]
 ```
 
 ```{r}
@@ -195,6 +198,9 @@ ggpubr::as_ggplot(leg)
 ```{r}
 #| results: 'asis'
 lst_concn_se <- SumExp::split_rows(concn_se, rownames(SumExp::row_df(concn_se)))
+# Sort the chemicals by name
+f_names <- sapply(lst_concn_se, \(se) SumExp::row_df(se)$feature_name)
+lst_concn_se <- lst_concn_se[order(f_names)]
 
 p_by_feature <- lapply(lst_concn_se, \(se) {
   p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, ncol = 1)

@@ -413,12 +413,16 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
 
 #' Create a summary table for the chemicals
 #'
-#' @param sumexp A [`SumExp::SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object. 
+#'  `SumExp::row_df(sumexp)` should have the columns `feature_name`, `lod`, `lloq`, and
+#'  `calcurve_model`.
 #'
-#' @returns A tibble with the summary of the chemical for non-control samples only.
-#'   The columns include: `chem_id`, `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`,
-#'   `median`, `mean`, `min`, `max`, `best_model`, `model_r2`, `n_conc`
+#' @returns A tibble with the summary of the chemical for non-control samples only. The columns
+#'   include: `chem_id`, `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`, `median`, `mean`, `min`,
+#'   `max`, `best_model`, `model_r2`, `n_conc`
+#'
 #' @md
+#'
 #' @export
 tbl_chemical_summary <- function(sumexp) {
   # Non-control samples only
@@ -463,6 +467,9 @@ tbl_chemical_summary <- function(sumexp) {
       n_conc = calcurve_model$n_conc,
       eqn = get_equation(calcurve_model),
       .keep = "unused"     # Remove `calcurve_model`
+    ) |>
+    dplyr::mutate(
+      best_model = stringr::str_replace(best_model, "_div_", "/")
     ) |>
     dplyr::ungroup()
 }
