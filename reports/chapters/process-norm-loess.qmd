@@ -208,6 +208,7 @@ plotly::ggplotly(
 #### Principal component analysis
 
 Principal component analysis (PCA) is performed to evaluate the normalization.
+Here the PCA is performed on the internal standard features only.
 
 ```{r}
 #| label: 'pca-normalization-loess'
