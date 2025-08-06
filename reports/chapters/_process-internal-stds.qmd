@@ -1,7 +1,7 @@
 
 ```{r}
 #| purl: true
-internal_std_se <- qc_steps[["internal std. before norm"]]
+internal_std_se <- qc_steps[["internal std. before qc"]]
 box::use(projlib/proc[count_zeros_per_feature])
 ```
 
@@ -96,10 +96,10 @@ Any remaining zero values in an internal standard feature are imputed with the a
 ```{r}
 #| label: 'outlier-removal'
 is_outlier <- qc_steps[["is outlier sample"]]
-# Only when outlier removal is performed
+# The following is added only when the outlier removal step has been set to perform
 if (! is.null(is_outlier)) {
   cat(
-    "### Outliers\n\n",
+    "### Outlier samples\n\n",
     "Each internal standard (IS) is expected to have consistent values across all samples.\n",
     "After applying a log-transformation ($log(1 + x)$),", 
     "the mean and standard deviation for each IS are calculated.\n",

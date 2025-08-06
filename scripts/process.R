@@ -3,6 +3,8 @@
 # During processing for quality control, the intermediate data is saved to an `rds` file
 # ------------------------------------------------------------------------------------------- #
 
+# Handle command line options     ---------------
+# The options are used to control the processing steps
 option_list <- rlang::list2(
   optparse::make_option(
     c("--rm_outlier"), type = "logical", default = TRUE,
@@ -34,6 +36,7 @@ cat(
   "  - LOD/LLOQ method:", params$llox_method, "\n"
 )
 
+# Libraries and files     ---------------
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
@@ -55,73 +58,81 @@ FILE <- rlang::list2(
 # For reports, store intermediate data during quality control steps.
 qc_steps <- list()
 
-# Read the parsed data by `read-msdial.R`. If not available, warn the user
-overall_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
-mat_id_for_norm <- "raw"  # `raw` or `vol_norm`
 cat("\nProcessing steps are started.\n")
+# Read the parsed data by `read-msdial.R`. If not available, warn the user
+# This 'proc_sumexp' is the main data object that will undergo processing.
+proc_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
 
 # Normalization using internal standards -------------------------------------------------
 
 # Volumetric normalization using volumetric internal standards (vIS)
-is_vIS <- util$std_type(overall_sumexp) == "vIS"
+is_vIS <- util$std_type(proc_sumexp) == "vIS"
 if (any(is_vIS)) {      # This is optional
   qc_steps[["is volumetric internal std."]] <- is_vIS    # For reports
-  overall_sumexp <- proc$normalize_volumetric(overall_sumexp, is_vIS, "raw")
-  mat_id_for_norm <- "vol_norm"  # `raw` or `vol_norm`
+  proc_sumexp <- proc$normalize_volumetric(proc_sumexp, is_vIS, "raw")
 } 
+# If no volumetric internal standards, use raw data for normalization that uses internal standards
+mat_id_for_IS_norm <- if (any(is_vIS)) "vol_norm" else "raw"
 
 # Extract internal standard features
 internal_std_se <- local(
-  envir = list(se = overall_sumexp),
+  envir = list(se = proc_sumexp),
   {
     se <- se[util$is_internal_std(se), ]
     se[order(util$retention_time(se)), ]    # Sort by average retention time
   }
 )
 # For reports, store intermediate data during quality control steps.
-qc_steps[["internal std. before norm"]] <- internal_std_se
+qc_steps[["internal std. before qc"]] <- internal_std_se
 
 ## Failed internal standards     ---------------
-num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_norm]])
+num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_IS_norm]])
+# Mark features with > 10% zeros
 is_failed <- num_zeros > ncol(internal_std_se) * 0.1
 qc_steps[["is failed internal std."]] <- is_failed    # For reports
 # Remove failed internal standard features
+is_failed_in_proc_sumexp <- rownames(proc_sumexp) %in% rownames(internal_std_se)[is_failed]
+proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
 internal_std_se <- internal_std_se[!is_failed, ]
-internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, mat_id_for_norm)
-cat("Failed internal standards are removed.\n")
+# Impute remaining zeros with the mean of the same type
+internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, mat_id_for_IS_norm)
+cat("Failed internal standards (N = ", sum(is_failed), ") are removed.\n", sep = "")
 
 ## Outlier sample removal     ---------------
 
-if (params$rm_outlier) {
+if (params$rm_outlier) {    # Controlled by the command line option
   # Number of outlying internal standard features per sample
-  n_out <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_norm, times = 3)
-  n_feature <- nrow(internal_std_se)
+  n_out <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_IS_norm, times = 3)
+  n_internal_std <- nrow(internal_std_se)
   # Outlier samples: number of outlying features > 20% of the total number of features
-  is_outlier <- n_out > (0.2 * n_feature)
+  is_outlier <- n_out > (0.2 * n_internal_std)
   qc_steps[["number of outlier internal std. per sample"]] <- n_out    # For reports
   qc_steps[["is outlier sample"]] <- is_outlier    # For reports
+
   if (any(is_outlier)) {
     # Exclude the outlying samples
     stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
     internal_std_se <- internal_std_se[, !is_outlier]
-    stopifnot(identical(names(is_outlier), colnames(overall_sumexp)))
-    overall_sumexp <- overall_sumexp[, !is_outlier]
+    stopifnot(identical(names(is_outlier), colnames(proc_sumexp)))
+    proc_sumexp <- proc_sumexp[, !is_outlier]
+    cat("Outlier samples (N = ", sum(is_outlier), ") are removed.\n", sep = "")
+  } else {
+    cat("No outlier samples are found.\n")
   }
-  cat("Outlier samples are removed.\n")
 }
 
 ## Normalize the data using closest internal standard features     ---------------
 closest_istd <- proc$get_value_of_closest_istd(
-  se = overall_sumexp, 
+  se = proc_sumexp, 
   istd_se = internal_std_se, 
-  mat_id = mat_id_for_norm
+  mat_id = mat_id_for_IS_norm
 )
-overall_sumexp[["closest_norm"]] <- (overall_sumexp[[mat_id_for_norm]] / closest_istd) |> 
+proc_sumexp[["closest_norm"]] <- (proc_sumexp[[mat_id_for_IS_norm]] / closest_istd) |> 
   labelled::set_variable_labels("Closest RT normalized")
 cat("Closest internal standard normalization is done.\n")
 
 ## LOESS fit over RT normalization     ---------------
-overall_rt_range <- range(util$retention_time(overall_sumexp))    # Fit for RT of all features
+overall_rt_range <- range(util$retention_time(proc_sumexp))    # Fit for RT of all features
 excl_cat <- c("Blank", "CalCurve")
 qc_steps[["excluded categories in normalization"]] <- excl_cat    # For reports
 
@@ -130,16 +141,16 @@ loess_fit <- proc$get_loess_fit(
   excl_cat = excl_cat,
   overall_rt_range = overall_rt_range,
   span = 1,
-  mat_id = mat_id_for_norm
+  mat_id = mat_id_for_IS_norm
 )
 qc_steps[["LOESS fit"]] <- loess_fit    # For reports
 # Normalize the data by LOESS fit along RT
-rt <- util$retention_time(overall_sumexp)
-raw <- overall_sumexp[[mat_id_for_norm]]
-overall_sumexp[["loess_norm"]] <- sapply(
-  colnames(overall_sumexp), function(sample_id) {
+rt <- util$retention_time(proc_sumexp)
+mat_for_IS_norm <- proc_sumexp[[mat_id_for_IS_norm]]
+proc_sumexp[["loess_norm"]] <- sapply(
+  colnames(proc_sumexp), function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
-    exp(log(raw[, sample_id]) - norm_factor)     # Normalize in log scale
+    exp(log(mat_for_IS_norm[, sample_id]) - norm_factor)     # Normalize in log scale
   }
 ) |> 
   labelled::set_variable_labels("LOESS normalized")
@@ -149,14 +160,14 @@ cat("LOESS normalization is done.\n")
 norm_mat_ids <- c("loess_norm", "closest_norm")
 qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
 norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
-qc_steps[["normalized"]] <- overall_sumexp    # Before blank subtraction. For reports
-overall_sumexp <- proc$add_blank_subtracted_sumexp(
-  x_se = overall_sumexp,
-  no_change = util$ctrl_smpl_cat(overall_sumexp) == "CalCurve",
+qc_steps[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
+proc_sumexp <- proc$add_blank_subtracted_sumexp(
+  x_se = proc_sumexp,
+  no_change = util$ctrl_smpl_cat(proc_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
-qc_steps[["normalized - blank"]] <- overall_sumexp    # For reports
+qc_steps[["normalized - blank"]] <- proc_sumexp    # For reports
 cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
@@ -169,7 +180,7 @@ mark_completed <- function() {
   cat("The intermediate data saved to:", FILE$qc, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
-if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
+if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
   warning("NO CALIBRATION under non-target mode.")
   mark_completed()
   proc$stop_quietly()
@@ -177,7 +188,7 @@ if (SumExp::metadata(overall_sumexp)$is_non_target_mode) {
 
 # Limit to the samples to be calibrated (or quantified)
 # Before excluding out-of-range calibration concentrations
-quant_se0 <- overall_sumexp[util$is_targeted_feature(overall_sumexp), ]
+quant_se0 <- proc_sumexp[util$is_targeted_feature(proc_sumexp), ]
 
 # Per normalization method
 per_norm_lst <- list()       # Collect the output

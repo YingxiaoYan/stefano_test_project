@@ -204,11 +204,12 @@ lst_concn_se <- lst_concn_se[order(f_names)]
 
 p_by_feature <- lapply(lst_concn_se, \(se) {
   p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, ncol = 1)
-  plotly::ggplotly(
-    p + theme(legend.position = "none"),
-    tooltip = c("text")
-  ) |> 
-    plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+  p + theme(legend.position = "none")
+  # plotly::ggplotly(
+    # p + theme(legend.position = "none"),
+    # tooltip = c("text")
+  # ) |> 
+    # plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
 })
 
 sapply(names(p_by_feature), \(ii) {
