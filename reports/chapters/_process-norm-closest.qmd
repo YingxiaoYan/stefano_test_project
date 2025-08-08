@@ -16,11 +16,11 @@ Quality control (QC) samples are used for this evaluation because they are techn
 # Quantification standard samples
 qc_se <- show$extract_quant_qc(norm_se)
 
-mat_ids <- c(mat_id_for_norm, "closest_norm")
+mat_ids <- c("before_norm", "closest_norm")
 rsd_qstd <- show$calc_rsd_qstd(qc_se, mat_ids)
 rsd_qstd <- rsd_qstd |> 
   dplyr::mutate(
-    sign = .data[[mat_id_for_norm]] > closest_norm,
+    sign = .data[["before_norm"]] > closest_norm,
     sign = ifelse(sign, "↓", "↑"),
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))

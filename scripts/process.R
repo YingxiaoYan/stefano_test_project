@@ -11,6 +11,10 @@ option_list <- rlang::list2(
     help = "Remove outlier samples? [default: %default]"
   ),
   optparse::make_option(
+    c("--log_calibration"), type = "logical", default = FALSE,
+    help = "Use log scale for calibration curve fitting? [default: %default]"
+  ),
+  optparse::make_option(
     c("--weight"), type = "character", default = "largestR2",
     help = paste(
       "Weighting method for calibration curve fitting.",
@@ -72,7 +76,10 @@ if (any(is_vIS)) {      # This is optional
   proc_sumexp <- proc$normalize_volumetric(proc_sumexp, is_vIS, "raw")
 } 
 # If no volumetric internal standards, use raw data for normalization that uses internal standards
-mat_id_for_IS_norm <- if (any(is_vIS)) "vol_norm" else "raw"
+mat_id <- if (any(is_vIS)) "vol_norm" else "raw"
+# Label the matrix before normalization as "before_norm"
+proc_sumexp[["before_norm"]] <- proc_sumexp[[mat_id]] |> 
+  labelled::set_variable_labels("No normalization")
 
 # Extract internal standard features
 internal_std_se <- local(
@@ -86,7 +93,7 @@ internal_std_se <- local(
 qc_steps[["internal std. before qc"]] <- internal_std_se
 
 ## Failed internal standards     ---------------
-num_zeros <- proc$count_zeros_per_feature(internal_std_se[[mat_id_for_IS_norm]])
+num_zeros <- proc$count_zeros_per_feature(internal_std_se[["before_norm"]])
 # Mark features with > 10% zeros
 is_failed <- num_zeros > ncol(internal_std_se) * 0.1
 qc_steps[["is failed internal std."]] <- is_failed    # For reports
@@ -95,14 +102,14 @@ is_failed_in_proc_sumexp <- rownames(proc_sumexp) %in% rownames(internal_std_se)
 proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
 internal_std_se <- internal_std_se[!is_failed, ]
 # Impute remaining zeros with the mean of the same type
-internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, mat_id_for_IS_norm)
+internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, "before_norm")
 cat("Failed internal standards (N = ", sum(is_failed), ") are removed.\n", sep = "")
 
 ## Outlier sample removal     ---------------
 
 if (params$rm_outlier) {    # Controlled by the command line option
   # Number of outlying internal standard features per sample
-  n_out <- proc$count_outliers_per_sample(internal_std_se, mat_id_for_IS_norm, times = 3)
+  n_out <- proc$count_outliers_per_sample(internal_std_se, "before_norm", times = 3)
   n_internal_std <- nrow(internal_std_se)
   # Outlier samples: number of outlying features > 20% of the total number of features
   is_outlier <- n_out > (0.2 * n_internal_std)
@@ -121,13 +128,14 @@ if (params$rm_outlier) {    # Controlled by the command line option
   }
 }
 
+
 ## Normalize the data using closest internal standard features     ---------------
 closest_istd <- proc$get_value_of_closest_istd(
   se = proc_sumexp, 
   istd_se = internal_std_se, 
-  mat_id = mat_id_for_IS_norm
+  mat_id = "before_norm"
 )
-proc_sumexp[["closest_norm"]] <- (proc_sumexp[[mat_id_for_IS_norm]] / closest_istd) |> 
+proc_sumexp[["closest_norm"]] <- (proc_sumexp[["before_norm"]] / closest_istd) |> 
   labelled::set_variable_labels("Closest RT normalized")
 cat("Closest internal standard normalization is done.\n")
 
@@ -141,23 +149,22 @@ loess_fit <- proc$get_loess_fit(
   excl_cat = excl_cat,
   overall_rt_range = overall_rt_range,
   span = 1,
-  mat_id = mat_id_for_IS_norm
+  mat_id = "before_norm"
 )
 qc_steps[["LOESS fit"]] <- loess_fit    # For reports
 # Normalize the data by LOESS fit along RT
 rt <- util$retention_time(proc_sumexp)
-mat_for_IS_norm <- proc_sumexp[[mat_id_for_IS_norm]]
 proc_sumexp[["loess_norm"]] <- sapply(
   colnames(proc_sumexp), function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
-    exp(log(mat_for_IS_norm[, sample_id]) - norm_factor)     # Normalize in log scale
+    exp(log(proc_sumexp[["before_norm"]][, sample_id]) - norm_factor)     # Normalize in log scale
   }
 ) |> 
   labelled::set_variable_labels("LOESS normalized")
 cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
-norm_mat_ids <- c("loess_norm", "closest_norm")
+norm_mat_ids <- c("loess_norm", "closest_norm", "before_norm")
 qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
 norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
 qc_steps[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
@@ -197,6 +204,15 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data <- list()
   
   quant_se <- quant_se0     # Keep the unmodified for the next normalized data
+  if (params$log_calibration) {
+    # Log scale for calibration curve fitting
+    quant_se[[mat_id]] <- log1p(quant_se[[mat_id]])    # log1p(x) = log(x + 1)
+    interm_data[["log scale"]] <- TRUE
+    cat("Log scale for calibration curve fitting is applied.\n")
+  } else {
+    interm_data[["log scale"]] <- FALSE
+  }
+
   # Meaningful min and max calibration points + LOD/LLOQ
   fun <- switch(
     params$llox_method,
@@ -240,7 +256,8 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
     proc$fit_and_test_calcurve_model(c_concs,
                                      signal = cc_mat_norm[ii, ],
                                      weight_method = params$weight,
-                                     penalty_quadratic = 0.01)
+                                     penalty_quadratic = 0.01,
+                                     log_scale = params$log_calibration)  # non-negative weights
   })
   stopifnot(identical(names(calcurve_models), rownames(concn_se)))
   SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |> 
@@ -252,7 +269,11 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id) |> 
     labelled::set_label_attribute(
       paste0("Concentration [", unit, "]")
-    ) |> 
+    )
+  if (params$log_calibration) {
+    concn_se[["conc"]] <- exp(concn_se[["conc"]])    # Return to original scale
+  }
+  concn_se[["conc"]] <- concn_se[["conc"]] |>
     proc$replace_below_lod_lloq(limits = SumExp::row_df(concn_se)[, c("lod", "lloq")])
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])

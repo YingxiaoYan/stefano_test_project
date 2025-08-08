@@ -17,6 +17,11 @@ runProcessUI <- function(uiId) {
       label = "Quality control: remove outlier samples?",
       value = TRUE,
     ),
+    shiny::checkboxInput(
+      inputId = ns("log_calibration"),
+      label = "Log scale for calibration curve fitting?",
+      value = FALSE,
+    ),
     shiny::radioButtons(
       inputId = ns("weight"),
       label = "Weighting method",
@@ -57,6 +62,7 @@ runProcessServer <- function(serverId) {
     what = "Processing data", 
     param_ids = c(
       "rm_outlier", 
+      "log_calibration",
       "weight", 
       "llox_method"
     )

@@ -19,7 +19,9 @@ The calibration curve of each of the chemicals is presented below.
 
 ```{r}
 #| purl: true
-calib_se <- calib_interm_data[["calcurve_se within range"]]
+# Whether the calibration curve is fitted to the log-transformed data
+log_scale <- calib_interm_data[["log scale"]]
+cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
 
 calcurve_to_show_df <- local({
   cc_se <- calib_interm_data[["calcurve_se incl failed"]]
@@ -34,7 +36,6 @@ calcurve_to_show_df <- local({
       )
     )
 })
-cal_data_id <- util$mat_id_before_blank_subtraction(DATA_ID)
 # Split the data by feature
 lst_calcurve_to_show_df <- split(calcurve_to_show_df, calcurve_to_show_df$.row_id)
 # Sort the features by name
@@ -92,11 +93,15 @@ ggpubr::as_ggplot(leg)
 #| results: 'asis'
 p_by_feature <- lapply(lst_calcurve_to_show_df, \(dfm) {
   p <- calcurve_plot(dfm)
-  plotly::ggplotly(
-    p + theme(legend.position = "none"),
-    tooltip = c("text")
-  ) |> 
-    plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+  if (log_scale) {
+    p <- p + scale_x_log10() + scale_y_log10()
+  }
+  p + theme(legend.position = "none")
+  # plotly::ggplotly(
+  #   p + theme(legend.position = "none"),
+  #   tooltip = c("text")
+  # ) |> 
+  #   plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
 })
 
 sapply(names(p_by_feature), \(ii) {
@@ -120,6 +125,11 @@ sapply(names(p_by_feature), \(ii) {
 ```{r}
 #| purl: true
 concn_se <- calib_interm_data[["concn_se with conc"]]
+calib_se <- calib_interm_data[["calcurve_se within range"]]
+if (log_scale) {
+  concn_se[[DATA_ID]] <- expm1(concn_se[[DATA_ID]])    # Return to original scale
+  calib_se[[DATA_ID]] <- expm1(calib_se[[DATA_ID]])    # Return to original scale
+}
 ```
 
 ### Calibration models
@@ -190,7 +200,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| label: 'calibration-curve-with-all-samples-legend'
 #| fig-width: 10
 #| fig-height: 1
-p <- show$ggplot_calcurve_samples(concn_se, calib_se, DATA_ID, COLORS_OF_CLASSES)
+p <- show$ggplot_calcurve_samples(concn_se, calib_se, DATA_ID, COLORS_OF_CLASSES, log_scale)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
@@ -203,7 +213,8 @@ f_names <- sapply(lst_concn_se, \(se) SumExp::row_df(se)$feature_name)
 lst_concn_se <- lst_concn_se[order(f_names)]
 
 p_by_feature <- lapply(lst_concn_se, \(se) {
-  p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, ncol = 1)
+  p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, 
+                                          ncol = 1, log_scale = log_scale)
   p + theme(legend.position = "none")
   # plotly::ggplotly(
     # p + theme(legend.position = "none"),
@@ -261,7 +272,7 @@ fig_dim <- c(
 )
 out_width <- paste0(round(fig_dim[1] / 10 * 100), "%")
 p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, 
-                                        COLORS_OF_CLASSES, ncol = n_cols) +
+                                        COLORS_OF_CLASSES, ncol = n_cols, log_scale = log_scale) +
   show$geom_best_model_text(to_show_excl_qc)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)

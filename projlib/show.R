@@ -191,18 +191,30 @@ ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
 #' Calibration curve line
 #'
 #' @param lim_df A data frame with columns `lloq`, `max_c_conc`, and `calcurve_model`.
+#' @param log_scale A logical value indicating whether the calibration curve is fitted in log scale
 #' @param color,alpha,... Arguments passed to `ggplot2::geom_line`
 #' @returns A [`ggplot2::geom_line`] object.
 #' @md
 #' @export
-geom_calibration_curve_line <- function(lim_df, color = "cadetblue", alpha = 0.7, ...) {
+geom_calibration_curve_line <- function(lim_df, log_scale = FALSE, color = "cadetblue", alpha = 0.7, ...) {
   # Artificial concentration values for smooth calibration curve line
   ccline_df <- purrr::pmap(lim_df, \(lloq, max_c_conc, calcurve_model, ...) {
-    conc <- sort(c(
-      seq(lloq, max_c_conc, length.out = 100),
-      seq(lloq, min(lloq * 10, max_c_conc), length.out = 100)[-c(1, 100)]   # Zoom-in
-    ))
+    conc <- if (log_scale) {
+      # Concentration values in log scale
+      seq(log(lloq), log(max_c_conc), length.out = 200)
+    } else {
+      # Concentration values in linear scale
+      sort(c(
+        seq(lloq, max_c_conc, length.out = 100),
+        seq(lloq, min(lloq * 10, max_c_conc), length.out = 100)[-c(1, 100)]   # Zoom-in
+      ))
+    }
+    
     .y_value <- stats::predict.lm(calcurve_model$inv_model, data.frame(conc = conc))
+    if (log_scale) {
+      .y_value <- expm1(.y_value)    # Return to original scale
+      conc <- exp(conc)    # Return to original scale
+    }
     tibble::tibble(conc = conc, .y_value = .y_value, ...)
   }) |>
     dplyr::bind_rows() |>
@@ -227,11 +239,13 @@ geom_calibration_curve_line <- function(lim_df, color = "cadetblue", alpha = 0.7
 #'   `x_se` should be a subset of `cc_se`.
 #' @param mat_id A character of the assay ID to be plotted in the y-axis
 #' @param colors_of_classes A named character vector of colors for each class
+#' @param log_scale A logical value indicating whether the calibration curve has been fitted in log
+#'   scale
 #'
 #' @returns A ggplot object.
 #' @md
 #' @export
-ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
+ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_scale = FALSE) {
   .chq_if_a_single_char(mat_id)
   feature_ids <- rownames(x_se)           # Limited to those features in the `x_se`
   cc_se <- cc_se[feature_ids, ]
@@ -250,7 +264,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
     dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
  
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
-    geom_calibration_curve_line(lim_df) +
+    geom_calibration_curve_line(lim_df, log_scale = log_scale) +
     # Shade the region below the LLOQ
     ggplot2::geom_rect(
       ggplot2::aes(xmin = 0, xmax = lloq, ymin = 0, ymax = Inf),
@@ -267,6 +281,9 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes) {
       alpha = 0.5,
       inherit.aes = FALSE
     )
+  if (log_scale) {
+    out <- out + ggplot2::scale_x_log10() + ggplot2::scale_y_log10()
+  }
   out <- suppressWarnings(     # Unknown aesthetics: text
     out +
       # Remaining calibration samples
@@ -298,8 +315,9 @@ ggplot_calcurve_samples_facet <- function(x_se,
                                           colors_of_classes,
                                           scales = "free",
                                           ncol = 3,
+                                          log_scale = FALSE,
                                           ...) {
-  ggplot_calcurve_samples(x_se, cc_se, mat_id, colors_of_classes) +
+  ggplot_calcurve_samples(x_se, cc_se, mat_id, colors_of_classes, log_scale) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }
 

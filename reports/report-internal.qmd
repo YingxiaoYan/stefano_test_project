@@ -39,8 +39,6 @@ set.seed(7579)
 #| label: 'vIS-variable-setup'
 #| purl: true
 is_vIS <- util$std_type(raw_se) == "vIS"
-# Feature intensity to be used for normalization
-mat_id_for_norm <- if (any(is_vIS)) "vol_norm" else "raw"
 ```
 
 ```{r}

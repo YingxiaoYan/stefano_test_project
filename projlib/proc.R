@@ -765,6 +765,7 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
 #'   - `1/x`: Inverse of the concentration
 #'   - `1/x2`: Inverse of the concentration squared
 #' @param penalty_quadratic The penalty for the quadratic models
+#' @param log_scale Whether to use the logarithmic scale for the signal and concentration.
 #'
 #' @returns A list with the best model, the name of it, the R2 values of all models, and the
 #'   number of unique concentrations. The best model is chosen as the model with the highest R2
@@ -781,7 +782,8 @@ NULL
 fit_and_test_calcurve_model <- function(conc,
                                         signal,
                                         weight_method = "largestR2",
-                                        penalty_quadratic = 0) {
+                                        penalty_quadratic = 0,
+                                        log_scale = FALSE) {
   if (all(is.na(signal) | signal == 0)) {
     return(list(
       "best_model" = function(x) x,
@@ -798,6 +800,11 @@ fit_and_test_calcurve_model <- function(conc,
   # Limit the weight alternatives when one has been chosen
   if (weight_method != "largestR2") {
     weights_alt <- weights_alt[weight_method]
+  }
+  # Log scale
+  if (log_scale) {
+    conc <- log(conc)
+    # `signal` is assumed to be log-transformed already
   }
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
@@ -817,7 +824,7 @@ fit_and_test_calcurve_model <- function(conc,
     "R2s" = r2s,
     "R2s_adj" = r2s_adj,
     "n_conc" = length(unique(conc[!is.na(signal)])),      # Number of unique concentrations
-    "inv_model" = models[[i_best]]$inv_mod,
+    "inv_model" = models[[i_best]]$inv_mod
   )
 }
 #' @param weights weights for linear model fit
