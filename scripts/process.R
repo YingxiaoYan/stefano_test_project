@@ -36,6 +36,7 @@ params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
+  "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
   "  - LOD/LLOQ method:", params$llox_method, "\n"
 )

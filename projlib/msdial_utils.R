@@ -16,7 +16,6 @@ conv_tbl <- tibble::tribble(
   "Average Mz",      "mz",           "Average M/Z",
   "Quant mass",      "mz",           "Quant Mass",
   "Average Rt(min)", ".rt",          "Average Retention Time (min)",
-  "S/N average",     "sn_ratio",     "Average S/N Ratio",
   "Comment",         ".std_type",    "Standard Type", # e.g. "Quant", "IS", "vIS", or NA
 )
 

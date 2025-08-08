@@ -64,7 +64,6 @@ features <- dplyr::rename_with(features, to_valid_id) |>
     feature_name,
     mz,
     .rt,
-    sn_ratio,
     .std_type,
   ) |> 
   as.data.frame()        # To have row names
@@ -73,7 +72,7 @@ features <- dplyr::rename_with(features, to_valid_id) |>
 rownames(features) <- make.names(features$feature_name, unique = TRUE)
 features <- features |> 
   dplyr::mutate(
-    dplyr::across(c(mz, .rt, sn_ratio), as.numeric),
+    dplyr::across(c(mz, .rt), as.numeric),
     # Ignore other variants
     .std_type = dplyr::case_when(
       .std_type %in% c("Quant", "IS", "vIS") ~ .std_type,

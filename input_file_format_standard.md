@@ -46,13 +46,12 @@ The initial set of columns contains information about features.
   `"Alignment ID"`,
   `"Average Rt(min)"`,
   `"Average Mz"`,
-  `"Metabolite name"`,
-  `"S/N average"` and
+  `"Metabolite name"` and
   `"Comment"`
 
 * **Purpose**:
 
-  - These 5 columns, `Alignment ID`, `Average Rt(min)`, `Average Mz`, `Metabolite name`, and `S/N average` will be read and copied to an output file, concentration table. 
+  - These 5 columns, `Alignment ID`, `Average Rt(min)`, `Average Mz`, and `Metabolite name` will be read and copied to an output file, concentration table. 
   - The `Comment` column will be read and used for data processing but **not** copied to the output file.
 
 * **Column Names**:
