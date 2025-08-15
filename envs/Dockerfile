@@ -9,17 +9,10 @@ COPY Lato/ /usr/local/share/fonts/Lato/
 
 
 # Install system dependencies for Quarto and other packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
     wget \
     curl \
-    # gdebi-core \
-    # libcurl4-openssl-dev \
-    # libssl-dev \
-    # libxml2-dev \
-    # libfontconfig1-dev \
-    # libharfbuzz-dev \
-    # libfribidi-dev \
-    # libglpk-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Quarto

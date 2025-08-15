@@ -242,11 +242,13 @@ sapply(names(p_by_feature), \(ii) {
 #### All except `QC` samples
 
 ```{r}
+#| purl: true
 classes_excl_qc_blank <- local(envir = list(se = concn_se), {
   not_qc <- util$ctrl_smpl_cat(se) != "QC"
   SumExp::col_df(se)[["Class"]][not_qc] |> 
     unique()
 })
+to_show_excl_qc <- concn_se[, quote(Class %in% classes_excl_qc_blank)]
 ```
 
 The data of those `r english::words(length(classes_excl_qc_blank))` classes are presented on the calibration curve.
@@ -257,38 +259,59 @@ The shaded gray area represents the region below the lower-limit of quantificati
 ```{r}
 #| fig-width: 10
 #| fig-height: 1
-to_show_excl_qc <- concn_se[, quote(Class %in% classes_excl_qc_blank)]
-# Figure dimensions
-n_chem <- nrow(calib_se)
-n_cols <- 2    # Number of columns in the plot (facets)
-n_rows <- ceiling(n_chem / n_cols)    # Number of rows in the plot
-fig_dim <- c(
-  # ## 3 columns
-  # if (n_chem >= 3) 12 else n_chem * 4,  # Width
-  # ((n_chem - 1) %/% 3 + 1) * 3.6 + 0.5       # Height
-  ## 1 column
-  9,  # Width
-  n_rows * (7 / n_cols) + 1    # Height
-)
-out_width <- paste0(round(fig_dim[1] / 10 * 100), "%")
-p <- show$ggplot_calcurve_samples_facet(to_show_excl_qc, calib_se, DATA_ID, 
-                                        COLORS_OF_CLASSES, ncol = n_cols, log_scale = log_scale) +
-  show$geom_best_model_text(to_show_excl_qc)
+p <- show$ggplot_calcurve_samples(to_show_excl_qc, calib_se, DATA_ID, COLORS_OF_CLASSES, log_scale)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
 
 ```{r}
-#| label: 'calibration-curve-with-quant-sample'
-#| fig-width: !expr fig_dim[1]
-#| fig-height: !expr fig_dim[2]
-#| out.width: !expr out_width
-p + theme(legend.position = "none")
-# plotly::ggplotly(
-#   p + theme(legend.position = "none"),
-#   tooltip = c("text")
-# ) |> 
-#   plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 50))
+#| label: 'calibration-curve-with-all-samples-excl-qc'
+#| results: 'asis'
+if (nrow(to_show_excl_qc) == 0) {
+  cat("No chemicals to show in the calibration curve.\n")
+} else {
+  # Sort by feature name
+  f_names_ord <- order(SumExp::row_df(to_show_excl_qc)$feature_name)
+  to_show_excl_qc <- to_show_excl_qc[f_names_ord, ]
+  # Split by each row
+  n_chem <- nrow(to_show_excl_qc)
+  n_cols <- 2    # Number of columns in the plot (facets)
+  n_rows <- ceiling(n_chem / n_cols)    # Number of rows in the plot
+  i_grp <- rep(seq_len(n_rows - 1), each = n_cols)
+  i_grp <- c(i_grp, rep(n_rows, (n_chem - 1) %% n_cols + 1))
+  i_grp <- sprintf("g%04d", i_grp)
+  lst_show_se <- SumExp::split_rows(to_show_excl_qc, i_grp)
+
+  p_by_row <- lapply(lst_show_se, \(se) {
+    p <- show$ggplot_calcurve_samples_facet(se, calib_se, DATA_ID, COLORS_OF_CLASSES, 
+                                            ncol = n_cols, log_scale = log_scale)
+    p <- p + show$geom_best_model_text(se)
+    p + theme(legend.position = "none")
+    # plotly::ggplotly(
+    #   p + theme(legend.position = "none"),
+    #   tooltip = c("text")
+    # ) |> 
+    #   plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 50))
+  })
+
+  sapply(names(p_by_row), \(ii) {
+    n_chem_in_row <- nrow(lst_show_se[[ii]])
+    fig_width <- n_chem_in_row * 4.5    # Width 
+    out_width <- paste0(fig_width * 10, "%")
+    rlang::chr(
+      "```{r}",
+      "#| label: 'calcurve-with-all-samples-excl-qc-{{ii}}'",
+      "#| fig-width: {{fig_width}}",
+      "#| fig-height: 4.8",
+      "#| out-width: '{{out_width}}'",
+      "p_by_row[['{{ii}}']]",
+      "```",
+    ) |> 
+      knitr::knit_expand(text = _)
+  }) |>
+    knitr::knit_child(text = _, quiet = TRUE) |> 
+    knitr::asis_output()    # print `asis`
+}
 ```
 
 ## Removal of the chemicals with no measurement samples
