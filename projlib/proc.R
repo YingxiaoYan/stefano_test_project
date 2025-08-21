@@ -245,44 +245,44 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
 
 #' Subtract the average values of the blank samples from the samples
 #'
-#' @param x_se A [`SumExp::SumExp`] object of the samples
+#' @param sumexp A [`SumExp::SumExp`] object of the samples
 #' @param no_change A condition to select the samples that should not be changed.
-#' @param mat_ids The names of matrices in `x_se`, from which the blank values are subtracted
+#' @param mat_ids The names of matrices in `sumexp`, from which the blank values are subtracted
 #' @param out_mat_ids The names of the output matrices in the returned object.
 #'   These should be the same size as `mat_ids` in the same order.
 #'
 #' @returns A [`SumExp::SumExp`] object with the blank values subtracted.
-#'   The columns of the blanks are removed from the `x_se`.
+#'   The columns of the blanks are removed from the `sumexp`.
 #' @md
 #' @export
-add_blank_subtracted_sumexp <- function(x_se,
+add_blank_subtracted_sumexp <- function(sumexp,
                                         no_change,
                                         mat_ids,
                                         out_mat_ids) {
   stopifnot(length(mat_ids) == length(out_mat_ids))
-  g <- ifelse(util$ctrl_smpl_cat(x_se) == "Blank", "Blank", "Other")
-  se <- SumExp::split_columns(x_se, g)
+  g <- ifelse(util$ctrl_smpl_cat(sumexp) == "Blank", "Blank", "Other")
+  se <- SumExp::split_columns(sumexp, g)
   blank_se <- se[["Blank"]]
-  x_se <- se[["Other"]]
+  sumexp <- se[["Other"]]
   no_change <- no_change[g == "Other"]    # Blank has been split
   for (ii in seq(mat_ids)) {      # Paired `mat_ids` and `out_mat_ids`
     mat_id <- mat_ids[ii]
-    x_mat <- x_se[[mat_id]]
+    x_mat <- sumexp[[mat_id]]
     x_lab <- labelled::get_label_attribute(x_mat)
     # Mean per feature
     blank_mean <- rowMeans(blank_se[[mat_id]])
-    # Blank means are saved in the row_df of x_se with this name
+    # Blank means are saved in the row_df of sumexp with this name
     r_nm <- paste0(mat_id, "_blank_mean")
-    SumExp::row_df(x_se)[[r_nm]] <- blank_mean |>
+    SumExp::row_df(sumexp)[[r_nm]] <- blank_mean |>
       labelled::set_label_attribute(paste("Blank mean of", x_lab))
     # <<---- Subtract by blank average ---->> #
     mat_subt <- x_mat - blank_mean
     mat_subt[mat_subt < 0] <- 0
     mat_subt[, no_change] <- x_mat[, no_change]
-    x_se[[out_mat_ids[ii]]] <- mat_subt |>
+    sumexp[[out_mat_ids[ii]]] <- mat_subt |>
       labelled::set_label_attribute(paste(x_lab, "(blank adjusted)"))
   }
-  x_se
+  sumexp
 }
 
 # Calibration ----------------------------------------------------------------------------
@@ -587,25 +587,29 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts,
 
 #' Find the calibration curve limits and the LOD/LLOQ
 #'
-#' @param x_se A [`SumExp::SumExp`] object including the calibration curve samples
-#' @param mat_id The name of a matrix in `x_se`
-#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals
-#' @returns
-#'   A data frame with all the limits. The row names are the chemical IDs.
-#'   The columns are `min_c_conc`, `max_c_conc`, `lod`, and `lloq`, which are the lower and upper
-#'   limits of the calibration curve, the LOD and LLOQ, respectively.
+#' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
+#' @param mat_id The name of a matrix in `sumexp`
+#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals. It is expected to
+#'   take three arguments: `mat_m`, `mat_sd`, and `times`. The function should return a numeric
+#'   vector of the LOD or LLOQ signals for each chemical.
+#'
+#' @returns A [`SumExp::SumExp`] object with the calibration curve limits and the LOD/LLOQ. The
+#'   added columns to the [`SumExp::row_df()`] of `sumexp` are: `min_c_conc`, `max_c_conc`, `lod`,
+#'   `lloq` and `lloq_avg_signal`, which are the lower and upper limits of the calibration curve,
+#'   the LOD and LLOQ, and the average signal of the LLOQ point, respectively.
 #'   Some values in the columns are set to have the following meanings:
 #'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
 #'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
 #'   * `max_c_conc` = 0  : All values are zero for the row
 #'   * `max_c_conc` = -9 : No valid maximum concentration
+#'
 #' @md
 #' @seealso [max_conc_for_curve()]
 #' @export
-find_calib_lim_pts_and_llox_from_llox_signal <- function(x_se,
+find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
                                                          mat_id,
                                                          compute_llox_signal_fun) {
-  se <- util$split_into_calcurve_and_other(x_se, out_names = c("cc", "quant"))
+  se <- util$split_into_calcurve_and_other(sumexp, out_names = c("cc", "quant"))
   lx <- list_mean_and_sd(se$cc, mat_id)
   mat_m <- lx$mat_m             # `mat_m` is the mean signal matrix
   mat_sd <- lx$mat_sd           # `mat_sd` is the standard deviation matrix
@@ -619,6 +623,8 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(x_se,
   mat_rsd <- mat_sd / mat_m
   mat_cond <- mat_m > lloq_signal & mat_rsd <= 0.2
   lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
+  # Average signal of the LLOQ point
+  lloq_avg_signal <- values_of_given_conc_in_mat(mat_m, lloq)
   # Calibration curve concentration lower limit.
   min_c_conc <- lloq
   min_c_conc <- labelled::set_label_attribute(min_c_conc, "Minimum Concentration")
@@ -629,74 +635,27 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(x_se,
     make_sure_to_have_enough_calcurve(min_c_conc, conc_pts, min_n = 3, enough_n = 5)
   stopifnot(identical(names(min_c_conc), names(max_c_conc)))
   # data.frame for SumExp::row_df, instead of tibble
-  out <- data.frame(min_c_conc, max_c_conc, lod, lloq)
-  stopifnot(identical(rownames(out), rownames(x_se)))
-  out
-}
-
-#### Access calibration curve limits ----------
-
-#' Limits in the calibration curve
-#'
-#' @name calibration_limit_pts
-#'
-#' @param x_se A [`SumExp::SumExp`] object
-#' @md
-NULL
-
-#' @description
-#'   **`extract_calibration_limit_pts`**:
-#'   Extract the calibration curve limits
-#' @rdname calibration_limit_pts
-#' @returns **`extract_calibration_limit_pts`** :
-#'
-#'   A data frame with all the limits. The row names are the chemical IDs.
-#'   The columns are `min_c_conc` and `max_c_conc`, which are the lower and upper limits of the
-#'   calibration curve, respectively. Some values in the columns are set to have the following
-#'   meanings:
-#'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
-#'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
-#'   * `max_c_conc` = 0  : All values are zero for the row
-#'   * `max_c_conc` = -9 : No valid maximum concentration
-#' @md
-#' @seealso [max_conc_for_curve()]
-#' @export
-extract_calibration_limit_pts <- function(x_se) {
-  SumExp::row_df(x_se)[, c("min_c_conc", "max_c_conc")]
-}
-#' @description
-#'   **`calibration_min_pts`**:   Extract the minimum limits
-#' @rdname calibration_limit_pts
-#' @md
-#' @export
-calibration_min_pts <- function(x_se) {
-  SumExp::row_df(x_se)[["min_c_conc"]]
-}
-#' @description
-#'   **`calibration_max_pts`**:   Extract the maximum limits
-#' @rdname calibration_limit_pts
-#' @md
-#' @export
-calibration_max_pts <- function(x_se) {
-  SumExp::row_df(x_se)[["max_c_conc"]]
+  limits_df <- data.frame(min_c_conc, max_c_conc, lod, lloq, lloq_avg_signal)
+  stopifnot(identical(rownames(limits_df), rownames(sumexp)))
+  SumExp::row_df(sumexp) <- cbind(SumExp::row_df(sumexp), limits_df)
+  sumexp
 }
 
 #### Post processing calibration working range setting ----------
 
 #' Check if the calibration curve has a proper calibration range
 #'
-#' @param x_se A [`SumExp::SumExp`] object of the calibration curve samples.
+#' @param sumexp A [`SumExp::SumExp`] object of the calibration curve samples.
 #'   The object should have the calibration curve limits added by
 #'   [add_calibration_curve_limits()]
 #'   The minimum and maximum points are required.
 #'
 #' @returns A logical vector
-#' @seealso [extract_calibration_limit_pts()], [max_conc_for_curve()] for what the limits mean
 #' @md
 #' @export
-has_proper_calibration_range <- function(x_se) {
-  min_c_conc <- calibration_min_pts(x_se)
-  max_c_conc <- calibration_max_pts(x_se)
+has_proper_calibration_range <- function(sumexp) {
+  min_c_conc <- SumExp::row_df(sumexp)[["min_c_conc"]]
+  max_c_conc <- SumExp::row_df(sumexp)[["max_c_conc"]]
   # No valid concentration point even at the top of the calibration curve
   no_valid_conc <- is.na(min_c_conc)
   # All concentrations are zero
@@ -746,12 +705,11 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
   x[[mat_id]] <- replace_outside_concentration_range_with_na.matrix(
     x = x[[mat_id]],
     conc = util$spiked_conc_pts(x),
-    min_conc = calibration_min_pts(x),
-    max_conc = calibration_max_pts(x)
+    min_conc = SumExp::row_df(x)[["min_c_conc"]],
+    max_conc = SumExp::row_df(x)[["max_c_conc"]]
   )
   x
 }
-
 
 ## Calibration curve fitting ----------
 
@@ -858,15 +816,15 @@ linear_calcurve_model <- function(conc, signal, weights) {
 
 #' Compute the concentration of features
 #'
-#' @param x_se A [`SumExp::SumExp`] object of the samples
-#' @param mat_id The name of a matrix in `x_se`
+#' @param sumexp A [`SumExp::SumExp`] object of the samples
+#' @param mat_id The name of a matrix in `sumexp`
 #'
 #' @returns A matrix of the concentration of features
 #' @md
 #' @export
-compute_concentration <- function(x_se, mat_id) {
-  mat <- x_se[[mat_id]]
-  models <- SumExp::row_df(x_se)$calcurve_model
+compute_concentration <- function(sumexp, mat_id) {
+  mat <- sumexp[[mat_id]]
+  models <- SumExp::row_df(sumexp)$calcurve_model
   # Calculate the concentration of each feature
   conc <- sapply(rownames(mat), \(i_feature) {
     v <- mat[i_feature, ]
@@ -882,20 +840,61 @@ compute_concentration <- function(x_se, mat_id) {
 
 #' Replace the values below the LLOQ and LOD
 #'
-#' @param conc A matrix of concentrations
-#' @param limits A data frame of the LLOQ and LOD. The names of the columns in `limits` should
-#'   have `lloq` and `lod`.
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param conc_mat_id The name of a matrix in `sumexp` with the concentration values
 #'
-#' @returns A matrix with the values below the LLOQ and LOD replaced
+#' @returns A [`SumExp::SumExp`] object with the concentration values below the LLOQ replaced with
+#'   half of the LLOQ and the concentration values below the LOD replaced with 1/4 of the LLOQ. The
+#'   concentration values are replaced in the `conc_mat_id` matrix.
+#'
 #' @md
 #' @export
-replace_below_lod_lloq <- function(conc, limits) {
-  stopifnot(nrow(conc) == nrow(limits))
-  lab <- labelled::get_label_attribute(conc)
-  out <- conc
+replace_below_lod_lloq <- function(sumexp, conc_mat_id) {
+  stopifnot(conc_mat_id %in% names(sumexp))
+  c_mat <- sumexp[[conc_mat_id]]
+  lod <- SumExp::row_df(sumexp)[, "lod"]
+  lloq <- SumExp::row_df(sumexp)[, "lloq"]
+
+  out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
-  out <- ifelse(conc < limits$lloq, limits$lloq / 2, out)
+  out <- ifelse(c_mat < lloq, lloq / 2, out)
   # Replace the values below LOD with 1/4 of the LLOQ
-  out <- ifelse(conc < limits$lod, limits$lloq / 4, out)
-  labelled::set_label_attribute(out, lab)
+  out <- ifelse(c_mat < lod, lloq / 4, out)
+  out <- labelled::copy_labels(c_mat, out)
+  sumexp[[conc_mat_id]] <- out
+  sumexp
+}
+
+#' Replace concentration values below LLOQ
+#' 
+#' Replace concentration values of which the signal is below the average signal of the LLOQ
+#' with the concentration value at the average signal of the LLOQ.
+#' 
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param signal_mat_id The name of a matrix in `sumexp` with the signal values that have been used
+#'   to compute the concentration values
+#' @param conc_mat_id The name of a matrix in `sumexp` with the concentration values
+#' 
+#' @returns A [`SumExp::SumExp`] object with the concentration values below LLOQ replaced with the
+#'   concentration value at the average signal of the LLOQ.
+#' @md
+#' @export
+replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat_id) {
+  stopifnot(conc_mat_id %in% names(sumexp))
+  stopifnot(signal_mat_id %in% names(sumexp))
+  signal_mat <- sumexp[[signal_mat_id]]
+  c_mat <- sumexp[[conc_mat_id]]
+  lloq <- SumExp::row_df(sumexp)[["lloq"]]
+  lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
+  calcurve_models <- SumExp::row_df(sumexp)[["calcurve_model"]]
+  # Concentration at the average signal of the LLOQ
+  conc_at_lloq_signal <- seq_len(nrow(signal_mat)) |>
+    purrr::map_dbl(~ calcurve_models[[.x]]$best_model(lloq_avg_signal[.x]))
+
+  out <- c_mat
+  # Replace the values below LLOQ with the concentration value at the average signal of the LLOQ
+  out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, conc_at_lloq_signal, out)
+  out <- labelled::copy_labels(c_mat, out)
+  sumexp[[conc_mat_id]] <- out
+  sumexp
 }

@@ -170,7 +170,7 @@ qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
 norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
 qc_steps[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
 proc_sumexp <- proc$add_blank_subtracted_sumexp(
-  x_se = proc_sumexp,
+  sumexp = proc_sumexp,
   no_change = util$ctrl_smpl_cat(proc_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
@@ -221,8 +221,7 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
     "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
   )
   interm_data[["llox method"]] <- params$llox_method
-  limits_df <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
-  SumExp::row_df(quant_se) <- cbind(SumExp::row_df(quant_se), limits_df)
+  quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
   
   # Exclude the chemicals having no appropriate concentration range
   has_proper_range <- proc$has_proper_calibration_range(quant_se)
@@ -231,7 +230,6 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
     SumExp::row_df(cc) <- cbind(SumExp::row_df(cc), has_proper_range)
     cc
   })
-  interm_data[["calcurve conc ranges"]] <- cbind(limits_df, has_proper_range)
   if (sum(has_proper_range) == 0) {     # No chemicals with proper range
     warning("NO Valid calibration points for any chemical. But reports can be generated.")
     qc_steps[[paste0("calibration/", mat_id)]] <- interm_data
@@ -244,8 +242,6 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   lst_q_se <- util$split_into_calcurve_and_other(quant_se, c("cc", "concn"))
   calcurve_se <- lst_q_se$cc
   concn_se    <- lst_q_se$concn
-  interm_data[["calcurve_se all range"]] <- calcurve_se
-  
   # Replace the values outside the concentration range with NA
   calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
   interm_data[["calcurve_se within range"]] <- calcurve_se
@@ -274,8 +270,9 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   if (params$log_calibration) {
     concn_se[["conc"]] <- exp(concn_se[["conc"]])    # Return to original scale
   }
-  concn_se[["conc"]] <- concn_se[["conc"]] |>
-    proc$replace_below_lod_lloq(limits = SumExp::row_df(concn_se)[, c("lod", "lloq")])
+  concn_se <- concn_se |>
+    proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
+    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
   labelled::label_attribute(concn_se) <- norm_lab

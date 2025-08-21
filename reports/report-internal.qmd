@@ -111,7 +111,7 @@ if (!SumExp::metadata(raw_se)$is_non_target_mode) {
   qmd <- "process-calibration-llox_from_llox_signal.qmd"
   cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
   # Stop here if the calibration is not performed
-  if (is.null(calib_interm_data[["calcurve_se all range"]])) {
+  if (is.null(calib_interm_data[["calcurve_se within range"]])) {
     cat("\n\n# No calibration\n\n")
     cat("Because it is not possible to perform calibration with the provided data.\n\n")
   } else {

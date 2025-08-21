@@ -36,7 +36,10 @@ table(v) |>
 
 ```{r}
 #| purl: true
-limit_df <- calib_interm_data[["calcurve conc ranges"]]
+limit_df <- local({
+  cc_se <- calib_interm_data[["calcurve_se incl failed"]]
+  SumExp::row_df(cc_se)[, c("min_c_conc", "max_c_conc", "lod", "lloq", "has_proper_range")]
+})
 ```
 
 * LOD and LLOQ
