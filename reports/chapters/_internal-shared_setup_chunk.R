@@ -15,7 +15,7 @@ box::use(
   io = projlib/check_io_exist,       # Check input/output files
 )
 
-DATA_ID <- util$mat_id_of_blank_subtracted(params$norm_method)
+PROC_MAT_ID <- util$mat_id_of_blank_subtracted(params$norm_method)
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
@@ -40,7 +40,7 @@ io$check_io_exist(FILE)
 # Load the intermediate data during QC
 qc_steps <- readRDS(FILE$i$qc)
 stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
-calib_interm_data <- qc_steps[[paste0("calibration/", DATA_ID)]]
+calib_interm_data <- qc_steps[[paste0("calibration/", PROC_MAT_ID)]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports

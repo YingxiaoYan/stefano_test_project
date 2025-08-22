@@ -866,17 +866,18 @@ replace_below_lod_lloq <- function(sumexp, conc_mat_id) {
 }
 
 #' Replace concentration values below LLOQ
-#' 
-#' Replace concentration values of which the signal is below the average signal of the LLOQ
-#' with the concentration value at the average signal of the LLOQ.
-#' 
+#'
+#' Replace concentration values of which the signal is below the average signal of the LLOQ with a
+#' half of the LLOQ concentration value.
+#'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @param signal_mat_id The name of a matrix in `sumexp` with the signal values that have been used
 #'   to compute the concentration values
 #' @param conc_mat_id The name of a matrix in `sumexp` with the concentration values
-#' 
-#' @returns A [`SumExp::SumExp`] object with the concentration values below LLOQ replaced with the
-#'   concentration value at the average signal of the LLOQ.
+#'
+#' @returns A [`SumExp::SumExp`] object with the concentration values below LLOQ after the
+#'   replacement.
+#'
 #' @md
 #' @export
 replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat_id) {
@@ -886,14 +887,40 @@ replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
   lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
-  calcurve_models <- SumExp::row_df(sumexp)[["calcurve_model"]]
-  # Concentration at the average signal of the LLOQ
-  conc_at_lloq_signal <- seq_len(nrow(signal_mat)) |>
-    purrr::map_dbl(~ calcurve_models[[.x]]$best_model(lloq_avg_signal[.x]))
 
   out <- c_mat
-  # Replace the values below LLOQ with the concentration value at the average signal of the LLOQ
-  out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, conc_at_lloq_signal, out)
+  # Replace the values below LLOQ with half of the LLOQ
+  out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, lloq / 2, out)
+  out <- labelled::copy_labels(c_mat, out)
+  sumexp[[conc_mat_id]] <- out
+  sumexp
+}
+
+#' Replace concentration values whose signal is above the average signal of the LLOQ
+#' 
+#' Replace concentration values of which the signal is above the average signal of the LLOQ with
+#' the LLOQ concentration value.
+#'
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param signal_mat_id The name of a matrix in `sumexp` with the signal values that have been used
+#'   to compute the concentration values
+#' @param conc_mat_id The name of a matrix in `sumexp` with the concentration values
+#'
+#' @returns A [`SumExp::SumExp`] object with the concentration values above LLOQ after the
+#'   replacement.
+#' @md
+#' @export
+replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat_id) {
+  stopifnot(conc_mat_id %in% names(sumexp))
+  stopifnot(signal_mat_id %in% names(sumexp))
+  signal_mat <- sumexp[[signal_mat_id]]
+  c_mat <- sumexp[[conc_mat_id]]
+  lloq <- SumExp::row_df(sumexp)[["lloq"]]
+  lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
+
+  out <- c_mat
+  # Replace the values above LLOQ with LLOQ
+  out <- ifelse(signal_mat > lloq_avg_signal & out <= lloq, lloq, out)
   out <- labelled::copy_labels(c_mat, out)
   sumexp[[conc_mat_id]] <- out
   sumexp

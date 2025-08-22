@@ -272,7 +272,8 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   }
   concn_se <- concn_se |>
     proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
-    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
+    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
+    proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
   labelled::label_attribute(concn_se) <- norm_lab
