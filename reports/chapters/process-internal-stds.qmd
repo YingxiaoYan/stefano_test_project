@@ -1,7 +1,22 @@
+---
+title: Internal Standard (IS) Normalization
+params:
+  norm_method: "loess_norm"        # No need here but needed by `_internal-shared_setup_chunk.R`
+---
 
 ```{r}
 #| purl: true
-internal_std_se <- qc_steps[["internal std. before qc"]]
+#| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
+#| eval: !expr '!knitr::opts_knit$get("child")'
+# The code in this chunk is NOT evaluated here when knitting this file directly.
+# It is included for DEBUGGING purposes only. 
+params <- list(norm_method = "loess_norm") 
+source("code/reports/chapters/_internal-shared_setup_chunk.R")
+```
+
+```{r}
+#| purl: true
+internal_std_se <- to_report[["internal std. before qc"]]
 box::use(projlib/proc[count_zeros_per_feature])
 ```
 
@@ -10,7 +25,6 @@ Those features are listed below, in the order of average retention time.
 
 ```{r}
 #| purl: true
-
 SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
   dplyr::mutate(
     num_zeros = count_zeros_per_feature(internal_std_se[["before_norm"]]),
@@ -47,7 +61,7 @@ Internal standard (IS) features that satisfy the following conditions were consi
 ```{r}
 box::use(patchwork)           # Combine ggplot objects. `+`
 
-is_failed_istd <- qc_steps[["is failed internal std."]]
+is_failed_istd <- to_report[["is failed internal std."]]
 
 box_scatter_plot_of_one_feature <- function(se, ii, widths) {
   feature_name <- SumExp::row_df(se)$feature_name[ii]
@@ -95,7 +109,7 @@ Any remaining zero values in an internal standard feature are imputed with the a
 
 ```{r}
 #| label: 'outlier-removal'
-is_outlier <- qc_steps[["is outlier sample"]]
+is_outlier <- to_report[["is outlier sample"]]
 # The following is added only when the outlier removal step has been set to perform
 if (! is.null(is_outlier)) {
   cat(
@@ -110,7 +124,7 @@ if (! is.null(is_outlier)) {
     "The outlier samples are then removed from the data.\n\n"
   )
   # Number of outlying internal standard features per sample
-  n_out_istd <- qc_steps[["number of outlier internal std. per sample"]]
+  n_out_istd <- to_report[["number of outlier internal std. per sample"]]
   
   if (all(! is_outlier)) {
     cat("No outliers were identified.\n")

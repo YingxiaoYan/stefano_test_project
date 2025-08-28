@@ -8,7 +8,8 @@ params:
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
-# For "Run Chunk" functionality
+# The code in this chunk is NOT evaluated here when knitting this file directly.
+# It is included for DEBUGGING purposes only. 
 params <- list(norm_method = "loess_norm", project_title = "Test") 
 source("code/reports/chapters/_internal-shared_setup_chunk.R")
 ```
@@ -21,12 +22,12 @@ The calibration curve of each of the chemicals is presented below.
 #| purl: true
 # Whether the calibration curve is fitted to the log-transformed data
 log_scale <- calib_interm_data[["log scale"]]
-cal_data_id <- util$mat_id_before_blank_subtraction(PROC_MAT_ID)
+cal_data_id <- util$mat_id_before_blank_subtraction(MAT_ID_FOR_CALIB)
 
 calcurve_to_show_df <- local({
   cc_se <- calib_interm_data[["calcurve_se incl failed"]]
   SumExp::as_tibble(cc_se) |> 
-    tidyr::drop_na(all_of(PROC_MAT_ID)) |>         # Drop concentrations outside the range
+    tidyr::drop_na(all_of(MAT_ID_FOR_CALIB)) |>         # Drop concentrations outside the range
     dplyr::rename(.cc_pt = util$spiked_conc_pts_name) |>    # Rename for clarity
     dplyr::mutate(
       "c_type" = dplyr::case_when(
@@ -126,10 +127,6 @@ sapply(names(p_by_feature), \(ii) {
 #| purl: true
 concn_se <- calib_interm_data[["concn_se with conc"]]
 calib_se <- calib_interm_data[["calcurve_se within range"]]
-if (log_scale) {
-  concn_se[[PROC_MAT_ID]] <- expm1(concn_se[[PROC_MAT_ID]])    # Return to original scale
-  calib_se[[PROC_MAT_ID]] <- expm1(calib_se[[PROC_MAT_ID]])    # Return to original scale
-}
 ```
 
 ### Calibration models
@@ -202,7 +199,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 #| label: 'calibration-curve-with-all-samples-legend'
 #| fig-width: 10
 #| fig-height: 1
-p <- show$ggplot_calcurve_samples(concn_se, calib_se, PROC_MAT_ID, COLORS_OF_CLASSES, log_scale)
+p <- show$ggplot_calcurve_samples(concn_se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, log_scale)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
@@ -215,7 +212,7 @@ f_names <- sapply(lst_concn_se, \(se) SumExp::row_df(se)$feature_name)
 lst_concn_se <- lst_concn_se[order(f_names)]
 
 p_by_feature <- lapply(lst_concn_se, \(se) {
-  p <- show$ggplot_calcurve_samples_facet(se, calib_se, PROC_MAT_ID, COLORS_OF_CLASSES, 
+  p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
                                           ncol = 1, log_scale = log_scale)
   p + theme(legend.position = "none")
   # plotly::ggplotly(
@@ -261,7 +258,7 @@ The shaded gray area represents the region below the lower-limit of quantificati
 ```{r}
 #| fig-width: 10
 #| fig-height: 1
-p <- show$ggplot_calcurve_samples(to_show_excl_qc, calib_se, PROC_MAT_ID, COLORS_OF_CLASSES, log_scale)
+p <- show$ggplot_calcurve_samples(to_show_excl_qc, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, log_scale)
 leg <- ggpubr::get_legend(p, position = "top")
 ggpubr::as_ggplot(leg)
 ```
@@ -285,7 +282,7 @@ if (nrow(to_show_excl_qc) == 0) {
   lst_show_se <- SumExp::split_rows(to_show_excl_qc, i_grp)
 
   p_by_row <- lapply(lst_show_se, \(se) {
-    p <- show$ggplot_calcurve_samples_facet(se, calib_se, PROC_MAT_ID, COLORS_OF_CLASSES, 
+    p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
                                             ncol = n_cols, log_scale = log_scale)
     p <- p + show$geom_best_model_text(se)
     p + theme(legend.position = "none")
@@ -319,7 +316,7 @@ if (nrow(to_show_excl_qc) == 0) {
 ## Removal of the chemicals with no measurement samples
 
 ```{r}
-concn_se <- readRDS(FILE$i$proc)[[PROC_MAT_ID]]
+concn_se <- readRDS(FILE$i$proc)[[MAT_ID_FOR_CALIB]]
 ```
 
 If all values of non-QC samples were below LLOQ, the chemical was removed from the final reports.

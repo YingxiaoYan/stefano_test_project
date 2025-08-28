@@ -11,6 +11,17 @@
 runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    # JS handler to enable/disable weight options
+    shiny::tags$script(HTML("
+      Shiny.addCustomMessageHandler('toggleWeightOptions', function(message) {
+        let radios = document.querySelectorAll('input[name=\"' + message.inputId + '\"]');
+        if (radios.length >= 4) {
+          radios[0].disabled = !message.enabled; // largestR2
+          radios[2].disabled = !message.enabled; // 1/x
+          radios[3].disabled = !message.enabled; // 1/x^2
+        }
+      });
+    ")),
     # Quality control: outlier removal
     shiny::checkboxInput(
       inputId = ns("rm_outlier"),
@@ -56,6 +67,21 @@ runProcessUI <- function(uiId) {
 #' @param serverId A string that identifies the server module.
 #' @export
 runProcessServer <- function(serverId) {
+  shiny::moduleServer(serverId, function(input, output, session) {
+    
+    # Disable/enable weight options based on log_calibration
+    shiny::observe({
+      enabled <- !isTRUE(input$log_calibration)
+      session$sendCustomMessage("toggleWeightOptions", list(
+        inputId = session$ns("weight"), enabled = enabled
+      ))
+      
+      # Reset selection if user had picked a disabled option
+      if (!enabled && input$weight %in% c("largestR2", "1_div_x", "1_div_x2")) {
+        updateRadioButtons(session, "weight", selected = "1")
+      }
+    })
+  })  
   runScriptServer(
     serverId, 
     script_path = "scripts/process.R", 

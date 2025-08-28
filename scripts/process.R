@@ -57,11 +57,11 @@ user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
 FILE <- rlang::list2(
   # Processed data
   proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
-  # Intermediate status of the data
-  qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
+  # Intermediate status of the data for reporting
+  to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
 )
 # For reports, store intermediate data during quality control steps.
-qc_steps <- list()
+to_report <- list()
 
 cat("\nProcessing steps are started.\n")
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
@@ -70,17 +70,11 @@ proc_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
 
 # Normalization using internal standards -------------------------------------------------
 
-# Volumetric normalization using volumetric internal standards (vIS)
-is_vIS <- util$std_type(proc_sumexp) == "vIS"
-if (any(is_vIS)) {      # This is optional
-  qc_steps[["is volumetric internal std."]] <- is_vIS    # For reports
-  proc_sumexp <- proc$normalize_volumetric(proc_sumexp, is_vIS, "raw")
-} 
-# If no volumetric internal standards, use raw data for normalization that uses internal standards
-mat_id <- if (any(is_vIS)) "vol_norm" else "raw"
+# For any preprocessing steps between reading the data and normalization, keep the raw data as is
 # Label the matrix before normalization as "before_norm"
-proc_sumexp[["before_norm"]] <- proc_sumexp[[mat_id]] |> 
+proc_sumexp[["before_norm"]] <- proc_sumexp[["raw"]] |> 
   labelled::set_variable_labels("No normalization")
+to_report[["before normalization"]] <- proc_sumexp
 
 # Extract internal standard features
 internal_std_se <- local(
@@ -91,13 +85,13 @@ internal_std_se <- local(
   }
 )
 # For reports, store intermediate data during quality control steps.
-qc_steps[["internal std. before qc"]] <- internal_std_se
+to_report[["internal std. before qc"]] <- internal_std_se
 
 ## Failed internal standards     ---------------
 num_zeros <- proc$count_zeros_per_feature(internal_std_se[["before_norm"]])
 # Mark features with > 10% zeros
 is_failed <- num_zeros > ncol(internal_std_se) * 0.1
-qc_steps[["is failed internal std."]] <- is_failed    # For reports
+to_report[["is failed internal std."]] <- is_failed
 # Remove failed internal standard features
 is_failed_in_proc_sumexp <- rownames(proc_sumexp) %in% rownames(internal_std_se)[is_failed]
 proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
@@ -114,8 +108,8 @@ if (params$rm_outlier) {    # Controlled by the command line option
   n_internal_std <- nrow(internal_std_se)
   # Outlier samples: number of outlying features > 20% of the total number of features
   is_outlier <- n_out > (0.2 * n_internal_std)
-  qc_steps[["number of outlier internal std. per sample"]] <- n_out    # For reports
-  qc_steps[["is outlier sample"]] <- is_outlier    # For reports
+  to_report[["number of outlier internal std. per sample"]] <- n_out
+  to_report[["is outlier sample"]] <- is_outlier
 
   if (any(is_outlier)) {
     # Exclude the outlying samples
@@ -143,7 +137,7 @@ cat("Closest internal standard normalization is done.\n")
 ## LOESS fit over RT normalization     ---------------
 overall_rt_range <- range(util$retention_time(proc_sumexp))    # Fit for RT of all features
 excl_cat <- c("Blank", "CalCurve")
-qc_steps[["excluded categories in normalization"]] <- excl_cat    # For reports
+to_report[["excluded categories in normalization"]] <- excl_cat
 
 loess_fit <- proc$get_loess_fit(
   istd_se = internal_std_se,
@@ -152,7 +146,7 @@ loess_fit <- proc$get_loess_fit(
   span = 1,
   mat_id = "before_norm"
 )
-qc_steps[["LOESS fit"]] <- loess_fit    # For reports
+to_report[["LOESS fit"]] <- loess_fit
 # Normalize the data by LOESS fit along RT
 rt <- util$retention_time(proc_sumexp)
 proc_sumexp[["loess_norm"]] <- sapply(
@@ -166,16 +160,16 @@ cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm", "before_norm")
-qc_steps[["normalized matrix ids"]] <- norm_mat_ids    # For reports
+to_report[["normalized matrix ids"]] <- norm_mat_ids
 norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
-qc_steps[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
+to_report[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
 proc_sumexp <- proc$add_blank_subtracted_sumexp(
   sumexp = proc_sumexp,
   no_change = util$ctrl_smpl_cat(proc_sumexp) == "CalCurve",
   mat_ids = norm_mat_ids, 
   out_mat_ids = norm_blk_mat_ids
 )
-qc_steps[["normalized - blank"]] <- proc_sumexp    # For reports
+to_report[["normalized - blank"]] <- proc_sumexp
 cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
@@ -183,9 +177,9 @@ cat("Blank subtraction is done.\n")
 #' Mark the expected processing has been completed
 mark_completed <- function() {
   cat("Processing steps are completed.\nSaving intermediate data during the processing...\n")
-  qc_steps[["Completed"]] <- TRUE
-  saveRDS(qc_steps, FILE$qc)
-  cat("The intermediate data saved to:", FILE$qc, "\n")
+  to_report[["Completed"]] <- TRUE
+  saveRDS(to_report, FILE$to_rep)
+  cat("The intermediate data saved to:", FILE$to_rep, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
 if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
@@ -205,7 +199,8 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   interm_data <- list()
   
   quant_se <- quant_se0     # Keep the unmodified for the next normalized data
-  if (params$log_calibration) {
+  log_scale <- params$log_calibration
+  if (log_scale) {
     # Log scale for calibration curve fitting
     quant_se[[mat_id]] <- log1p(quant_se[[mat_id]])    # log1p(x) = log(x + 1)
     interm_data[["log scale"]] <- TRUE
@@ -232,7 +227,7 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   })
   if (sum(has_proper_range) == 0) {     # No chemicals with proper range
     warning("NO Valid calibration points for any chemical. But reports can be generated.")
-    qc_steps[[paste0("calibration/", mat_id)]] <- interm_data
+    to_report[[paste0("calibration/", mat_id)]] <- interm_data
     next
   }
   quant_se <- quant_se[has_proper_range, ]
@@ -244,32 +239,37 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   concn_se    <- lst_q_se$concn
   # Replace the values outside the concentration range with NA
   calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
-  interm_data[["calcurve_se within range"]] <- calcurve_se
  
   # Fit the calibration curve
   cc_mat_norm <- calcurve_se[[mat_id]]
   c_concs <- util$spiked_conc_pts(calcurve_se)
+  if (log_scale) {
+    c_concs <- log(c_concs)  # `signal` is assumed to be log-transformed already
+    if (params$weight != "1") {
+      warning("Weighting methods other than `1` are not available under log scale. Using `1`.")
+      params$weight <- "1"
+    }
+  }
   calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
     proc$fit_and_test_calcurve_model(c_concs,
                                      signal = cc_mat_norm[ii, ],
                                      weight_method = params$weight,
-                                     penalty_quadratic = 0.01,
-                                     log_scale = params$log_calibration)  # non-negative weights
+                                     penalty_quadratic = 0.01)
   })
   stopifnot(identical(names(calcurve_models), rownames(concn_se)))
   SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |> 
     dplyr::mutate(calcurve_model = calcurve_models)
   interm_data[["weight method"]] <- params$weight
   
+  if (log_scale) {    # Back-transform to the original scale
+    calcurve_se[[mat_id]] <- expm1(calcurve_se[[mat_id]])    # expm1(x) = exp(x) - 1
+  }
+  interm_data[["calcurve_se within range"]] <- calcurve_se
+  
   # Compute the concentration of the samples using the calibration curve
   unit <- SumExp::metadata(concn_se)$concentration_unit
-  concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id) |> 
-    labelled::set_label_attribute(
-      paste0("Concentration [", unit, "]")
-    )
-  if (params$log_calibration) {
-    concn_se[["conc"]] <- exp(concn_se[["conc"]])    # Return to original scale
-  }
+  concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = log_scale) |> 
+    labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
   concn_se <- concn_se |>
     proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
     proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
@@ -277,7 +277,9 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   # Label for the normalized data. To label the output of this function
   norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
   labelled::label_attribute(concn_se) <- norm_lab
-  # Maximum/minimum concentration after trimming out of each chemical
+  if (log_scale) {
+    concn_se[[mat_id]] <- expm1(concn_se[[mat_id]])    # Back transform
+  }
   interm_data[["concn_se with conc"]] <- concn_se
   
   # Exclude the chemicals with no quantification
@@ -286,7 +288,7 @@ for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
   concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
   
   # Store the intermediate data
-  qc_steps[[paste0("calibration/", mat_id)]] <- interm_data
+  to_report[[paste0("calibration/", mat_id)]] <- interm_data
   # Collect the output
   per_norm_lst[[mat_id]] <- concn_se
   # Progress message

@@ -1,6 +1,7 @@
 ---
 params:
-  norm_method: loess_norm
+  norm_method: "loess_norm"
+  log_calibration: false
   project_title: "Test"        # No need here but needed by `report-external.qmd`
 title: "Data quality evaluation"
 format:
@@ -16,8 +17,10 @@ knitr:
 ```{r}
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
-params <- list(norm_method = "loess_norm", project_title = "Test") 
-source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
+# The code in this chunk is NOT evaluated here when knitting this file directly.
+# It is included for DEBUGGING purposes only. 
+params <- list(norm_method = "loess_norm", log_calibration = FALSE, project_title = "Test") 
+source("code/reports/chapters/_internal-shared_setup_chunk.R")
 ```
 
 ```{r}
@@ -33,31 +36,11 @@ set.seed(7579)
 
 # Normalization by internal standards (IS)
 
-## Volumetric internal standard (vIS)
-
-```{r}
-#| label: 'vIS-variable-setup'
-#| purl: true
-is_vIS <- util$std_type(raw_se) == "vIS"
-```
-
-```{r}
-if (any(is_vIS)) {
-  cat(
-    "The data contains volumetric internal standards (vIS).\n",
-    "All values of all other features are normalized by the value of the vIS feature",
-    "for each sample.\n\n",
-    "(individual value of each feature and each sample) / (vIS value of each sample) *", 
-    "(average of vIS values of all samples)\n"
-  )
-} else {
-  cat("There is no volumetric internal standard (vIS) in the data.\n")
-}
-```
-
 ## Internal standards (ISs) 
 
-{{< include chapters/_process-internal-stds.qmd >}}
+```{r}
+#| child: code/reports/chapters/process-internal-stds.qmd
+```
 
 ## Normalization by ISs
 
@@ -68,25 +51,26 @@ The dataset is normalized using the provided ISs. The user can opt to choose bet
 ```{r}
 #| purl: true
 # Find the range of RT values
-wo_vIS <- raw_se[!is_vIS, ]
-all_rts <- util$retention_time(wo_vIS)
+all_rts <- util$retention_time(pre_norm_se)
 overall_rt_range <- range(all_rts)
-targetted_rt_range <- range(all_rts[util$is_targeted_feature(wo_vIS)])
-rt <- range(all_rts[util$is_internal_std(wo_vIS)])
+targetted_rt_range <- range(all_rts[util$is_targeted_feature(pre_norm_se)])
+rt <- range(all_rts[util$is_internal_std(pre_norm_se)])
 ```
 
 The retention time (RT) range of the dataset is between `r overall_rt_range[1]` and `r overall_rt_range[2]` min.
 The RT range of the targeted chemicals to be quantified is from `r targetted_rt_range[1]` to `r targetted_rt_range[2]` min.
 The RT range of the internal standards is from `r range(rt)[1]` to `r range(rt)[2]` min.
 
+```{r}
+#| purl: true
+norm_se <- to_report[["normalized"]]
+```
+
 ### Closest RT (IS) normalization
 
 ```{r}
-#| purl: true
-norm_se <- qc_steps[["normalized"]]
+#| child: code/reports/chapters/process-norm-closest.qmd
 ```
-
-{{< include chapters/_process-norm-closest.qmd >}}
 
 ### LOESS (IS) normalization
 

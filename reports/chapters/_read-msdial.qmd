@@ -147,7 +147,7 @@ As shown below, the values are distributed in a skewed manner.
 #| fig-height: 6
 
 p <- SumExp::ggplot(raw_se) +
-    geom_histogram(aes(x = raw), bins = 50)
+  geom_histogram(aes(x = raw), bins = 50)
 gridExtra::grid.arrange(   # Two ggplots next to each other
   p + labs(title = "Linear scale", x = "Values"),
   p + scale_x_log10() + labs(title = "Logarithmic scale", x = "Values"),

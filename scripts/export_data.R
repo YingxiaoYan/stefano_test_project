@@ -28,14 +28,14 @@ FILE <- list(
     # Processed data
     proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
     # Intermediate status of the data
-    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
+    to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
 )
 io$chq_all_files_exist(FILE$i[c("raw", "qc")])
 # Load the normalized data
-qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
-norm_mat_ids <- qc_steps[["normalized matrix ids"]]      # `mat_ids` e.g. "loess_norm"
+to_report <- readRDS(FILE$i$to_rep)
+stopifnot("Processing NOT completed." = to_report[["Completed"]])
+norm_mat_ids <- to_report[["normalized matrix ids"]]      # `mat_ids` e.g. "loess_norm"
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 is_non_target_mode <- SumExp::metadata(raw_se)$is_non_target_mode
 
@@ -62,14 +62,14 @@ io$mkdir_if_not_exist(dirname(unlist(FILE$o)))
 
 for(ii in seq(norm_mat_ids)) {
   msdial$export_data_with_feature_table_tsv(
-    sumexp = qc_steps[["normalized"]], 
+    sumexp = to_report[["normalized"]], 
     mat_id = norm_mat_ids[ii],
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm[[ii]]
   )
 
   msdial$export_data_with_feature_table_tsv(
-    sumexp = qc_steps[["normalized - blank"]],
+    sumexp = to_report[["normalized - blank"]],
     mat_id = util$mat_id_of_blank_subtracted(norm_mat_ids[ii]),
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]]

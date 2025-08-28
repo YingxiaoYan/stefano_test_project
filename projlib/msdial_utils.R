@@ -21,23 +21,23 @@ conv_tbl <- tibble::tribble(
 
 #' Get the retention time of the calibration curve samples
 #'
-#' @param x_se A [`SumExp::SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @returns A numeric vector of the retention times
 #' @md
 #' @export
-retention_time <- function(x_se) {
-  stopifnot(inherits(x_se, "SumExp"))
-  SumExp::row_df(x_se)[[".rt"]]
+retention_time <- function(sumexp) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  SumExp::row_df(sumexp)[[".rt"]]
 }
 
 #' Get the standard type of the features
 #'
-#' @param x_se A [`SumExp::SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @returns A character vector of the standard types
 #' @export
-std_type <- function(x_se) {
-  stopifnot(inherits(x_se, "SumExp"))
-  SumExp::row_df(x_se)[[".std_type"]]
+std_type <- function(sumexp) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  SumExp::row_df(sumexp)[[".std_type"]]
 }
 
 #' Get if the features are targeted features
@@ -103,33 +103,33 @@ spiked_conc_pts <- function(cc_se) {
 #' Special control sample categories
 #' 
 #' For example, "CalCurve", "QC", and "Blank" are special control sample categories.
-#' @param x_se A [`SumExp::SumExp`] object
+#' @param sumexp A [`SumExp::SumExp`] object
 #' @returns
 #' [ctrl_smpl_cat()]: A character vector of the control sample categories.
 #'
 #' @md
 #' @export
-ctrl_smpl_cat <- function(x_se) {
-  stopifnot(inherits(x_se, "SumExp"))
-  SumExp::col_df(x_se)[[".ctrl_cat"]]
+ctrl_smpl_cat <- function(sumexp) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  SumExp::col_df(sumexp)[[".ctrl_cat"]]
 }
 #' @rdname ctrl_smpl_cat
 #' @description
 #' [exclude_ctrl_smpl_cat()]: Exclude one or more special control sample categories
 #'
-#' @param cat A character vector of the control sample categories to be excluded
+#' @param excl_cat A character vector of the control sample categories to be excluded
 #' @returns
 #' [exclude_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
 #' categories excluded
 #' @md
 #' @export
-exclude_ctrl_smpl_cat <- function(x_se, cat) {
-  stopifnot(is.character(cat))
-  cat <- unique(cat)
-  if (length(cat) == 0) {
-    return(x_se)
+exclude_ctrl_smpl_cat <- function(sumexp, excl_cat) {
+  stopifnot(is.character(excl_cat))
+  excl_cat <- unique(excl_cat)
+  if (length(excl_cat) == 0) {
+    return(sumexp)
   }
-  x_se[, ! ctrl_smpl_cat(x_se) %in% cat]
+  sumexp[, ! ctrl_smpl_cat(sumexp) %in% excl_cat]
 }
 #' @rdname ctrl_smpl_cat
 #' @description
@@ -139,27 +139,27 @@ exclude_ctrl_smpl_cat <- function(x_se, cat) {
 #' categories extracted
 #' @md
 #' @export
-extract_ctrl_smpl_cat <- function(x_se, cat) {
+extract_ctrl_smpl_cat <- function(sumexp, cat) {
   stopifnot(is.character(cat))
   cat <- unique(cat)
   if (length(cat) == 0) {
-    return(x_se)
+    return(sumexp)
   }
-  x_se[, ctrl_smpl_cat(x_se) %in% cat]
+  sumexp[, ctrl_smpl_cat(sumexp) %in% cat]
 }
 
 #' Split the columns of a [`SumExp::SumExp`] object into the calibration curve and the other
 #'
-#' @param x_se A [`SumExp::SumExp`] object including the calibration curve samples
+#' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
 #' @param out_names A character vector of length 2. The names of the output list.
 #'   The first element is the name of the calibration curve samples.
 #' @returns A list of two [`SumExp::SumExp`] objects with the names `CalCurve` and `Other`
 #' @md
 #' @export
-split_into_calcurve_and_other <- function(x_se, out_names = c("CalCurve", "Other")) {
+split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Other")) {
   stopifnot(length(out_names) == 2)
-  g <- ifelse(ctrl_smpl_cat(x_se) == "CalCurve", out_names[1], out_names[2])
-  SumExp::split_columns(x_se, g)
+  g <- ifelse(ctrl_smpl_cat(sumexp) == "CalCurve", out_names[1], out_names[2])
+  SumExp::split_columns(sumexp, g)
 }
 
 # Variables created during processing ----------------------------------------------------

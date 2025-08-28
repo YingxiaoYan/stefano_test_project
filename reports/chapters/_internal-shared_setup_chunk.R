@@ -15,7 +15,8 @@ box::use(
   io = projlib/check_io_exist,       # Check input/output files
 )
 
-PROC_MAT_ID <- util$mat_id_of_blank_subtracted(params$norm_method)
+# The ID of the matrix to use for calibration
+MAT_ID_FOR_CALIB <- util$mat_id_of_blank_subtracted(params$norm_method)
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
@@ -31,16 +32,17 @@ FILE <- list(
     # Processed data
     proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
     # Intermediate status of the data
-    qc = msdial$get_raw_data_file_name(user_inputs, suffix = "qc_steps"),
+    to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
 )
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
 # Load the intermediate data during QC
-qc_steps <- readRDS(FILE$i$qc)
-stopifnot("Processing NOT completed." = qc_steps[["Completed"]])
-calib_interm_data <- qc_steps[[paste0("calibration/", PROC_MAT_ID)]]
+to_report <- readRDS(FILE$i$to_rep)
+stopifnot("Processing NOT completed." = to_report[["Completed"]])
+calib_interm_data <- to_report[[paste0("calibration/", MAT_ID_FOR_CALIB)]]
+pre_norm_se <- to_report[["before normalization"]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports

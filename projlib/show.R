@@ -200,7 +200,7 @@ geom_calibration_curve_line <- function(lim_df, log_scale = FALSE, color = "cade
   # Artificial concentration values for smooth calibration curve line
   ccline_df <- purrr::pmap(lim_df, \(lloq, max_c_conc, calcurve_model, ...) {
     conc <- if (log_scale) {
-      # Concentration values in log scale
+      # Equally spaced concentration values in log scale
       seq(log(lloq), log(max_c_conc), length.out = 200)
     } else {
       # Concentration values in linear scale

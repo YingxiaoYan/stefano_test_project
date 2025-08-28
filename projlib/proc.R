@@ -12,17 +12,17 @@ box::use(util = ./msdial_utils)
 #' @export
 append_to_qc_steps <- function(..., file) {
   if (!file.exists(file)) stop("Run `initialize_qc_steps` first.")
-  qc_steps <- readRDS(file)
+  to_report <- readRDS(file)
   dots <- rlang::list2(...)
   nms <- names(dots)
   stopifnot(
     "Name of the intermediate data must be provided" = !any(sapply(nms, is.null)),
-    "Duplicated names" = anyDuplicated(c(nms, names(qc_steps))) == 0
+    "Duplicated names" = anyDuplicated(c(nms, names(to_report))) == 0
   )
   for (nm in nms) {
-    qc_steps[[nm]] <- dots[[nm]]
+    to_report[[nm]] <- dots[[nm]]
   }
-  saveRDS(qc_steps, file)
+  saveRDS(to_report, file)
 }
 #' @rdname append_to_qc_steps
 #' @export
@@ -43,30 +43,30 @@ stop_quietly <- function() {
 
 ## Volumetric normalization -------------------
 
-#' Normalize the data by the volumetric internal standard
-#'
-#' @param se A [`SumExp::SumExp`] object
-#' @param is_vIS A logical vector indicating the volumetric internal standard. Only one
-#'   volumetric internal standard is allowed. The length of the vector should be the same as
-#'   the number of rows of `se`.
-#' @param mat_id The name of a matrix in `se` to be normalized
-#' @returns A [`SumExp::SumExp`] object with the volumetric normalization. The normalized
-#'   matrix is added to the `se` with the name `vol_norm`.
-#' @md
-#' @export
-normalize_volumetric <- function(se, is_vIS, mat_id) { # nolint: object_name_linter.
-  stopifnot("Only one volumetric internal standard is allowed." = sum(is_vIS) == 1)
-  stopifnot(nrow(se) == length(is_vIS))
-  vIS_se <- se[is_vIS, ] # nolint: object_name_linter.
-  se <- se[!is_vIS, ]
+# #' Normalize the data by the volumetric internal standard
+# #'
+# #' @param se A [`SumExp::SumExp`] object
+# #' @param is_vIS A logical vector indicating the volumetric internal standard. Only one
+# #'   volumetric internal standard is allowed. The length of the vector should be the same as
+# #'   the number of rows of `se`.
+# #' @param mat_id The name of a matrix in `se` to be normalized
+# #' @returns A [`SumExp::SumExp`] object with the volumetric normalization. The normalized
+# #'   matrix is added to the `se` with the name `vol_norm`.
+# #' @md
+# #' @export
+# normalize_volumetric <- function(se, is_vIS, mat_id) { # nolint: object_name_linter.
+#   stopifnot("Only one volumetric internal standard is allowed." = sum(is_vIS) == 1)
+#   stopifnot(nrow(se) == length(is_vIS))
+#   vIS_se <- se[is_vIS, ] # nolint: object_name_linter.
+#   se <- se[!is_vIS, ]
 
-  v <- as.vector(vIS_se[[mat_id]])
-  mat <- t(replicate(nrow(se), v))  # Column-wise normalization
-  # <<---- Volumetric normalization ---->> #
-  se[["vol_norm"]] <- se[[mat_id]] / mat * mean(v, na.rm = TRUE)
-  labelled::label_attribute(se[["vol_norm"]]) <- "Volumetric normalized"
-  se
-}
+#   v <- as.vector(vIS_se[[mat_id]])
+#   mat <- t(replicate(nrow(se), v))  # Column-wise normalization
+#   # <<---- Volumetric normalization ---->> #
+#   se[["vol_norm"]] <- se[[mat_id]] / mat * mean(v, na.rm = TRUE)
+#   labelled::label_attribute(se[["vol_norm"]]) <- "Volumetric normalized"
+#   se
+# }
 
 ## Data cleaning ------------------
 
@@ -347,21 +347,6 @@ apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TR
 }
 
 
-#' Get means and standard deviations of the calibration curve
-#'
-#' @param cc_se A [`SumExp::SumExp`] object of the calibration curve
-#' @param mat_id A matrix ID
-#' @returns A list with `mat_m` and `mat_sd`, matrices with the mean and standard deviation of the
-#'   signal values for each chemical and concentration point.
-#' @md
-list_mean_and_sd <- function(cc_se, mat_id) {
-  # Mean/standard deviation per spiked concentration point
-  # Columns: spiked concentration points (sorted), Rows: chemicals
-  mat_m  <- apply_per_spiked_conc(cc_se, mat_id, 1, mean, na.rm = TRUE)
-  mat_sd <- apply_per_spiked_conc(cc_se, mat_id, 1, stats::sd, na.rm = TRUE)
-  stopifnot(is.matrix(mat_m), is.matrix(mat_sd))
-  list(mat_m = mat_m, mat_sd = mat_sd)
-}
 
 #' Get the values of the given concentration points
 #'
@@ -396,10 +381,9 @@ values_of_given_conc_in_mat <- function(mat, given_conc) {
 #'
 #' @name compute_llox
 #'
-#' @param mat_m A matrix of the mean signals per spiked concentration point.
-#'   The columns are the points.
-#' @param mat_sd A matrix of the standard deviation signals per spiked concentration point.
-#'   The columns are the points.
+#' @param m_neg A numeric vector of the mean signals of the negative control samples
+#' @param sd_neg A numeric vector of the standard deviation of the signals of the negative
+#'   control samples
 #' @param times Multiplication factor to the standard deviation of the signal to get the LOD or
 #'   LLOQ. Common values are 3 and 10 for LOD and LLOQ, respectively.
 #'
@@ -413,33 +397,34 @@ NULL
 #' @inheritParams compute_llox
 #' @inherit compute_llox returns
 #' @export
-compute_llox_signal_using_mean_plus_sd_times <- function(mat_m, mat_sd, times) {
-  stopifnot(all(dim(mat_m) == dim(mat_sd)))
-  # Extract the mean and standard deviation of the zero concentration point
-  m_z <- values_of_given_conc_in_mat(mat_m, 0)
-  sd_z <- values_of_given_conc_in_mat(mat_sd, 0)
+compute_llox_signal_using_mean_plus_sd_times <- function(m_neg, sd_neg, times) {
+  stopifnot(
+    length(m_neg) == length(sd_neg), 
+    length(times) == 1
+  )
   # Compute LOD/LLOQ using mean + SD * times
-  llox_signal <- m_z + times * sd_z
+  llox_signal <- m_neg + times * sd_neg
   # Set the chemical IDs as names
-  names(llox_signal) <- rownames(mat_m)
+  names(llox_signal) <- names(m_neg)
   llox_signal
 }
 
 #' Compute the LOD/LLOQ signal using mean * times
 #'
 #' @inheritParams compute_llox
-#' @param mat_sd Not used. It is included to keep the same function signature as other
+#' @param sd_neg Not used. It is included to keep the same function signature as other
 #'   `compute_llox*` functions.
 #' @inherit compute_llox returns
 #' @export
-compute_llox_signal_using_mean_times <- function(mat_m, mat_sd, times) {
-  # Extract the mean and standard deviation of the zero concentration point
-  m_z <- values_of_given_conc_in_mat(mat_m, 0)
-  sd_z <- values_of_given_conc_in_mat(mat_sd, 0)
+compute_llox_signal_using_mean_times <- function(m_neg, sd_neg, times) {
+  stopifnot(
+    length(m_neg) == length(sd_neg),
+    length(times) == 1
+  )
   # Compute LOD/LLOQ using mean * times
-  llox_signal <- m_z * times
+  llox_signal <- m_neg * times
   # Set the chemical IDs as names
-  names(llox_signal) <- rownames(mat_m)
+  names(llox_signal) <- names(m_neg)
   llox_signal
 }
 
@@ -589,9 +574,9 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts,
 #'
 #' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
 #' @param mat_id The name of a matrix in `sumexp`
-#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals. It is expected to
-#'   take three arguments: `mat_m`, `mat_sd`, and `times`. The function should return a numeric
-#'   vector of the LOD or LLOQ signals for each chemical.
+#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals. 
+#'   It is expected to take three arguments: `m_neg`, `sd_neg`, and `times`.
+#'   The function should return a numeric vector of the LOD or LLOQ signals for each chemical.
 #'
 #' @returns A [`SumExp::SumExp`] object with the calibration curve limits and the LOD/LLOQ. The
 #'   added columns to the [`SumExp::row_df()`] of `sumexp` are: `min_c_conc`, `max_c_conc`, `lod`,
@@ -606,20 +591,37 @@ make_sure_to_have_enough_calcurve <- function(max_conc, min_conc, conc_pts,
 #' @md
 #' @seealso [max_conc_for_curve()]
 #' @export
-find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
-                                                         mat_id,
-                                                         compute_llox_signal_fun) {
-  se <- util$split_into_calcurve_and_other(sumexp, out_names = c("cc", "quant"))
-  lx <- list_mean_and_sd(se$cc, mat_id)
-  mat_m <- lx$mat_m             # `mat_m` is the mean signal matrix
-  mat_sd <- lx$mat_sd           # `mat_sd` is the standard deviation matrix
+find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, mat_id, compute_llox_signal_fun) {
+  neg_ctrl_or_not <- local({
+    c_pt <- util$spiked_conc_pts(sumexp)
+    is_neg_ctrl <- !is.na(c_pt) & c_pt == 0
+    g <- ifelse(is_neg_ctrl, "Yes", "No")
+    SumExp::split_columns(sumexp, g)
+  })
+  neg_ctrl_se <- neg_ctrl_or_not[["Yes"]]
+  not_neg_ctrl_se <- neg_ctrl_or_not[["No"]]
+  # Compute the mean and standard deviation of the negative control samples
+  m_neg <- rowMeans(neg_ctrl_se[[mat_id]], na.rm = TRUE)
+  sd_neg <- apply(neg_ctrl_se[[mat_id]], 1, stats::sd, na.rm = TRUE)
+  stopifnot(
+    identical(names(m_neg), names(sd_neg)),
+    identical(names(m_neg), rownames(sumexp))
+  )
+  
+  # Split the samples into calibration curve and other samples
+  se_lst <- util$split_into_calcurve_and_other(not_neg_ctrl_se, out_names = c("cc", "quant"))
+  # Get mean/standard deviation of signal per spiked concentration point
+  # Columns: spiked concentration points (sorted), Rows: chemicals
+  mat_m  <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, mean, na.rm = TRUE)
+  mat_sd <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, stats::sd, na.rm = TRUE)
+  stopifnot(is.matrix(mat_m), is.matrix(mat_sd))
   # Limit of detection
-  lod_signal <- compute_llox_signal_fun(mat_m, mat_sd, times = 3)
-  stopifnot(identical(rownames(mat_m), names(lod_signal)))
+  lod_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 3)
+  stopifnot(identical(rownames(sumexp), names(lod_signal)))
   lod <- apply(mat_m > lod_signal, 1, \(.x) min(satisfying_values(.x)))
   # Lower limit of quantification
-  lloq_signal <- compute_llox_signal_fun(mat_m, mat_sd, times = 10)
-  stopifnot(identical(rownames(mat_m), names(lloq_signal)))
+  lloq_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 10)
+  stopifnot(identical(rownames(sumexp), names(lloq_signal)))
   mat_rsd <- mat_sd / mat_m
   mat_cond <- mat_m > lloq_signal & mat_rsd <= 0.2
   lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
@@ -629,7 +631,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   min_c_conc <- lloq
   min_c_conc <- labelled::set_label_attribute(min_c_conc, "Minimum Concentration")
   # Calibration curve concentration upper limit
-  mat_q <- util$exclude_ctrl_smpl_cat(se$quant, "QC")[[mat_id]]
+  mat_q <- util$exclude_ctrl_smpl_cat(se_lst$quant, excl_cat = "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
   max_c_conc <- max_conc_for_curve(mat_m, mat_q, times = 10) |>
     make_sure_to_have_enough_calcurve(min_c_conc, conc_pts, min_n = 3, enough_n = 5)
@@ -723,7 +725,6 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
 #'   - `1/x`: Inverse of the concentration
 #'   - `1/x2`: Inverse of the concentration squared
 #' @param penalty_quadratic The penalty for the quadratic models
-#' @param log_scale Whether to use the logarithmic scale for the signal and concentration.
 #'
 #' @returns A list with the best model, the name of it, the R2 values of all models, and the
 #'   number of unique concentrations. The best model is chosen as the model with the highest R2
@@ -740,8 +741,7 @@ NULL
 fit_and_test_calcurve_model <- function(conc,
                                         signal,
                                         weight_method = "largestR2",
-                                        penalty_quadratic = 0,
-                                        log_scale = FALSE) {
+                                        penalty_quadratic = 0) {
   if (all(is.na(signal) | signal == 0)) {
     return(list(
       "best_model" = function(x) x,
@@ -755,14 +755,10 @@ fit_and_test_calcurve_model <- function(conc,
     "1_div_x" = 1 / conc,
     "1_div_x2" = 1 / (conc ^ 2),
   )
+  
   # Limit the weight alternatives when one has been chosen
   if (weight_method != "largestR2") {
     weights_alt <- weights_alt[weight_method]
-  }
-  # Log scale
-  if (log_scale) {
-    conc <- log(conc)
-    # `signal` is assumed to be log-transformed already
   }
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
@@ -770,7 +766,7 @@ fit_and_test_calcurve_model <- function(conc,
   qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, signal, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
   models <- c(lmodels, qmodels)
-  r2s <- sapply(models, \(x) summary(x$inv_mod)$r.squared)
+  r2s <- sapply(models, \(x) suppressWarnings(summary(x$inv_mod)$r.squared))
   # Panelty to quadratic models
   r2s_adj <- r2s
   is_quadratic <- grepl("quadratic", names(models))
@@ -797,7 +793,6 @@ quadratic_calcurve_model <- function(conc, signal, weights) {
     det <- b ^ 2 - 4 * a * (cc - x)
     det <- ifelse(det < 0, 0, det)       # det < 0
     conc <- (-b + sqrt(det)) / (2 * a)
-    conc[conc < 0] <- 0
     conc
   }
   list(model = model, inv_mod = lmfit)
@@ -818,11 +813,12 @@ linear_calcurve_model <- function(conc, signal, weights) {
 #'
 #' @param sumexp A [`SumExp::SumExp`] object of the samples
 #' @param mat_id The name of a matrix in `sumexp`
+#' @param log_scale Whether to use the logarithmic scale for the signal and concentration.
 #'
 #' @returns A matrix of the concentration of features
 #' @md
 #' @export
-compute_concentration <- function(sumexp, mat_id) {
+compute_concentration <- function(sumexp, mat_id, log_scale = FALSE) {
   mat <- sumexp[[mat_id]]
   models <- SumExp::row_df(sumexp)$calcurve_model
   # Calculate the concentration of each feature
@@ -832,6 +828,9 @@ compute_concentration <- function(sumexp, mat_id) {
     models[[i_feature]]$best_model(v)
   }) |>
     t()          # Features to rows
+  if (log_scale) {
+    conc <- exp(conc)    # Back transform
+  }
   conc <- labelled::set_label_attribute(conc, "Concentration")
   conc
 }

@@ -74,14 +74,11 @@ runScriptServer <- function(serverId, script_path, what, param_ids = NULL) {
         output_txt(paste0(output_txt(), "#"))
         all_lines <- c(out, err) |>
           paste(collapse = "\n")  # Combine all lines into a single string
-        if (p$is_alive()) {
-          if (length(out) > 0 || length(err) > 0) {
-            # Append new output to the existing text
-            output_txt(paste(output_txt(), all_lines, "", sep = "\n"))
-          }
-        } else {
-          # Process has finished
-          output_txt(paste(output_txt(), all_lines, "Done", sep = "\n"))
+        if (length(out) > 0 || length(err) > 0) {
+          # append new output to the existing text
+          output_txt(paste(output_txt(), all_lines, "", sep = "\n"))
+        }
+        if (! p$is_alive()) {    # Process has finished
           proc(NULL)  # Clear the process object
         }
       })
