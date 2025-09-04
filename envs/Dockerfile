@@ -4,7 +4,7 @@ LABEL description="Docker image for NBIS 7579 Exposome project"
 
 # Set the working directory
 WORKDIR /proj
-COPY SumExp_0.1.2.tar.gz /tmp/SumExp_0.1.2.tar.gz
+COPY SumExp_0.1.3.tar.gz /tmp/SumExp_0.1.3.tar.gz
 COPY Lato/ /usr/local/share/fonts/Lato/
 
 
@@ -41,7 +41,7 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
     && rm -rf /tmp/downloaded_packages
 
 # Install a local package
-RUN R CMD INSTALL /tmp/SumExp_0.1.2.tar.gz
+RUN R CMD INSTALL /tmp/SumExp_0.1.3.tar.gz
 
 ENV TZ=EUROPE/STOCKHOLM
 

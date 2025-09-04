@@ -23,6 +23,6 @@ The lower-limit of the range is chosen as the LLOQ.
 Concentration points below the limit are excluded from the calibration curve.
 
 As quite a few concentration points in the calibration curve samples of a chemical can be too far from the range observed in the samples for quantification (non-`CalCurve` and non-`QC` sample categories), the upper-limit of the calibration range is set. 
-When there are sufficient number (≥ 5) of calibration points, that the points that produce signal after normalization exceeding ten times the **highest** signal of the quantification samples are excluded.
+When there are sufficient number (≥ 3) of calibration points, that the points that produce signal after normalization exceeding the **highest** signal of the quantification samples are excluded except the lowest one.
 
 If the lower-limit is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
