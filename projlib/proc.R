@@ -261,24 +261,26 @@ add_blank_subtracted_sumexp <- function(sumexp,
                                         out_mat_ids) {
   stopifnot(length(mat_ids) == length(out_mat_ids))
   g <- ifelse(util$ctrl_smpl_cat(sumexp) == "Blank", "Blank", "Other")
-  se <- SumExp::split_columns(sumexp, g)
-  blank_se <- se[["Blank"]]
-  sumexp <- se[["Other"]]
-  no_change <- no_change[g == "Other"]    # Blank has been split
+  se_lst <- SumExp::split_columns(sumexp, g)
+  blank_se <- se_lst[["Blank"]]
+  sumexp <- se_lst[["Other"]]
+  no_change <- no_change[g == "Other"]    # Blank has been split already
   for (ii in seq(mat_ids)) {      # Paired `mat_ids` and `out_mat_ids`
     mat_id <- mat_ids[ii]
+    blank_bat_ids <- SumExp::col_df(blank_se)[["batch_id"]]
+    se_bat_ids <- SumExp::col_df(sumexp)[["batch_id"]]
     x_mat <- sumexp[[mat_id]]
     x_lab <- labelled::get_label_attribute(x_mat)
-    # Mean per feature
-    blank_mean <- rowMeans(blank_se[[mat_id]])
-    # Blank means are saved in the row_df of sumexp with this name
-    r_nm <- paste0(mat_id, "_blank_mean")
-    SumExp::row_df(sumexp)[[r_nm]] <- blank_mean |>
-      labelled::set_label_attribute(paste("Blank mean of", x_lab))
-    # <<---- Subtract by blank average ---->> #
-    mat_subt <- x_mat - blank_mean
+    mat_subt <- x_mat   # To store the blank-subtracted data
+    for (i_batch in unique(blank_bat_ids)) {
+      # Mean per feature of the blank samples in the batch
+      blank_mean <- rowMeans(blank_se[[mat_id]][, blank_bat_ids == i_batch, drop = FALSE])
+      # <<---- Subtract by blank average ---->> #
+      is_batch_i <- se_bat_ids == i_batch
+      to_be_chg <- is_batch_i & !no_change
+      mat_subt[, to_be_chg] <- x_mat[, to_be_chg] - blank_mean
+    }
     mat_subt[mat_subt < 0] <- 0
-    mat_subt[, no_change] <- x_mat[, no_change]
     sumexp[[out_mat_ids[ii]]] <- mat_subt |>
       labelled::set_label_attribute(paste(x_lab, "(blank adjusted)"))
   }
@@ -398,10 +400,13 @@ NULL
 #' @inherit compute_llox returns
 #' @export
 compute_llox_signal_using_mean_plus_sd_times <- function(m_neg, sd_neg, times) {
-  stopifnot(
-    length(m_neg) == length(sd_neg), 
+  stopifnot(exprs = {
+    length(m_neg) == length(sd_neg)
     length(times) == 1
-  )
+  })
+  if (any(is.na(sd_neg))) {
+    stop("NA values in sd_neg. Cannot compute LOD/LLOQ using mean + SD * times.")
+  }
   # Compute LOD/LLOQ using mean + SD * times
   llox_signal <- m_neg + times * sd_neg
   # Set the chemical IDs as names
@@ -417,10 +422,10 @@ compute_llox_signal_using_mean_plus_sd_times <- function(m_neg, sd_neg, times) {
 #' @inherit compute_llox returns
 #' @export
 compute_llox_signal_using_mean_times <- function(m_neg, sd_neg, times) {
-  stopifnot(
-    length(m_neg) == length(sd_neg),
+  stopifnot(exprs = {
+    length(m_neg) == length(sd_neg)
     length(times) == 1
-  )
+  })
   # Compute LOD/LLOQ using mean * times
   llox_signal <- m_neg * times
   # Set the chemical IDs as names
@@ -511,10 +516,10 @@ min_conc_for_curve_using_lox_signal <- function(mat_m, lod_signal) {
 #'   * `0`  : All values of `mat_q` are zero for the row
 #' @md
 max_conc_for_curve <- function(mat_m, mat_q) {
-  stopifnot(
-    nrow(mat_m) == nrow(mat_q),
+  stopifnot(exprs = {
+    nrow(mat_m) == nrow(mat_q)
     identical(rownames(mat_m), rownames(mat_q))
-  )
+  })
   # Find maximum peak area of the samples of non-calibration samples
   max_in_q <- apply(mat_q, 1, max, na.rm = TRUE)
   # Find the concentration point that is just above the maximum peak area
@@ -598,13 +603,16 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, mat_id, compute
   # Compute the mean and standard deviation of the negative control samples
   m_neg <- rowMeans(neg_ctrl_se[[mat_id]], na.rm = TRUE)
   sd_neg <- apply(neg_ctrl_se[[mat_id]], 1, stats::sd, na.rm = TRUE)
-  stopifnot(
-    identical(names(m_neg), names(sd_neg)),
+  stopifnot(exprs = {
+    identical(names(m_neg), names(sd_neg))
     identical(names(m_neg), rownames(sumexp))
-  )
+  })
   
   # Split the samples into calibration curve and other samples
   se_lst <- util$split_into_calcurve_and_other(not_neg_ctrl_se, out_names = c("cc", "quant"))
+  if (any(table(util$spiked_conc_pts(se_lst$cc)) < 2)) {
+    stop("Some spiked concentration points have less than two samples. Cannot compute LLOQ")
+  }
   # Get mean/standard deviation of signal per spiked concentration point
   # Columns: spiked concentration points (sorted), Rows: chemicals
   mat_m  <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, mean, na.rm = TRUE)
@@ -684,11 +692,11 @@ replace_outside_concentration_range_with_na <- function(x, ...) {
 #' @export
 replace_outside_concentration_range_with_na.matrix <-
   function(x, conc, min_conc, max_conc) {
-    stopifnot(
-      length(conc) == ncol(x),
-      length(min_conc) == nrow(x),
+    stopifnot(exprs = {
+      length(conc) == ncol(x)
+      length(min_conc) == nrow(x)
       length(max_conc) == nrow(x)
-    )
+    })
     # Concentration values in a matrix, rows are features and columns are concentrations
     conc_mat <- matrix(rep(conc, each = nrow(x)), nrow = nrow(x))
     to_na <- conc_mat < min_conc | conc_mat > max_conc

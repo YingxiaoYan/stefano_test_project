@@ -117,13 +117,33 @@ sample_info <- sample_info |>
     ) |> 
       labelled::set_label_attribute("Control Sample Category")
   )
-stopifnot("`Blank` samples are required." = any(sample_info$.ctrl_cat == "Blank"))
-for (cat in c("CalCurve", "QC")) {
-  if (!any(sample_info$.ctrl_cat == cat)) {
-    warning("`", cat, "` samples are missing.")
-    is_non_target_mode <- TRUE
+
+sample_info <- sample_info |> 
+  dplyr::mutate(
+    injection_order = as.integer(injection_order) |> 
+      labelled::copy_labels_from(injection_order),
+    batch_id = as.integer(batch_id) |> 
+      labelled::copy_labels_from(batch_id),
+  )
+
+batch_ids <- unique(sample_info$batch_id)
+stopifnot("`Batch ID` must not be NA." = all(!is.na(batch_ids)))
+if (length(batch_ids) > 1) {
+  cat("Multiple batches are detected: ", paste(batch_ids, collapse = ", "), "\n")
+}
+for (i_batch in batch_ids) {
+  sinfo_b <- sample_info[sample_info$batch_id == i_batch, ]
+  if (!any(sinfo_b$.ctrl_cat == "Blank")) {
+    stop("`Blank` samples are required in batch ", i_batch)
+  }
+  for (cat in c("CalCurve", "QC")) {
+    if (!any(sinfo_b$.ctrl_cat == cat)) {
+      warning("`", cat, "` samples are missing in batch ", i_batch)
+      is_non_target_mode <- TRUE
+    }
   }
 }
+
 if (is_non_target_mode) {
   warning("Hence, the processing of the data will be stopped before calibration!")
 } else {
@@ -147,14 +167,6 @@ if (is_non_target_mode) {
     "Zero concentration is required." = any(cc_conc == 0)
   )
 }
-
-sample_info <- sample_info |> 
-  dplyr::mutate(
-    injection_order = as.integer(injection_order) |> 
-      labelled::copy_labels_from(injection_order),
-    batch_id = as.integer(batch_id) |> 
-      labelled::copy_labels_from(batch_id),
-  )
 
 # Into "SumExp" class
 sumexp <- SumExp::SumExp(

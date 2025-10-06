@@ -12,6 +12,12 @@ params <- list(norm_method = "loess_norm", project_title = "Test")
 source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
 ```
 
+```{r}
+#| purl: true
+calcurve_lst <- lst_proc |> 
+  lapply(\(x) x$calcurve)
+```
+
 ## Calibration curve samples
 
 The data of the samples for the calibration curve is extracted from the quantification samples after the outlier removal and normalization.
@@ -20,33 +26,38 @@ The number of samples in the calibration curve after outlier removal is presente
 ```{r}
 #| label: 'calcurve-samples-summary-calibration'
 # Present the number of samples in the calibration curve
-v <- util$spiked_conc_pts(to_report[["normalized - blank"]])
-v <- v[!is.na(v)] |> 
-  labelled::copy_labels_from(v)
-table(v) |> 
-  knitr::kable(
-    align = c("r", "r"),
-    col.names = c(labelled::get_label_attribute(v), "Number of Samples")
-    # col.names = c("Concentration (ng/ml)", "Number of Samples")
-  ) |> 
-  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+for (ii in names(calcurve_lst)) {
+  se <- calcurve_lst[[ii]]
+  v <- util$spiked_conc_pts(se)
+  v <- v[!is.na(v)] |> 
+    labelled::copy_labels_from(v)
+  table(v) |> 
+    knitr::kable(
+      align = c("r", "r"),
+      col.names = c(labelled::get_label_attribute(v), "Number of Samples"),
+      caption = paste("Batch", ii),
+      # col.names = c("Concentration (ng/ml)", "Number of Samples")
+    ) |> 
+    kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+}
 ```
 
 ## Calibration curve limits
 
 ```{r}
 #| purl: true
-limit_df <- local({
-  cc_se <- calib_interm_data[["calcurve_se incl failed"]]
-  SumExp::row_df(cc_se)[, c("min_c_conc", "max_c_conc", "lod", "lloq", "has_proper_range")]
-})
+limit_df <- lapply(calcurve_lst, \(se) {
+  SumExp::row_df(se)[, c("min_c_conc", "max_c_conc", "lod", "lloq", "has_proper_range")] |>
+    tibble::as_tibble(rownames = "feature_id")
+}) |> 
+  purrr::list_rbind(names_to = "batch")
 ```
 
 * LOD and LLOQ
 
 ```{r}
 cat(switch(
-  calib_interm_data[["llox method"]],
+  to_report$params$llox_method,
   "pt_signal_mean" = paste(
     "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded 3×",
     "or 10× the mean signal of the blank (zero concentration point) respectively; LLOQ",
@@ -78,7 +89,6 @@ The concentration range for each chemical is detailed below.
 #| label: 'calcurve-conc-range-table'
 
 show_df <- limit_df |> 
-  tibble::as_tibble(rownames = "feature_id") |>     # To attach `feature_name`
   dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
   dplyr::mutate(
     Note = dplyr::case_when(
@@ -96,6 +106,7 @@ show_df <- limit_df |>
   ) |>
   dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
   dplyr::select("Chemical Name" = feature_name, 
+                "Batch" = batch,
                 "LOD" = lod, 
                 "Minimum conc. (LLOQ)" = min_c, 
                 "Maximum conc." = max_c, 
@@ -104,7 +115,7 @@ show_df <- limit_df |>
 knitr::kable(
   show_df,
   caption = "Concentration range of the calibration curve samples",
-  align = "lrrrl",
+  align = "lrrrrl",
 ) |> 
   kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
   kableExtra::scroll_box(height = "350px") |> 

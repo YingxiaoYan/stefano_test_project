@@ -16,7 +16,9 @@ box::use(
 )
 
 # The ID of the matrix to use for calibration
-MAT_ID_FOR_CALIB <- util$mat_id_of_blank_subtracted(params$norm_method)
+MAT_ID_FOR_CALIB <- params$norm_method |>
+  util$mat_id_of_blank_subtracted() |>
+  util$mat_id_for_calibration()
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
@@ -38,10 +40,13 @@ FILE <- list(
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
+# Load the processed data
+lst_proc <- readRDS(FILE$i$proc) |>
+  lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])   # Keep only the models of interest
+
 # Load the intermediate data during QC
 to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
-calib_interm_data <- to_report[[paste0("calibration/", MAT_ID_FOR_CALIB)]]
 pre_norm_se <- to_report[["before normalization"]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)

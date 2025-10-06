@@ -61,7 +61,7 @@ FILE <- rlang::list2(
   to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
 )
 # For reports, store intermediate data during quality control steps.
-to_report <- list()
+to_report <- list("params" = params, "Completed" = FALSE)
 
 cat("\nProcessing steps are started.\n")
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
@@ -192,110 +192,119 @@ if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
 # Before excluding out-of-range calibration concentrations
 quant_se0 <- proc_sumexp[util$is_targeted_feature(proc_sumexp), ]
 
-# Per normalization method
-per_norm_lst <- list()       # Collect the output
-for (mat_id in norm_blk_mat_ids) {    # Use normalized and blank subtracted
-  # Collect intermediate data during calibration.
-  interm_data <- list()
-  
-  quant_se <- quant_se0     # Keep the unmodified for the next normalized data
-  log_scale <- params$log_calibration
-  if (log_scale) {
-    # Log scale for calibration curve fitting
-    quant_se[[mat_id]] <- log1p(quant_se[[mat_id]])    # log1p(x) = log(x + 1)
-    interm_data[["log scale"]] <- TRUE
-    cat("Log scale for calibration curve fitting is applied.\n")
-  } else {
-    interm_data[["log scale"]] <- FALSE
-  }
+log_scale <- params$log_calibration
+if (log_scale) cat("Log scale for calibration curve fitting is applied.\n")
 
-  # Meaningful min and max calibration points + LOD/LLOQ
-  fun <- switch(
-    params$llox_method,
-    "pt_signal_mean" = proc$compute_llox_signal_using_mean_times,
-    "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
-  )
-  interm_data[["llox method"]] <- params$llox_method
-  quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id, fun)
+# Get batch IDs from sample metadata
+batch_ids <- as.character(SumExp::col_df(quant_se0)[["batch_id"]])
+cat(
+  "Processing calibration per batch.", 
+  "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
+)
+
+# Split the data by batch IDs
+per_batch_lst <- SumExp::split_columns(quant_se0, batch_ids)
+# Collect the output
+lst_proc <- list()
+
+# Per batch, then per normalization method
+for (batch_id in unique(batch_ids)) {
+  in_batch <- batch_ids == batch_id
+  cat("Processing batch_id =", batch_id, "with", sum(in_batch), "samples.\n")
+  lst_proc[[batch_id]] <- list()    # To collect the output per batch
   
-  # Exclude the chemicals having no appropriate concentration range
-  has_proper_range <- proc$has_proper_calibration_range(quant_se)
-  interm_data[["calcurve_se incl failed"]] <- local({
-    cc <- util$split_into_calcurve_and_other(quant_se)$CalCurve
-    SumExp::row_df(cc) <- cbind(SumExp::row_df(cc), has_proper_range)
-    cc
-  })
-  if (sum(has_proper_range) == 0) {     # No chemicals with proper range
-    warning("NO Valid calibration points for any chemical. But reports can be generated.")
-    to_report[[paste0("calibration/", mat_id)]] <- interm_data
-    next
-  }
-  quant_se <- quant_se[has_proper_range, ]
-  # Data is divided into two parts.
-  # `calcurve_se` : calibration curve samples
-  # `concn_se` : samples to be calibrated
-  lst_q_se <- util$split_into_calcurve_and_other(quant_se, c("cc", "concn"))
-  calcurve_se <- lst_q_se$cc
-  concn_se    <- lst_q_se$concn
-  # Replace the values outside the concentration range with NA
-  calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
- 
-  # Fit the calibration curve
-  cc_mat_norm <- calcurve_se[[mat_id]]
-  c_concs <- util$spiked_conc_pts(calcurve_se)
-  if (log_scale) {
-    c_concs <- log(c_concs)  # `signal` is assumed to be log-transformed already
-    if (params$weight != "1") {
-      warning("Weighting methods other than `1` are not available under log scale. Using `1`.")
-      params$weight <- "1"
+  # Per normalization method
+  for (mat_id0 in norm_blk_mat_ids) {    # Use normalized and blank subtracted
+    # Label for the normalized data.
+    norm_lab <- labelled::get_label_attribute(quant_se0[[mat_id0]])
+    quant_se <- per_batch_lst[[batch_id]]   # Change across the steps
+   
+    # Log scale for calibration curve fitting
+    if (log_scale) quant_se[[mat_id0]] <- log1p(quant_se[[mat_id0]])    # log1p(x) = log(x + 1)
+    
+    # Meaningful min and max calibration points + LOD/LLOQ
+    fun <- switch(
+      params$llox_method,
+      "pt_signal_mean" = proc$compute_llox_signal_using_mean_times,
+      "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
+    )
+    quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id0, fun)
+
+    # Exclude the chemicals having no appropriate concentration range
+    has_proper_range <- proc$has_proper_calibration_range(quant_se)
+    SumExp::row_df(quant_se) <- cbind(SumExp::row_df(quant_se), has_proper_range)
+    if (sum(has_proper_range) == 0) {     # No chemicals with proper range
+      warning("NO Valid calibration points for any chemical. But reports can be generated.")
+      lst_proc[[batch_id]][[mat_id0]] <- quant_se
+      next
     }
-  }
-  calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-    proc$fit_and_test_calcurve_model(c_concs,
-                                     signal = cc_mat_norm[ii, ],
-                                     weight_method = params$weight,
-                                     penalty_quadratic = 0.01)
-  })
-  stopifnot(identical(names(calcurve_models), rownames(concn_se)))
-  SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |> 
-    dplyr::mutate(calcurve_model = calcurve_models)
-  interm_data[["weight method"]] <- params$weight
+    # Matrix ID for calibration
+    mat_id <- util$mat_id_for_calibration(mat_id0)
+    quant_se[[mat_id]] <- util$extract_with_na(quant_se[[mat_id0]], i = has_proper_range, j = TRUE)
+    if (log_scale) quant_se[[mat_id0]] <- expm1(quant_se[[mat_id0]])    # Back transform
+    
+    # Data is divided into two parts.
+    # `calcurve_se` : calibration curve samples
+    # `concn_se` : samples to be calibrated
+    lst_q_se <- util$split_into_calcurve_and_other(quant_se, c("cc", "concn"))
+    calcurve_se <- lst_q_se$cc
+    concn_se    <- lst_q_se$concn
+
+    # Replace the values outside the concentration range with NA
+    calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
   
-  if (log_scale) {    # Back-transform to the original scale
-    calcurve_se[[mat_id]] <- expm1(calcurve_se[[mat_id]])    # expm1(x) = exp(x) - 1
-  }
-  interm_data[["calcurve_se within range"]] <- calcurve_se
-  
-  # Compute the concentration of the samples using the calibration curve
-  unit <- SumExp::metadata(concn_se)$concentration_unit
-  concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = log_scale) |> 
-    labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
-  concn_se <- concn_se |>
-    proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
-    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
-    proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
-  # Label for the normalized data. To label the output of this function
-  norm_lab <- labelled::get_label_attribute(quant_se[[mat_id]])
-  labelled::label_attribute(concn_se) <- norm_lab
-  if (log_scale) {
-    concn_se[[mat_id]] <- expm1(concn_se[[mat_id]])    # Back transform
-  }
-  interm_data[["concn_se with conc"]] <- concn_se
-  
-  # Exclude the chemicals with no quantification
-  non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
-  any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
-  concn_se <- concn_se[rowSums(any_above_lloq) > 0, ]
-  
-  # Store the intermediate data
-  to_report[[paste0("calibration/", mat_id)]] <- interm_data
-  # Collect the output
-  per_norm_lst[[mat_id]] <- concn_se
-  # Progress message
-  cat("Calibration of", norm_lab, "data is done.\n")
+    # Fit the calibration curve
+    cc_mat_norm <- calcurve_se[[mat_id]]
+    c_concs <- util$spiked_conc_pts(calcurve_se)
+    if (log_scale) {
+      c_concs <- log(c_concs)  # `signal` is assumed to be log-transformed already
+      if (params$weight != "1") {
+        warning("Weighting methods other than `1` are not available under log scale. Using `1`.")
+        params$weight <- "1"
+      }
+    }
+    calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
+      proc$fit_and_test_calcurve_model(
+        c_concs,
+        signal = cc_mat_norm[ii, ],
+        weight_method = params$weight,
+        penalty_quadratic = 0.01
+      )
+    })
+    SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |> 
+      dplyr::mutate(calcurve_model = calcurve_models)
+    # Back-transform to the original scale 
+    if (log_scale) calcurve_se[[mat_id]] <- expm1(calcurve_se[[mat_id]])    # expm1(x) = exp(x) - 1
+    
+    # Compute the concentration of the samples using the calibration curve
+    unit <- SumExp::metadata(concn_se)$concentration_unit
+    concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = log_scale) |> 
+      labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
+    concn_se <- concn_se |>
+      proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
+      proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
+      proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
+    labelled::label_attribute(concn_se) <- norm_lab
+    if (log_scale) concn_se[[mat_id]] <- expm1(concn_se[[mat_id]])    # Back transform
+
+    # Exclude the chemicals with no quantification
+    non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
+    any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
+    concn_se[["conc_export"]] <- util$extract_with_na(
+      concn_se[["conc"]], i = rowSums(any_above_lloq) > 0, j = TRUE
+    )
+    
+    # Collect the output
+    lst_proc[[batch_id]][[mat_id]] <- rlang::list2(
+      calcurve = calcurve_se,
+      concn = concn_se
+    )
+    # Progress message
+    cat("Calibration of", norm_lab, "data is done.\n")
+  } # End of per normalization method
 }
 # Save the processed data
-saveRDS(per_norm_lst, file = FILE$proc)
+saveRDS(lst_proc, file = FILE$proc)
 cat("The `SumExp` object after processing saved to:", FILE$proc, "\n")
 
 # Mark the processing step as completed

@@ -4,7 +4,7 @@ title: "_external-llox_from_llox_signal"
 
 ```{r}
 cat(switch(
-  calib_interm_data[["llox method"]],
+  to_report$params$llox_method,
   "pt_signal_mean" = paste(
     "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded 3×",
     "or 10× the mean signal of the blank (zero concentration point) respectively; LLOQ",

@@ -67,7 +67,7 @@ to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
 calib_interm_data <- to_report[[paste0("calibration/", MAT_ID_FOR_CALIB)]]
 
-log_scale <- calib_interm_data[["log scale"]]
+log_scale <- to_report[["params"]][["log_calibration"]]
 concn_se <- readRDS(FILE$i$proc)[[MAT_ID_FOR_CALIB]]
 # Exclude control samples
 concn_se <- util$exclude_ctrl_smpl_cat(concn_se, c("QC"))

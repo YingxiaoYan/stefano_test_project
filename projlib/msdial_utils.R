@@ -129,7 +129,8 @@ exclude_ctrl_smpl_cat <- function(sumexp, excl_cat) {
   if (length(excl_cat) == 0) {
     return(sumexp)
   }
-  sumexp[, ! ctrl_smpl_cat(sumexp) %in% excl_cat]
+  s_cat <- ctrl_smpl_cat(sumexp)
+  sumexp[, (! s_cat %in% excl_cat) | is.na(s_cat)]
 }
 #' @rdname ctrl_smpl_cat
 #' @description
@@ -145,7 +146,8 @@ extract_ctrl_smpl_cat <- function(sumexp, cat) {
   if (length(cat) == 0) {
     return(sumexp)
   }
-  sumexp[, ctrl_smpl_cat(sumexp) %in% cat]
+  s_cat <- ctrl_smpl_cat(sumexp)
+  sumexp[, !is.na(s_cat) & (s_cat %in% cat)]
 }
 
 #' Split the columns of a [`SumExp::SumExp`] object into the calibration curve and the other
@@ -164,6 +166,37 @@ split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Oth
 
 # Variables created during processing ----------------------------------------------------
 
+#' Get or set the calibration curve model for a given matrix
+#' 
+#' @param sumexp A [`SumExp::SumExp`] object
+#' @param mat_id The name of a matrix
+#' @param value The calibration curve model to be stored
+#' @returns
+#' [calcurve_model()]: The calibration curve model for the given matrix
+#' [calcurve_model<-()]: The updated [`SumExp::SumExp`] object
+#' @md
+#' @export
+calcurve_model <- function(sumexp, mat_id) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  stopifnot(is.character(mat_id), length(mat_id) == 1)
+  SumExp::row_df(sumexp)[[paste0(".calcurve_model_", mat_id)]]
+}
+#' @rdname calcurve_model
+#' @export
+`calcurve_model<-` <- function(sumexp, mat_id, value) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  stopifnot(is.character(mat_id), length(mat_id) == 1)
+  nm <- paste0(".calcurve_model_", mat_id)
+  stopifnot(is.list(value))
+  i_match <- match(names(value), rownames(sumexp))
+  if (any(is.na(i_match))) {
+    stop("Some feature IDs in 'value' are not found in 'sumexp'.")
+  }
+  SumExp::row_df(sumexp)[[nm]] <- NA     # Allow missing row names in 'value'
+  SumExp::row_df(sumexp)[[nm]][i_match] <- value
+  sumexp
+}
+
 #' Get the matrix ID of the blank-subtracted matrix
 #'
 #' @param mat_id The name of a matrix
@@ -179,6 +212,54 @@ mat_id_of_blank_subtracted <- function(mat_id) {
 mat_id_before_blank_subtraction <- function(mat_id) {
   sub("_blk$", "", mat_id)
 }
+
+#' Get the matrix ID for calibration
+#' 
+#' @param mat_id The name of a matrix
+#' @returns The name of the matrix to be used for calibration
+#' @export
+mat_id_for_calibration <- function(mat_id) {
+  paste0(mat_id, "_calib")
+}
+#' Get the matrix ID before calibration
+#' @rdname mat_id_for_calibration
+#' @export
+mat_id_before_calibration <- function(mat_id) {
+  sub("_calib$", "", mat_id)
+}
+
+#' Extract a subset and replace others with NA
+#'
+#' @param mat A matrix
+#' @param i A numeric vector of row indices to be retained or a logical vector or `TRUE`
+#' @param j A numeric vector of column indices to be retained or a logical vector or `TRUE`
+#' @returns The matrix with the specified rows and columns retained and others replaced with NA
+#' @md
+#' @export
+extract_with_na <- function(mat, i = TRUE, j = TRUE) {
+  stopifnot(is.matrix(mat))
+  stopifnot(is.logical(i) || is.numeric(i))
+  stopifnot(is.logical(j) || is.numeric(j))
+  if (is.numeric(i)) {
+    i_all <- seq_len(nrow(mat))
+    i <- i_all %in% i
+  } else {
+    stopifnot(length(i) == nrow(mat) || length(i) == 1)
+  }
+  i[is.na(i)] <- FALSE
+  if (is.numeric(j)) {
+    j_all <- seq_len(ncol(mat))
+    j <- j_all %in% j
+  } else {
+    stopifnot(length(j) == ncol(mat) || length(j) == 1)
+  }
+  j[is.na(j)] <- FALSE
+  mat_out <- matrix(NA, nrow = nrow(mat), ncol = ncol(mat))
+  mat_out[i, j] <- mat[i, j]
+  dimnames(mat_out) <- dimnames(mat)
+  mat_out
+}
+
 
 # Utils ----------------------------------------------------------------------------------
 
