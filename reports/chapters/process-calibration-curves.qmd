@@ -27,8 +27,7 @@ calcurve_lst <- lst_proc |>
   lapply(\(x) x$calcurve)
 
 calcurve_to_show_df <- lapply(calcurve_lst, SumExp::as_tibble) |> 
-  dplyr::bind_rows(.id = "Batch") |>
-  tidyr::drop_na(all_of(MAT_ID_FOR_CALIB))          # Drop concentrations outside the range
+  dplyr::bind_rows(.id = "Batch") 
 # Copy labels from the first batch
 for (ii in names(calcurve_lst[[1]])) {
   labelled::label_attribute(calcurve_to_show_df[[ii]]) <- 
@@ -74,7 +73,7 @@ calcurve_plot <- function(dfm, y = params$norm_method) {
       # Label for the points
       txt = paste0("inj: ", injection_order, ", conc: ", .cc_pt)
     )
-  facet_fill <- if (dfm$has_proper_range[1]) "lightgray" else "lightcoral"
+  facet_fill <- if (any(!dfm$has_proper_range)) "lightcoral" else "lightgray"
   ggplot(dfm, aes(x = .cc_pt, y = .data[[y]], shape = Batch)) +
     suppressWarnings(geom_point(aes(color = c_type, text = txt))) +
     labs(
