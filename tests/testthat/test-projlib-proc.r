@@ -17,7 +17,8 @@ test_that("find_calib_lim_pts_and_llox_from_llox_signal", {
   calib_lim_pts <- find_calib_lim_pts_and_llox_from_llox_signal(
     sumexp = to_report[["normalized - blank"]],
     mat_id = "loess_norm_blk",
-    compute_llox_signal_fun = compute_llox_signal_using_mean_times
+    compute_llox_signal_fun = compute_llox_signal_using_mean_times,
+    use_rsd20 = TRUE
   )
   expect_s4_class(calib_lim_pts, "SumExp")
 })

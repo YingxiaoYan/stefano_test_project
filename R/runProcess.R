@@ -56,6 +56,12 @@ runProcessUI <- function(uiId) {
                            "StdDev", shiny::tags$sub("Cal0")))
       ),
     ),
+    # RSD% 20% threshold for LLOQ
+    shiny::checkboxInput(
+      inputId = ns("use_rsd20"),
+      label = "Use RSD% 20% threshold for LLOQ?",
+      value = TRUE,
+    ),
     shiny::actionButton(ns("run_button"), label = "Process data"),
     shiny::verbatimTextOutput(ns("script_output")),
     shiny::br(),
@@ -90,7 +96,8 @@ runProcessServer <- function(serverId) {
       "rm_outlier", 
       "log_calibration",
       "weight", 
-      "llox_method"
+      "llox_method",
+      "use_rsd20"
     )
   )
 }

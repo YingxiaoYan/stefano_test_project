@@ -578,6 +578,8 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 #' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals. 
 #'   It is expected to take three arguments: `m_neg`, `sd_neg`, and `times`.
 #'   The function should return a numeric vector of the LOD or LLOQ signals for each chemical.
+#' @param use_rsd20 A logical value indicating whether to use the RSD <= 20% condition for the 
+#'  LLOQ. If `FALSE`, only the signal > LLOQ signal condition is used.
 #'
 #' @returns A [`SumExp::SumExp`] object with the calibration curve limits and the LOD/LLOQ. The
 #'   added columns to the [`SumExp::row_df()`] of `sumexp` are: `min_c_conc`, `max_c_conc`, `lod`,
@@ -591,7 +593,10 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 #' @md
 #' @seealso [max_conc_for_curve()]
 #' @export
-find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, mat_id, compute_llox_signal_fun) {
+find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, 
+                                                         mat_id, 
+                                                         compute_llox_signal_fun,
+                                                         use_rsd20) {
   neg_ctrl_or_not <- local({
     c_pt <- util$spiked_conc_pts(sumexp)
     is_neg_ctrl <- !is.na(c_pt) & c_pt == 0
@@ -625,8 +630,12 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, mat_id, compute
   # Lower limit of quantification
   lloq_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 10)
   stopifnot(identical(rownames(sumexp), names(lloq_signal)))
-  mat_rsd <- mat_sd / mat_m
-  mat_cond <- mat_m > lloq_signal & mat_rsd <= 0.2
+  mat_cond <- mat_m > lloq_signal
+  if (use_rsd20) {
+    mat_rsd <- mat_sd / mat_m
+    mat_rsd[mat_m == 0] <- Inf  # Avoid division by zero
+    mat_cond <- mat_cond & (mat_rsd <= 0.2)
+  }
   lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
   # Average signal of the LLOQ point
   lloq_avg_signal <- values_of_given_conc_in_mat(mat_m, lloq)

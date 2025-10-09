@@ -26,6 +26,10 @@ option_list <- rlang::list2(
     c("--llox_method"), type = "character", default = "pt_signal_mean_plus_sd",
     help = "Method to compute LOD/LLOQ"
   ),
+  optparse::make_option(
+    c("--use_rsd20"), type = "logical", default = TRUE,
+    help = "Use RSD% 20% threshold for LLOQ? [default: %default]"
+  )
 )
 opt_parser <- optparse::OptionParser(
   option_list = option_list,
@@ -38,7 +42,8 @@ cat(
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
-  "  - LOD/LLOQ method:", params$llox_method, "\n"
+  "  - LOD/LLOQ method:", params$llox_method, "\n",
+  "  - Use RSD% 20% for LLOQ:", params$use_rsd20, "\n"
 )
 
 # Libraries and files     ---------------
@@ -228,7 +233,9 @@ for (batch_id in unique(batch_ids)) {
       "pt_signal_mean" = proc$compute_llox_signal_using_mean_times,
       "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
     )
-    quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(quant_se, mat_id0, fun)
+    quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
+      quant_se, mat_id0, fun, params$use_rsd20
+    )
 
     # Exclude the chemicals having no appropriate concentration range
     has_proper_range <- proc$has_proper_calibration_range(quant_se)
