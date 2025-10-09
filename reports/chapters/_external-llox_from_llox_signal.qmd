@@ -7,15 +7,17 @@ cat(switch(
   to_report$params$llox_method,
   "pt_signal_mean" = paste(
     "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded 3×",
-    "or 10× the mean signal of the blank (zero concentration point) respectively; LLOQ",
-    "additionally required a signal RSD ≤ 20%."
+    "or 10× the mean signal of the blank (zero concentration point) respectively."
   ),
   "pt_signal_mean_plus_sd" = paste(
     "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded the",
     "mean signal of the blank (zero concentration point) plus 3× or 10× its standard deviation,",
-    "respectively; LLOQ additionally required a signal RSD ≤ 20%."
+    "respectively."
   )
 ))
+if (to_report$params$use_rsd20) {
+  cat(" Additionally, LLOQ required a signal RSD ≤ 20%.")
+}
 ```
 
 In order to fit a calibration curve to a meaningful range of concentration, the fitting range is adjusted.

@@ -23,8 +23,9 @@ The calibration curve of each of the chemicals is presented below.
 # Whether the calibration curve is fitted to the log-transformed data
 log_scale <- to_report[["params"]][["log_calibration"]]
 
-calcurve_lst <- lst_proc |> 
-  lapply(\(x) x$calcurve)
+calcurve_lst <- lapply(lst_proc, \(ea) {ea$calcurve})
+# To keep the order
+seq_feat_id <- rownames(calcurve_lst[[1]])  # All batches have the same features
 
 calcurve_to_show_df <- lapply(calcurve_lst, SumExp::as_tibble) |> 
   dplyr::bind_rows(.id = "Batch") 
@@ -48,9 +49,11 @@ calcurve_to_show_df <- calcurve_to_show_df |>
   )
 # Split the data by feature
 lst_calcurve_to_show_df <- split(calcurve_to_show_df, calcurve_to_show_df$.row_id)
-# Sort the features by name
-f_names <- sapply(lst_calcurve_to_show_df, \(dfm) dfm$feature_name[1])
-lst_calcurve_to_show_df <- lst_calcurve_to_show_df[order(f_names)]
+# Keep the order of features as in the data
+lst_calcurve_to_show_df <- local({
+  nms <- names(lst_calcurve_to_show_df)
+  lst_calcurve_to_show_df[match(seq_feat_id, nms, nomatch = 0)]
+})
 ```
 
 ```{r}
@@ -246,9 +249,11 @@ for (batch_id in names(concn_lst)) {
   )
 
   lst_concn_se <- SumExp::split_rows(concn_se, rownames(SumExp::row_df(concn_se)))
-  # Sort the chemicals by name
-  f_names <- sapply(lst_concn_se, \(se) SumExp::row_df(se)$feature_name)
-  lst_concn_se <- lst_concn_se[order(f_names)]
+  # Keep the order of features as in the data
+  lst_concn_se <- local({
+    nms <- names(lst_concn_se)
+    lst_concn_se[match(seq_feat_id, nms, nomatch = 0)]
+  })
 
   p_by_feature <- lapply(lst_concn_se, \(se) {
     p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
@@ -330,9 +335,11 @@ for (batch_id in names(to_show_excl_qc_lst)) {
       "No chemicals to show in the calibration curve.\n"
     )
   } else {
-    # Sort by feature name
-    f_names_ord <- order(SumExp::row_df(to_show_excl_qc)$feature_name)
-    to_show_excl_qc <- to_show_excl_qc[f_names_ord, ]
+    # Keep the order of features as in the data
+    to_show_excl_qc <- local({
+      nms <- rownames(to_show_excl_qc)
+      to_show_excl_qc[match(seq_feat_id, nms, nomatch = 0), ]
+    })
     # Split by each row
     n_chem <- nrow(to_show_excl_qc)
     n_cols <- 2    # Number of columns in the plot (facets)
