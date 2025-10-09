@@ -166,15 +166,29 @@ cat("LOESS normalization is done.\n")
 ## Blank subtraction     ---------------
 norm_mat_ids <- c("loess_norm", "closest_norm", "before_norm")
 to_report[["normalized matrix ids"]] <- norm_mat_ids
-norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
 to_report[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
-proc_sumexp <- proc$add_blank_subtracted_sumexp(
-  sumexp = proc_sumexp,
-  no_change = util$ctrl_smpl_cat(proc_sumexp) == "CalCurve",
-  mat_ids = norm_mat_ids, 
-  out_mat_ids = norm_blk_mat_ids
+
+# Get batch IDs
+batch_ids <- as.character(SumExp::col_df(proc_sumexp)[["batch_id"]])
+cat(
+  "Processing blank substraction per batch.", 
+  "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
 )
-to_report[["normalized - blank"]] <- proc_sumexp
+# Split the data by batch IDs
+per_batch_proc_se_lst <- SumExp::split_columns(proc_sumexp, batch_ids)
+
+norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
+# Per batch, then per normalization method
+for (batch_id in unique(batch_ids)) {
+  se <- per_batch_proc_se_lst[[batch_id]]
+  per_batch_proc_se_lst[[batch_id]] <- proc$add_blank_subtracted_sumexp(
+    sumexp = se,
+    no_change = util$ctrl_smpl_cat(se) == "CalCurve",
+    mat_ids = norm_mat_ids, 
+    out_mat_ids = norm_blk_mat_ids
+  )
+}
+to_report[["normalized - blank"]] <- per_batch_proc_se_lst
 cat("Blank subtraction is done.\n")
 
 # Calibration using calcurve -------------------------------------------------------------
@@ -193,22 +207,10 @@ if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
   proc$stop_quietly()
 } 
 
-# Limit to the samples to be calibrated (or quantified)
-# Before excluding out-of-range calibration concentrations
-quant_se0 <- proc_sumexp[util$is_targeted_feature(proc_sumexp), ]
-
 log_scale <- params$log_calibration
 if (log_scale) cat("Log scale for calibration curve fitting is applied.\n")
 
-# Get batch IDs from sample metadata
-batch_ids <- as.character(SumExp::col_df(quant_se0)[["batch_id"]])
-cat(
-  "Processing calibration per batch.", 
-  "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
-)
-
-# Split the data by batch IDs
-per_batch_lst <- SumExp::split_columns(quant_se0, batch_ids)
+cat("Processing calibration per batch.")
 # Collect the output
 lst_proc <- list()
 
@@ -220,9 +222,12 @@ for (batch_id in unique(batch_ids)) {
   
   # Per normalization method
   for (mat_id0 in norm_blk_mat_ids) {    # Use normalized and blank subtracted
+    quant_se <- per_batch_proc_se_lst[[batch_id]]   # Change across the steps
+    # Limit to the samples to be calibrated (or quantified)
+    # Before excluding out-of-range calibration concentrations
+    quant_se <- quant_se[util$is_targeted_feature(quant_se), ]
     # Label for the normalized data.
-    norm_lab <- labelled::get_label_attribute(quant_se0[[mat_id0]])
-    quant_se <- per_batch_lst[[batch_id]]   # Change across the steps
+    norm_lab <- labelled::get_label_attribute(quant_se[[mat_id0]])
    
     # Log scale for calibration curve fitting
     if (log_scale) quant_se[[mat_id0]] <- log1p(quant_se[[mat_id0]])    # log1p(x) = log(x + 1)

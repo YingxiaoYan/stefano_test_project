@@ -15,7 +15,7 @@ test_that("add_blank_subtracted_sumexp", {
 
 test_that("find_calib_lim_pts_and_llox_from_llox_signal", {
   calib_lim_pts <- find_calib_lim_pts_and_llox_from_llox_signal(
-    sumexp = to_report[["normalized - blank"]],
+    sumexp = to_report[["normalized - blank"]][[1]],
     mat_id = "loess_norm_blk",
     compute_llox_signal_fun = compute_llox_signal_using_mean_times,
     use_rsd20 = TRUE

@@ -86,12 +86,13 @@ norm_se <- to_report[["normalized"]]
 ### Blank subtraction
 
 After data normalization, peak areas are blank corrected by subtracting the corresponding feature average peak area detected in the blanks (negative values set to zero).
-Blank subtraction is applied to all samples in the dataset except for the calibration standards.
+Blank subtraction is applied to all samples in the dataset except for the calibration standards per batch.
 
 ```{r}
 #| label: target_mode
 if (!SumExp::metadata(raw_se)$is_non_target_mode) {
   cat("\n\n# Calibration\n\n")
+  cat("\nThe calibration is performed per batch.\n\n")
   qmd <- "process-calibration-llox_from_llox_signal.qmd"
   cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
   # Stop here if the calibration is not performed

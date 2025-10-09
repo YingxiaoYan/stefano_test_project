@@ -40,9 +40,9 @@ FILE <- list(
 # Check if input files and output directories exist
 io$check_io_exist(FILE)
 
-# Load the processed data
+# Load the processed data using the specified normalization method
 lst_proc <- readRDS(FILE$i$proc) |>
-  lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])   # Keep only the models of interest
+  lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])
 
 # Load the intermediate data during QC
 to_report <- readRDS(FILE$i$to_rep)
