@@ -477,19 +477,32 @@ tbl_chemical_summary <- function(sumexp) {
     }
   }
   # Add summary about the calibration curve models
-  conc_summary |>
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      best_model = calcurve_model$best_model_name,
-      model_r2 = calcurve_model$R2s[[best_model]],
-      n_conc = calcurve_model$n_conc,
-      eqn = get_equation(calcurve_model),
-      .keep = "unused"     # Remove `calcurve_model`
-    ) |>
+  m_sum <- lapply(conc_summary$calcurve_model, \(m) {
+    out <- if (is.na(m)[1L]) {    # "best_model" if exists
+      tibble::tibble(
+        best_model = NA_character_,
+        model_r2 = NA_real_,
+        n_conc = NA_integer_,
+        eqn = NA_character_,
+      )
+    } else {
+      tibble::tibble(
+        best_model = m$best_model_name,
+        model_r2 = m$R2s[[m$best_model_name]],
+        n_conc = m$n_conc,
+        eqn = get_equation(m),
+      )
+    }
+    stopifnot(nrow(out) == 1)
+    out
+  }) |>
+    dplyr::bind_rows()
+
+  cbind(conc_summary, m_sum) |>
+    dplyr::select(-calcurve_model) |>
     dplyr::mutate(
       best_model = stringr::str_replace(best_model, "_div_", "/")
-    ) |>
-    dplyr::ungroup()
+    )
 }
 
 # Injection order ------------------------------------------------------------------------

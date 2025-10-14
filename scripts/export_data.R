@@ -5,9 +5,9 @@
 # 3. Concentration data of targeted features (blank subtracted)
 # 
 # Output file names are based on the input file name and normalization method.
-# 1. (base name).(normalized method).norm.tsv
-# 2. (base name).(normalized method).norm_blk.tsv
-# 3. (base name).(normalized method).conc.tsv
+# 1. (base name).(normalized method).norm.xlsx
+# 2. (base name).(normalized method).norm_blk.xlsx
+# 3. (base name).(normalized method).conc.xlsx
 # ------------------------------------------------------------------------------------------- #
 
 # Load packages and project local libraries
@@ -31,25 +31,24 @@ FILE <- list(
     to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
 )
-io$chq_all_files_exist(FILE$i[c("raw", "qc")])
+io$chq_all_files_exist(FILE)
 # Load the normalized data
 to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
-norm_mat_ids <- to_report[["normalized matrix ids"]]      # `mat_ids` e.g. "loess_norm"
-raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-is_non_target_mode <- SumExp::metadata(raw_se)$is_non_target_mode
+norm_mat_ids <- to_report[["normalized matrix ids"]]   # `mat_ids` e.g. "loess_norm", "closest_norm"
+IS_NON_TARGET_MODE <- SumExp::metadata(to_report[["normalized"]])$is_non_target_mode
 
 # Output files
 FILE$o <- local({
   # Copy the basename of the input file to the output file names
-  # "(base name).(normalized method).conc.tsv", "().norm.tsv" and "().norm_blk.tsv"
+  # "(base name).(normalized method).conc.xlsx", "().norm.xlsx" and "().norm_blk.xlsx"
   b <- basename(user_inputs$input_file) |> 
     tools::file_path_sans_ext()    # Without extension
   ns <- stringr::str_remove(norm_mat_ids, "_norm")
   paste_file_name <- function(x, p) {
-    file.path(user_inputs$table_dir, paste0(b, ".", x, ".", p, ".tsv"))
+    file.path(user_inputs$table_dir, paste0(b, ".", x, ".", p, ".xlsx"))
   }
-  out_data <- if (is_non_target_mode) {
+  out_data <- if (IS_NON_TARGET_MODE) {
     c("norm", "norm_blk")
   } else {
     c("norm", "norm_blk", "conc")
@@ -60,16 +59,16 @@ FILE$o <- local({
 })
 io$mkdir_if_not_exist(dirname(unlist(FILE$o)))
 
-for(ii in seq(norm_mat_ids)) {
-  msdial$export_data_with_feature_table_tsv(
-    sumexp = to_report[["normalized"]], 
+for (ii in seq_along(norm_mat_ids)) {
+  msdial$export_data_with_feature_table_xlsx(
+    sumexp_lst = to_report[["normalized"]], 
     mat_id = norm_mat_ids[ii],
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm[[ii]]
   )
 
-  msdial$export_data_with_feature_table_tsv(
-    sumexp = to_report[["normalized - blank"]],
+  msdial$export_data_with_feature_table_xlsx(
+    sumexp_lst = to_report[["normalized - blank"]],
     mat_id = util$mat_id_of_blank_subtracted(norm_mat_ids[ii]),
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]]
@@ -77,19 +76,22 @@ for(ii in seq(norm_mat_ids)) {
 }
 
 # Export concentration values ----------
-if (!is_non_target_mode) {
+if (!IS_NON_TARGET_MODE) {
   io$chq_all_files_exist(FILE$i$proc)
   # Load the concentration data
   concn_lst <- readRDS(FILE$i$proc)
 
-  for(ii in seq(norm_mat_ids)) {
-    norm_blk_mat_id <- util$mat_id_of_blank_subtracted(norm_mat_ids[ii])
-    concn_se <- concn_lst[[ norm_blk_mat_id ]]
-    # Sort the chemicals by name
-    concn_se <- concn_se[order(SumExp::row_df(concn_se)$feature_name), ]
-    msdial$export_concentration_tsv(
+  for (ii in seq_along(norm_mat_ids)) {
+    # The ID of the matrix to use for calibration
+    mat_id_for_calib <- norm_mat_ids[ii] |>
+      util$mat_id_of_blank_subtracted() |>
+      util$mat_id_for_calibration()
+    # Load the processed data using the specified normalization method
+    lst_proc <- lapply(concn_lst, \(.x) .x[[mat_id_for_calib]])    # per batch
+    lst_proc <- lapply(lst_proc, \(ea) ea[["concn"]])   # Extract concentration data
+    msdial$export_concentration_xlsx(
       # Concentration has been computed on the blank subtracted data
-      sumexp = concn_se,
+      sumexp_lst = lst_proc,
       file = FILE$o$conc[[ii]]
     )
   }

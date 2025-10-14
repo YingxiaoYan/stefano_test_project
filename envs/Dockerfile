@@ -38,6 +38,7 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
     shinyFiles \
     quarto \
     optparse \
+    writexl \
     && rm -rf /tmp/downloaded_packages
 
 # Install a local package

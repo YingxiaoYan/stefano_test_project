@@ -755,11 +755,7 @@ fit_and_test_calcurve_model <- function(conc,
                                         weight_method = "largestR2",
                                         penalty_quadratic = 0) {
   if (all(is.na(signal) | signal == 0)) {
-    return(list(
-      "best_model" = function(x) x,
-      "R2s" = NA,
-      "best_model_name" = NA_character_
-    ))
+    return(NA)
   }
   # Weight alternatives
   weights_alt <- rlang::list2(
@@ -833,8 +829,12 @@ linear_calcurve_model <- function(conc, signal, weights) {
 compute_concentration <- function(sumexp, mat_id, log_scale = FALSE) {
   mat <- sumexp[[mat_id]]
   models <- SumExp::row_df(sumexp)$calcurve_model
+  no_model <- is.na(models)
   # Calculate the concentration of each feature
   conc <- sapply(rownames(mat), \(i_feature) {
+    if (no_model[i_feature]) {
+      return(rep(NA_real_, ncol(mat)))
+    }
     v <- mat[i_feature, ]
     # Concentration by the best model
     models[[i_feature]]$best_model(v)
@@ -843,6 +843,7 @@ compute_concentration <- function(sumexp, mat_id, log_scale = FALSE) {
   if (log_scale) {
     conc <- exp(conc)    # Back transform
   }
+  colnames(conc) <- colnames(mat)
   conc <- labelled::set_label_attribute(conc, "Concentration")
   conc
 }

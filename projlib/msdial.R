@@ -216,6 +216,7 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
       "Class" = "Class",
       "Sample Type" = "sample_type",
       "Injection Order" = "injection_order",
+      "Batch ID" = "batch_id",
     )
   # In rows
   out <- data.frame(
@@ -226,25 +227,8 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   out
 }
 
-#' Export data with the feature table to a tab-separated file
-#'
-#' @param sumexp A [`SumExp::SumExp`] object
-#' @param mat_id The name of the data in `sumexp` (or assay) to be exported
-#' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
-#'   Unsaved feature information will be copied from this file.
-#' @param out_file Path to the output tab-separated file
-#' @md
-#' @export
-export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file) {
-  # Prepare the feature table
-  i_sec <- get_three_section_indices(in_file)
-  intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
-  
-  # The first three rows are the sample information
-  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(intact_feature_cols))
-  readr::write_tsv(sinfo, out_file, append = FALSE, col_names = FALSE, na = "")
-  
-  # Prepare the data table
+#' prepare exporting table with feature table
+.prep_export_table_with_feature_table <- function(sumexp, mat_id, feat_tbl) {
   mat_x <- sumexp[[mat_id]]
   df_x <- mat_x |>  
     round(.find_rounding_decimal_places(mat_x)) |>     # Reduce the number of decimals
@@ -253,57 +237,140 @@ export_data_with_feature_table_tsv <- function(sumexp, mat_id, in_file, out_file
   colnames(df_x) <- SumExp::col_df(sumexp)$sample_name
   df_x <- df_x |> 
     dplyr::mutate("Alignment ID" = SumExp::row_df(sumexp)$alignment_id, .before = 1) |> 
-    dplyr::right_join(intact_feature_cols, y = _, by = "Alignment ID")
-  readr::write_tsv(df_x, file = out_file, append = TRUE, col_names = TRUE, na = "")
+    dplyr::right_join(feat_tbl, y = _, by = "Alignment ID")
+  df_x
+}
+
+#' Merge sample info rows and feature data
+.merge_sample_info_and_feature_data <- function(sumexp, mat_id, feature_cols) {
+  # The first three rows are the sample information
+  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(feature_cols))
+  # Prepare the data table
+  df_x <- .prep_export_table_with_feature_table(sumexp, mat_id, feature_cols)
+  # Combine sample info rows and feature data
+  col_nms <- colnames(sinfo) <- colnames(df_x)   # Avoid mismatch error
+  col_nms_df <- as.data.frame(as.list(col_nms))  # Header row inbetween
+  colnames(col_nms_df) <- col_nms
+  out <- rbind(sinfo, col_nms_df, df_x)
+  out
+}
+
+#' Export data with the feature table to a Excel `xlsx` file
+#'
+#' @param sumexp_lst A [ㅏSumExp::SumExp`] object or a list of such objects.
+#'   Each object in the list corresponds to a different batch
+#' @param mat_id The name of the data in `sumexp` (or assay) to be exported
+#' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
+#'   Unsaved feature information will be copied from this file.
+#' @param out_file Path to the output file
+#' @md
+#' @export
+export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out_file) {
+  stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
+  # Prepare the feature table
+  i_sec <- get_three_section_indices(in_file)
+  intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
+  
+  # Prepare the data table
+  if (inherits(sumexp_lst, "SumExp")) {
+    .merge_sample_info_and_feature_data(sumexp_lst, mat_id, intact_feature_cols) |>
+      writexl::write_xlsx(path = out_file, format_headers = FALSE, col_names = FALSE)
+  } else {  # list of SumExp
+    lst_df <- lapply(sumexp_lst, .merge_sample_info_and_feature_data, mat_id, intact_feature_cols)
+    names(lst_df) <- paste("Batch", names(lst_df))
+    writexl::write_xlsx(lst_df, path = out_file, format_headers = FALSE, col_names = FALSE)
+  }
 }
 
 #' Export the concentration table
 #'
-#' @param sumexp A [`SumExp::SumExp`] object to be exported
-#' @param file Path to the output tab-separated file
+#' @param sumexp_lst A list of [`SumExp::SumExp`] objects to be exported. The name of each element
+#'   should be the batch ID.
+#' @param file Path to the output file
 #' @md
 #' @export
-export_concentration_tsv <- function(sumexp, file) {
-  methods::validObject(sumexp)     # Check consistency between elements, eg row_df, col_df, conc
-  
-  # Prepare the chemical summary table
-  chem_cols <- tbl_chemical_summary(sumexp) |> 
-    dplyr::mutate(
-      unit  = SumExp::metadata(sumexp)$concentration_unit,  # Add the unit
-    ) |>
-    dplyr::mutate(      # Tidy up the table
-      perc_detf = round(perc_detf, 1),
-      n_d_s = paste0("(", n_det, "/", n_samples, ")"),
-      model_r2 = round(model_r2, 3),
-      dplyr::across(c(lod, lloq), ~ round(.x, 2)),
-    ) |> 
-    dplyr::select(
-      "Alignment ID" = alignment_id,
-      "Chemical" = chem_name,
-      "Average Mz" = mz,
-      "Average Rt(min)" = .rt,
-      "DF%" = perc_detf,
-      "Samples (d/n)" = n_d_s,
-      "Concentration" = unit,
-      "LOD" = lod,
-      "LLOQ" = lloq,
-      "R2" = model_r2,
-      "Model" = best_model,
-      "Equation" = eqn,
-      "N of points" = n_conc,
-    )
-  
-  # The first three rows are the sample information
-  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(chem_cols))
-  readr::write_tsv(sinfo, file, append = FALSE, col_names = FALSE, na = "")
-  
-  # Prepare the concentration table
-  conc_mat <- sumexp[["conc"]]
-  conc_df <- conc_mat |>
-    round(.find_rounding_decimal_places(conc_mat)) |>    # Reduce the number of decimals
-    tibble::as_tibble()
-  # Original sample ID
-  colnames(conc_df) <- SumExp::col_df(sumexp)$sample_name
-  conc_df <- dplyr::bind_cols(chem_cols, conc_df)
-  readr::write_tsv(conc_df, file, append = TRUE, col_names = TRUE, na = "")
-}
+export_concentration_xlsx <- function(sumexp_lst, file) {
+  stopifnot(is.list(sumexp_lst))
+  for (ii in seq_along(sumexp_lst)) {
+    se <- sumexp_lst[[ii]]
+    if (! inherits(se, "SumExp")) {
+      stop("Each element of `sumexp_lst` must be a `SumExp` object.",
+           "The ", ii, "-th element is a ", class(se), ".")
+    }
+  }
+  # Prepare the chemical summary tables
+  chem_col_lst <- lapply(sumexp_lst, \(se) {
+    no_model <- is.na(SumExp::row_df(se)$calcurve_model)
+    se <- se[!no_model, ]   # Remove features without calibration model
+    tbl_chemical_summary(se) |> 
+      dplyr::mutate(
+        unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
+      )
+  })
+  per_batch_to_show <- purrr::map2(chem_col_lst, sumexp_lst, \(chem_col, se) {
+    chem_col <- chem_col |> 
+      dplyr::mutate(      # Tidy up the table
+        perc_detf = round(perc_detf, 1),
+        n_d_s = paste0("(", n_det, "/", n_samples, ")"),
+        model_r2 = round(model_r2, 3),
+        dplyr::across(c(lod, lloq), ~ round(.x, 2)),
+      ) |> 
+      dplyr::select(
+        "Alignment ID" = alignment_id,
+        "Chemical" = chem_name,
+        "Average Mz" = mz,
+        "Average Rt(min)" = .rt,
+        "DF%" = perc_detf,
+        "Samples (d/n)" = n_d_s,
+        "Concentration" = unit,
+        "LOD" = lod,
+        "LLOQ" = lloq,
+        "R2" = model_r2,
+        "Model" = best_model,
+        "Equation" = eqn,
+        "N of points" = n_conc,
+      )
+    .merge_sample_info_and_feature_data(se, "conc", chem_col)
+  })
+  names(per_batch_to_show) <- paste("Batch", names(chem_col_lst))   # It was batch ID only, e.g. "1"
+
+  if (length(chem_col_lst) == 1L) {
+    per_batch_to_show[[1L]] |>
+      writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
+  } else {  # Multiple batches
+    # If there are multiple batches, add a summary table
+    sum_all_batches <- dplyr::bind_rows(chem_col_lst, .id = "Batch") |>
+      dplyr::summarise(
+        alignment_id = alignment_id[1L],
+        chem_name = chem_name[1L],
+        mz = mz[1L],
+        .rt = .rt[1L],
+        unit = unit[1L],
+        dplyr::across(c(n_det, n_samples), ~ sum(.x, na.rm = TRUE)),
+        model_r2 = mean(model_r2, na.rm = TRUE),
+        .by = alignment_id
+      ) |>
+      dplyr::mutate(
+        perc_detf = round(100 * n_det / n_samples, 1),
+        n_d_s = paste0("(", n_det, "/", n_samples, ")"),
+        model_r2 = round(model_r2, 3),
+      ) |>  # Summary table
+      dplyr::select(
+        "Alignment ID" = alignment_id,
+        "Chemical" = chem_name,
+        "Average Mz" = mz,
+        "Average Rt(min)" = .rt,
+        "DF%" = perc_detf,
+        "Samples (d/n)" = n_d_s,
+        "Concentration" = unit,
+        "Average R2" = model_r2,
+      )
+    # Header row for `col_names = FALSE`
+    col_nms <- colnames(sum_all_batches)
+    col_nms_df <- as.data.frame(as.list(col_nms))
+    colnames(col_nms_df) <- col_nms
+    sum_all_batches <- rbind(col_nms_df, sum_all_batches)
+    c(list("Summary" = sum_all_batches), per_batch_to_show) |>
+      writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
+  }
+}  
