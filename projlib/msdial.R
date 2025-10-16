@@ -300,8 +300,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
   }
   # Prepare the chemical summary tables
   chem_col_lst <- lapply(sumexp_lst, \(se) {
-    no_model <- is.na(SumExp::row_df(se)$calcurve_model)
-    se <- se[!no_model, ]   # Remove features without calibration model
+    se <- se[SumExp::row_df(se)$to_export, ]   # Leave only those to export
     tbl_chemical_summary(se) |> 
       dplyr::mutate(
         unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
@@ -330,7 +329,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "Equation" = eqn,
         "N of points" = n_conc,
       )
-    .merge_sample_info_and_feature_data(se, "conc", chem_col)
+    .merge_sample_info_and_feature_data(se, "conc_export", chem_col)
   })
   names(per_batch_to_show) <- paste("Batch", names(chem_col_lst))   # It was batch ID only, e.g. "1"
 

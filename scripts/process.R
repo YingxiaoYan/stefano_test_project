@@ -302,9 +302,9 @@ for (batch_id in unique(batch_ids)) {
     # Exclude the chemicals with no quantification
     non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
     any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
-    concn_se[["conc_export"]] <- util$extract_with_na(
-      concn_se[["conc"]], i = rowSums(any_above_lloq) > 0, j = TRUE
-    )
+    has_ex <- rowSums(any_above_lloq) > 0
+    has_ex[is.na(has_ex)] <- FALSE
+    SumExp::row_df(concn_se)[["to_export"]] <- has_ex
     
     # Collect the output
     lst_proc[[batch_id]][[mat_id]] <- rlang::list2(
