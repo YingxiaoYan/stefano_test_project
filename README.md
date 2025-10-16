@@ -37,28 +37,20 @@ The subdirectories within the `code/` directory should be structured as shown be
 ## Software environment
 
 To mitigate issues arising from software environment inconsistencies, the environment in which the scripts were developed has been saved together with the scripts.
-We use a popular open source environment management system called [Conda](https://docs.conda.io), which runs on multiple platforms such as Linux, MacOS and Windows.
-If you prefer, [Mamba](https://mamba.readthedocs.io/) or Micromamba can be used instead of Conda. 
-Please ensure that the necessary management software is pre-installed.
+We use a popular container system called [Docker](https://wwww.docker.com), which runs on multiple platforms such as Linux, MacOS and Windows.
+The Docker image can be built using the `Dockerfile` provided in the `code/envs/` directory if you
+want to customize the environment.
+It encapsulates the software environment.
+Please ensure that the necessary management software is pre-installed and running.
 For installation questions, please refer to the software's website.
 
-The commands below will restore the same environment and reproduce all the primary results of this project.
+The commands below will restore the same environment and initiate the Shiny app.
 Make sure you are in the `<project>` directory before running the command below.
 
 ```sh
-conda env create -n nbis -f code/envs/environment.yml
-conda activate nbis
-R CMD INSTALL code/envs/SumExp_0.1.2.tar.gz      # Install a local package
-quarto install tinytex               # Install LaTeX
-cd code/reports
-quarto install extension nmfs-opensci/quarto_titlepages
+docker pull mghong/exposome
+docker run -it -v .:/proj -p 7579:7579 --name=expo-docker mghong/exposome expo_app.sh
 ```
-
-If you are using Micromamba, replace `conda` with `micromamba` in the commands above.
-
-We could use a container system called [Docker](https://www.docker.com/) to encapsulate the software environment.
-The Docker image can be built using the `Dockerfile` provided in the `code/envs/` directory, but not
-tested yet.
 
 ## Shiny app
 
