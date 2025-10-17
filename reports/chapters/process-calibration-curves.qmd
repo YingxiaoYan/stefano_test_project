@@ -395,8 +395,8 @@ After the removal, the number of reported chemicals is,
 #| results: 'markup'
 lapply(concn_lst, \(se) {
   tibble::tibble(
-    "Number of chemicals" = apply(se[["conc_export"]], 1, \(r) any(!is.na(r))) |> 
-    sum()
+    "Number of chemicals" = apply(se[["conc"]], 1, \(r) any(!is.na(r))) |> 
+      sum()
   )
 }) |>
   purrr::list_rbind(names_to = "Batch")

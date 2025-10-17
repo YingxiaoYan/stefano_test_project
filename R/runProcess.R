@@ -11,6 +11,12 @@
 runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    # `per batch processing` options
+    shiny::checkboxInput(
+      inputId = ns("per_batch"),
+      label = "Process data per batch?",
+      value = TRUE,
+    ),
     # JS handler to enable/disable weight options
     shiny::tags$script(HTML("
       Shiny.addCustomMessageHandler('toggleWeightOptions', function(message) {
@@ -93,6 +99,7 @@ runProcessServer <- function(serverId) {
     script_path = "scripts/process.R", 
     what = "Processing data", 
     param_ids = c(
+      "per_batch",
       "rm_outlier", 
       "log_calibration",
       "weight", 

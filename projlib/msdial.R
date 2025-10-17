@@ -218,6 +218,12 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
       "Injection Order" = "injection_order",
       "Batch ID" = "batch_id",
     )
+  if ("org_batch_id" %in% names(SumExp::col_df(sumexp))) {
+    s_rows <- s_rows |> 
+      dplyr::mutate(
+        "Given Batch ID" = SumExp::col_df(sumexp)[["org_batch_id"]],
+      )
+  }
   # In rows
   out <- data.frame(
     matrix(data = NA, nrow = ncol(s_rows), ncol = n_empty_cols),    # Feature columns
@@ -227,26 +233,25 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   out
 }
 
-#' prepare exporting table with feature table
-.prep_export_table_with_feature_table <- function(sumexp, mat_id, feat_tbl) {
+#' Append exporting table with feature table
+.append_export_table_with_feature_table <- function(sumexp, mat_id, feat_tbl) {
   mat_x <- sumexp[[mat_id]]
   df_x <- mat_x |>  
     round(.find_rounding_decimal_places(mat_x)) |>     # Reduce the number of decimals
     tibble::as_tibble()
   # Original sample ID
   colnames(df_x) <- SumExp::col_df(sumexp)$sample_name
-  df_x <- df_x |> 
+  df_x |> 
     dplyr::mutate("Alignment ID" = SumExp::row_df(sumexp)$alignment_id, .before = 1) |> 
     dplyr::right_join(feat_tbl, y = _, by = "Alignment ID")
-  df_x
 }
 
 #' Merge sample info rows and feature data
-.merge_sample_info_and_feature_data <- function(sumexp, mat_id, feature_cols) {
+.merge_sample_info_and_feature_data <- function(sumexp, mat_id, feat_tbl) {
   # The first three rows are the sample information
-  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(feature_cols))
+  sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(feat_tbl))
   # Prepare the data table
-  df_x <- .prep_export_table_with_feature_table(sumexp, mat_id, feature_cols)
+  df_x <- .append_export_table_with_feature_table(sumexp, mat_id, feat_tbl)
   # Combine sample info rows and feature data
   col_nms <- colnames(sinfo) <- colnames(df_x)   # Avoid mismatch error
   col_nms_df <- as.data.frame(as.list(col_nms))  # Header row inbetween
@@ -298,9 +303,12 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
            "The ", ii, "-th element is a ", class(se), ".")
     }
   }
+  # Leave only the features to export
+  sumexp_lst <- lapply(sumexp_lst, \(se) {
+    se[SumExp::row_df(se)$to_export, ]
+  })
   # Prepare the chemical summary tables
   chem_col_lst <- lapply(sumexp_lst, \(se) {
-    se <- se[SumExp::row_df(se)$to_export, ]   # Leave only those to export
     tbl_chemical_summary(se) |> 
       dplyr::mutate(
         unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
@@ -329,7 +337,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "Equation" = eqn,
         "N of points" = n_conc,
       )
-    .merge_sample_info_and_feature_data(se, "conc_export", chem_col)
+    .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
   names(per_batch_to_show) <- paste("Batch", names(chem_col_lst))   # It was batch ID only, e.g. "1"
 

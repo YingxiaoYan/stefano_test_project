@@ -7,6 +7,10 @@
 # The options are used to control the processing steps
 option_list <- rlang::list2(
   optparse::make_option(
+    c("--per_batch"), type = "logical", default = TRUE,
+    help = "Process data per batch? [default: %default]"
+  ),
+  optparse::make_option(
     c("--rm_outlier"), type = "logical", default = TRUE,
     help = "Remove outlier samples? [default: %default]"
   ),
@@ -39,6 +43,7 @@ opt_parser <- optparse::OptionParser(
 params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
+  "  - Per batch processing:", params$per_batch, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
@@ -170,10 +175,17 @@ to_report[["normalized"]] <- proc_sumexp    # Before blank subtraction. For repo
 
 # Get batch IDs
 batch_ids <- as.character(SumExp::col_df(proc_sumexp)[["batch_id"]])
-cat(
-  "Processing blank substraction per batch.", 
-  "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
-)
+if (params$per_batch) {
+  cat(
+    "Processing blank substraction per batch.", 
+    "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
+  )
+} else {
+  # If not processing per batch, assign all samples to a single batch
+  SumExp::col_df(proc_sumexp)[["org_batch_id"]] <- batch_ids   # Keep the original batch IDs
+  batch_ids <- rep("all", ncol(proc_sumexp))
+  SumExp::col_df(proc_sumexp)[["batch_id"]] <- batch_ids
+}
 # Split the data by batch IDs
 per_batch_proc_se_lst <- SumExp::split_columns(proc_sumexp, batch_ids)
 
@@ -210,7 +222,7 @@ if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
 log_scale <- params$log_calibration
 if (log_scale) cat("Log scale for calibration curve fitting is applied.\n")
 
-cat("Processing calibration per batch.")
+if (params$per_batch) cat("Processing calibration per batch.")
 # Collect the output
 lst_proc <- list()
 
@@ -289,22 +301,24 @@ for (batch_id in unique(batch_ids)) {
     if (log_scale) calcurve_se[[mat_id]] <- expm1(calcurve_se[[mat_id]])    # expm1(x) = exp(x) - 1
     
     # Compute the concentration of the samples using the calibration curve
-    unit <- SumExp::metadata(concn_se)$concentration_unit
-    concn_se[["conc"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = log_scale) |> 
-      labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
+    concn_se[["conc0"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = log_scale) |> 
+      labelled::set_label_attribute("Concentration before filtering")
     concn_se <- concn_se |>
-      proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
-      proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
-      proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
+      proc$replace_below_lod_lloq(conc_mat_id = "conc0") |>
+      proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc0") |>
+      proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc0")
     labelled::label_attribute(concn_se) <- norm_lab
     if (log_scale) concn_se[[mat_id]] <- expm1(concn_se[[mat_id]])    # Back transform
 
     # Exclude the chemicals with no quantification
-    non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
+    non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc0"]]
     any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
     has_ex <- rowSums(any_above_lloq) > 0
     has_ex[is.na(has_ex)] <- FALSE
     SumExp::row_df(concn_se)[["to_export"]] <- has_ex
+    unit <- SumExp::metadata(concn_se)$concentration_unit
+    concn_se[["conc"]] <- util$extract_with_na(concn_se[["conc0"]], i = has_ex, j = TRUE) |> 
+      labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
     
     # Collect the output
     lst_proc[[batch_id]][[mat_id]] <- rlang::list2(
