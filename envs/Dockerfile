@@ -4,7 +4,7 @@ LABEL description="Docker image for NBIS 7579 Exposome project"
 
 # Set the working directory
 WORKDIR /proj
-COPY SumExp_0.1.3.tar.gz /tmp/SumExp_0.1.3.tar.gz
+COPY SumExp_0.2.1.tar.gz /tmp/SumExp_0.2.1.tar.gz
 COPY Lato/ /usr/local/share/fonts/Lato/
 
 
