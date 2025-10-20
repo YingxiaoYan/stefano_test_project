@@ -42,7 +42,7 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
     && rm -rf /tmp/downloaded_packages
 
 # Install a local package
-RUN R CMD INSTALL /tmp/SumExp_0.1.3.tar.gz
+RUN R CMD INSTALL /tmp/SumExp_0.2.1.tar.gz
 
 ENV TZ=EUROPE/STOCKHOLM
 

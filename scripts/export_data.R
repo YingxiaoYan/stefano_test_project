@@ -59,6 +59,7 @@ FILE$o <- local({
 })
 io$mkdir_if_not_exist(dirname(unlist(FILE$o)))
 
+# Export normalized data ----------
 for (ii in seq_along(norm_mat_ids)) {
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized"]], 

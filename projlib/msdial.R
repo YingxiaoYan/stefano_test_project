@@ -287,6 +287,65 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
   }
 }
 
+#' One summary feature table across batches
+.summary_feature_table <- function(sumexp_lst) {
+  stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
+  # Summary table for each batch
+  chem_col_lst <- lapply(sumexp_lst, \(se) {
+    tbl_chemical_summary(se) |> 
+      dplyr::mutate(
+        unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
+      )
+  })
+  # Summary table for all batches
+  dplyr::bind_rows(chem_col_lst, .id = "Batch") |>
+    dplyr::summarise(
+      alignment_id = alignment_id[1L],
+      chem_name = chem_name[1L],
+      mz = mz[1L],
+      .rt = .rt[1L],
+      unit = unit[1L],
+      dplyr::across(c(n_det, n_samples), ~ sum(.x, na.rm = TRUE)),
+      model_r2 = mean(model_r2, na.rm = TRUE),
+      .by = alignment_id
+    ) |>
+    dplyr::mutate(
+      perc_detf = round(100 * n_det / n_samples, 1),
+      n_d_s = paste0("(", n_det, "/", n_samples, ")"),
+      model_r2 = round(model_r2, 3),
+    ) |>  # Summary table
+    dplyr::select(
+      "Alignment ID" = alignment_id,
+      "Chemical" = chem_name,
+      "Average Mz" = mz,
+      "Average Rt(min)" = .rt,
+      "DF%" = perc_detf,
+      "Samples (d/n)" = n_d_s,
+      "Concentration" = unit,
+      "Average R2" = model_r2,
+    )
+}
+
+#' merge SumExp objects with identical features (rows)
+.merge_sumexp_objs_with_identical_features <- function(sumexp_lst) {
+  stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
+  for (ii in seq_along(sumexp_lst)[-1L]) {
+    if (! identical(rownames(sumexp_lst[[1L]]), rownames(sumexp_lst[[ii]]))) {
+      stop("All `SumExp` objects in `sumexp_lst` must have the same features (rows).",
+           "Mismatch found in the ", ii, "-th element.")
+    }
+  }
+  # Prepare
+  sumexp_lst <- lapply(sumexp_lst, function(se) {
+    # Required by `.append_export_table_with_feature_table`
+    SumExp::row_df(se) <- SumExp::row_df(se)[, c("alignment_id"), drop = FALSE]
+    methods::validObject(se)
+    se
+  })
+  Reduce(cbind, sumexp_lst)
+}
+
+
 #' Export the concentration table
 #'
 #' @param sumexp_lst A list of [`SumExp::SumExp`] objects to be exported. The name of each element
@@ -303,19 +362,32 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
            "The ", ii, "-th element is a ", class(se), ".")
     }
   }
-  # Leave only the features to export
-  sumexp_lst <- lapply(sumexp_lst, \(se) {
-    se[SumExp::row_df(se)$to_export, ]
-  })
-  # Prepare the chemical summary tables
-  chem_col_lst <- lapply(sumexp_lst, \(se) {
-    tbl_chemical_summary(se) |> 
+  # Leave only the features to export in any batch
+  in_any <- sapply(sumexp_lst, \(se) SumExp::row_df(se)$to_export)
+  in_any <- rowSums(in_any) > 0L
+  sumexp_lst <- lapply(sumexp_lst, \(se) se[in_any, ])
+  
+  # Talbe of all batches
+  # Overall summary table
+  sum_all_batches <- .summary_feature_table(sumexp_lst)
+  # SumExp object with all batches
+  merged_se <- .merge_sumexp_objs_with_identical_features(sumexp_lst)
+  # table to export including all batches
+  all_batches_to_export_table <- .merge_sample_info_and_feature_data(
+    merged_se,
+    mat_id = "conc",
+    feat_tbl = sum_all_batches
+  )
+  
+  # Per-batch tables to export
+  per_batch_to_export_table <- lapply(sumexp_lst, \(se) {
+    # Drop all features that are not to be exported per batch
+    se <- se[SumExp::row_df(se)$to_export, ]
+    # Prepare the chemical summary table per batch
+    chem_col <- tbl_chemical_summary(se) |> 
       dplyr::mutate(
         unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
-      )
-  })
-  per_batch_to_show <- purrr::map2(chem_col_lst, sumexp_lst, \(chem_col, se) {
-    chem_col <- chem_col |> 
+      ) |>
       dplyr::mutate(      # Tidy up the table
         perc_detf = round(perc_detf, 1),
         n_d_s = paste0("(", n_det, "/", n_samples, ")"),
@@ -339,45 +411,14 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
       )
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
-  names(per_batch_to_show) <- paste("Batch", names(chem_col_lst))   # It was batch ID only, e.g. "1"
+  # It had batch ID only, e.g. "1", "all"
+  names(per_batch_to_export_table) <- paste("Batch", names(chem_col_lst))
 
   if (length(chem_col_lst) == 1L) {
-    per_batch_to_show[[1L]] |>
+    per_batch_to_export_table[[1L]] |>
       writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
   } else {  # Multiple batches
-    # If there are multiple batches, add a summary table
-    sum_all_batches <- dplyr::bind_rows(chem_col_lst, .id = "Batch") |>
-      dplyr::summarise(
-        alignment_id = alignment_id[1L],
-        chem_name = chem_name[1L],
-        mz = mz[1L],
-        .rt = .rt[1L],
-        unit = unit[1L],
-        dplyr::across(c(n_det, n_samples), ~ sum(.x, na.rm = TRUE)),
-        model_r2 = mean(model_r2, na.rm = TRUE),
-        .by = alignment_id
-      ) |>
-      dplyr::mutate(
-        perc_detf = round(100 * n_det / n_samples, 1),
-        n_d_s = paste0("(", n_det, "/", n_samples, ")"),
-        model_r2 = round(model_r2, 3),
-      ) |>  # Summary table
-      dplyr::select(
-        "Alignment ID" = alignment_id,
-        "Chemical" = chem_name,
-        "Average Mz" = mz,
-        "Average Rt(min)" = .rt,
-        "DF%" = perc_detf,
-        "Samples (d/n)" = n_d_s,
-        "Concentration" = unit,
-        "Average R2" = model_r2,
-      )
-    # Header row for `col_names = FALSE`
-    col_nms <- colnames(sum_all_batches)
-    col_nms_df <- as.data.frame(as.list(col_nms))
-    colnames(col_nms_df) <- col_nms
-    sum_all_batches <- rbind(col_nms_df, sum_all_batches)
-    c(list("Summary" = sum_all_batches), per_batch_to_show) |>
+    c(list("Full" = all_batches_to_export_table), per_batch_to_export_table) |>
       writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
   }
 }  

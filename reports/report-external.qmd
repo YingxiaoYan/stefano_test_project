@@ -73,18 +73,17 @@ log_scale <- to_report[["params"]][["log_calibration"]]
 
 # Load the processed data using the specified normalization method
 lst_proc <- readRDS(FILE$i$proc) |>
-  lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])
-
+  lapply(\(per_batch) {
+    ea <- per_batch[[MAT_ID_FOR_CALIB]]
+    has_ex <- SumExp::row_df(ea$concn)$to_export
+    lapply(ea, \(se) se[has_ex, ])   # Remove features without values
+  })
 concn_lst <- lapply(lst_proc, \(ea) {
   se <- ea$concn
-  se[SumExp::row_df(se)$has_proper_range, ] |>
-    # Exclude control samples
-    util$exclude_ctrl_smpl_cat(c("QC"))
+  # Exclude control samples
+  util$exclude_ctrl_smpl_cat(se, c("QC"))
 })
-calib_lst <- lapply(lst_proc, \(x) {
-  se <- x$calcurve
-  se[SumExp::row_df(se)$has_proper_range, ]
-})
+calib_lst <- lapply(lst_proc, \(x) x$calcurve)
 
 # Consistancy throughout this report ----------
 # To keep the same format
@@ -223,7 +222,6 @@ After the computation of concentration, the following steps are applied to the d
 #| fig-width: 12
 #| fig-height: 6
 #' Text box to describe a calibration curve model
-#' 
 textbox_of_a_width <- function(txt, width) {
   ggplot() +
     ggtext::geom_textbox(
@@ -258,10 +256,10 @@ for (batch_id in names(concn_lst)) {
     
     # Calibration curves
     p1 <- show$ggplot_calcurve_samples(x_se, 
-                                      calib_se, 
-                                      mat_id = MAT_ID_FOR_CALIB,
-                                      COLORS_OF_CLASSES,
-                                      log_scale = log_scale) + 
+                                       calib_se, 
+                                       mat_id = MAT_ID_FOR_CALIB,
+                                       COLORS_OF_CLASSES,
+                                       log_scale = log_scale) + 
       labs(
         title = "Full range",
         y = "Peak area (Normalized)"
