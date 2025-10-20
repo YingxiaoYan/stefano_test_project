@@ -412,9 +412,9 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
   # It had batch ID only, e.g. "1", "all"
-  names(per_batch_to_export_table) <- paste("Batch", names(chem_col_lst))
+  names(per_batch_to_export_table) <- paste("Batch", names(sumexp_lst))
 
-  if (length(chem_col_lst) == 1L) {
+  if (length(sumexp_lst) == 1L) {
     per_batch_to_export_table[[1L]] |>
       writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
   } else {  # Multiple batches
