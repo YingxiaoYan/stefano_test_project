@@ -51,4 +51,3 @@ EXPOSE 7579
 
 # Start bash shell by default
 CMD ["/bin/bash"]
-

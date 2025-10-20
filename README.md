@@ -49,7 +49,7 @@ Make sure you are in the `<project>` directory before running the command below.
 
 ```sh
 docker pull mghong/exposome
-docker run -it -v .:/proj -p 7579:7579 --name=expo-docker mghong/exposome expo_app.sh
+docker run -it -v .:/proj -p 7579:7579 --name=expo-docker mghong/exposome /proj/code/expo_app.sh
 ```
 
 ## Shiny app
