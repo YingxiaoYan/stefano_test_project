@@ -406,7 +406,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "LLOQ" = lloq,
         "Min Conc." = min,
         "Max Conc." = max,
-        "Mean Conc." = mean,
+        "Avg. Conc." = mean,
         "R2" = model_r2,
         "Model" = best_model,
         "Equation" = eqn,
