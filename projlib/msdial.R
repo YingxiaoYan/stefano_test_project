@@ -392,7 +392,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         perc_detf = round(perc_detf, 1),
         n_d_s = paste0("(", n_det, "/", n_samples, ")"),
         model_r2 = round(model_r2, 3),
-        dplyr::across(c(lod, lloq), ~ round(.x, 2)),
+        dplyr::across(c(lod, lloq, min, max, mean), ~ round(.x, 2)),
       ) |> 
       dplyr::select(
         "Alignment ID" = alignment_id,
@@ -404,6 +404,9 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "Concentration" = unit,
         "LOD" = lod,
         "LLOQ" = lloq,
+        "Min Conc." = min,
+        "Max Conc." = max,
+        "Mean Conc." = mean,
         "R2" = model_r2,
         "Model" = best_model,
         "Equation" = eqn,
