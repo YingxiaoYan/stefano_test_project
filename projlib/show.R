@@ -334,7 +334,7 @@ CoordZoomInByCC <- ggplot2::ggproto(
   facet_by = "feature_name",    # Facet by feature name
  
   # Set updated limits by the calibration points
-  setup_panel_params = function(self, scale_x, scale_y, params) {
+  setup_panel_params = function(self, scale_x, scale_y, params = list()) {
     # Iteratively run for each panel
     self$panel_counter <- self$panel_counter + 1
     df_cc <- self$df_cc
@@ -345,8 +345,10 @@ CoordZoomInByCC <- ggplot2::ggproto(
     xlim <- c(0, max(df_cc[[self$c_conc]], na.rm = TRUE))
     ylim <- c(0, max(df_cc[[self$mat_id]], na.rm = TRUE))
     # The same format as CoordCartesian$setup_panel_params
-    c(ggplot2:::view_scales_from_scale(scale_x, xlim, self$expand),
-      ggplot2:::view_scales_from_scale(scale_y, ylim, self$expand))
+    c(ggplot2:::view_scales_from_scale(scale_x, xlim, params$expand[c(4, 2)]),
+      ggplot2:::view_scales_from_scale(scale_y, ylim, params$expand[c(3, 1)]),
+      reverse = self$reverse %||% "none"
+    )
   },
  
   # Filter out the data above the upper-bound
@@ -370,7 +372,10 @@ CoordZoomInByCC <- ggplot2::ggproto(
   # Initialize the panel counter and save the layout for `setup_panel_params`
   setup_layout = function(self, layout, params) {
     self$panel_counter <- 0
-    self$layout <- layout
+    self$layout <- layout    # To be used in `setup_panel_params`
+    # Copy from `Coord` in ggplot2
+    scales <- layout[c("SCALE_X", "SCALE_Y")]
+    layout$COORD <- vctrs::vec_match(scales, ggplot2:::unique0(scales))
     layout
   }
 )

@@ -252,7 +252,7 @@ for (batch_id in names(concn_lst)) {
   for (i_chem in rownames(concn_se)) {       # For each chemical
     x_se <- concn_se[i_chem, ]
     chem_name <- SumExp::row_df(x_se)$feature_name
-    cat("\n\n## ", chem_name, "\n")
+    cat("\n\n### ", chem_name, "\n")
     
     # Calibration curves
     p1 <- show$ggplot_calcurve_samples(x_se, 
