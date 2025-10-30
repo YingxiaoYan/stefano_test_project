@@ -108,12 +108,14 @@ show_df <- limit_df |>
     )
   ) |>
   dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
-  dplyr::select("Chemical Name" = feature_name, 
-                "Batch" = batch,
-                "LOD" = lod, 
-                "Minimum conc. (LLOQ)" = min_c, 
-                "Maximum conc." = max_c, 
-                Note)
+  dplyr::select(
+    "Batch" = batch,
+    "Chemical Name" = feature_name, 
+    "LOD" = lod, 
+    "Minimum conc. (LLOQ)" = min_c, 
+    "Maximum conc." = max_c, 
+    Note,
+  )
 
 knitr::kable(
   show_df,

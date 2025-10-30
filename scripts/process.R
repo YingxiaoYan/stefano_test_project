@@ -238,6 +238,8 @@ for (batch_id in unique(batch_ids)) {
     # Limit to the samples to be calibrated (or quantified)
     # Before excluding out-of-range calibration concentrations
     quant_se <- quant_se[util$is_targeted_feature(quant_se), ]
+    # Sort by chemical name
+    quant_se <- quant_se[order(SumExp::row_df(quant_se)$feature_name), ]
     # Label for the normalized data.
     norm_lab <- labelled::get_label_attribute(quant_se[[mat_id0]])
    
