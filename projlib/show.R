@@ -419,7 +419,7 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
   best_model_text_df <- show_df |>
     dplyr::mutate(
       best_model_name = purrr::map_chr(calcurve_model, \(m) m$best_model_name),
-      R2 = purrr::map_dbl(calcurve_model, \(m) max(m$R2s)),
+      R2 = purrr::map_dbl(calcurve_model, \(m) m$R2s[[m$best_model_name]]),
       txt = paste0(best_model_name, "\n R2=", round(R2, 3)),
       .keep = "unused"
     )
