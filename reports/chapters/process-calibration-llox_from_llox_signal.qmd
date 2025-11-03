@@ -104,7 +104,7 @@ show_df <- limit_df |>
       max_c == 0 ~ "All zero",
       max_c == -9 ~ "No valid max",
       is.na(max_c) ~ "Not enough range",
-      TRUE ~ format(max_c)
+      TRUE ~ as.character(max_c)
     )
   ) |>
   dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
