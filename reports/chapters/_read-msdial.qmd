@@ -26,7 +26,7 @@ show$kable_number_of(util$ctrl_smpl_cat(raw_se), exclude = "")
 
 #### Calibration curve samples
 
-The samples for the calibration curve are identified by the sample type `Standard` and class `CalCurve`.
+The samples for the calibration curve are identified by the sample type `Standard`.
 The concentration is extracted from the provided sample ID.
 The IDs are in the format `Cal[[:digit:]-]+` with optional numbers and/or characters before and after of it. 
 Concentration is extracted from the numeric part in the format after the replacement of `-` with `.`.
