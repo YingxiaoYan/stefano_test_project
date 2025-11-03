@@ -257,6 +257,7 @@ extract_with_na <- function(mat, i = TRUE, j = TRUE) {
   mat_out <- matrix(NA, nrow = nrow(mat), ncol = ncol(mat))
   mat_out[i, j] <- mat[i, j]
   dimnames(mat_out) <- dimnames(mat)
+  labelled::label_attribute(mat_out) <- labelled::label_attribute(mat)
   mat_out
 }
 
