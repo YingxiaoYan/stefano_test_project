@@ -2,6 +2,7 @@
 title: Calibration - curves
 params:
   norm_method: loess_norm
+  interactive_plot: false
 ---
 
 ```{r}
@@ -10,7 +11,11 @@ params:
 #| eval: !expr '!knitr::opts_knit$get("child")'
 # The code in this chunk is NOT evaluated here when knitting this file directly.
 # It is included for DEBUGGING purposes only. 
-params <- list(norm_method = "loess_norm", project_title = "Test") 
+params <- rlang::list2(
+  norm_method = "loess_norm", 
+  interactive_plot = FALSE,
+  project_title = "Test",
+) 
 source("code/reports/chapters/_internal-shared_setup_chunk.R")
 ```
 
@@ -109,12 +114,13 @@ p_by_feature <- lapply(lst_calcurve_to_show_df, \(dfm) {
   if (log_scale) {
     p <- p + scale_x_log10() + scale_y_log10()
   }
-  p + theme(legend.position = "none")
-  # plotly::ggplotly(
-  #   p + theme(legend.position = "none"),
-  #   tooltip = c("text")
-  # ) |> 
-  #   plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+  p <- p + theme(legend.position = "none")
+  if (params$interactive_plot) {
+    plotly::ggplotly(p, tooltip = c("text")) |> 
+      plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+  } else {
+    p
+  }
 })
 
 sapply(names(p_by_feature), \(ii) {
@@ -258,12 +264,13 @@ for (batch_id in names(concn_lst)) {
   p_by_feature <- lapply(lst_concn_se, \(se) {
     p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
                                             ncol = 1, log_scale = log_scale)
-    p + theme(legend.position = "none")
-    # plotly::ggplotly(
-      # p + theme(legend.position = "none"),
-      # tooltip = c("text")
-    # ) |> 
-      # plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+    p <- p + theme(legend.position = "none")
+    if (params$interactive_plot) {
+      plotly::ggplotly(p, tooltip = c("text")) |> 
+        plotly::layout(margin = list(t = 50, b = 100, l = 50, r = 5))
+    } else {
+      p
+    }
   })
 
   qmd_out <- c(

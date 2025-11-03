@@ -2,6 +2,7 @@
 params:
   norm_method: "loess_norm"
   log_calibration: false
+  interactive_plot: false
   project_title: "Test"        # No need here but needed by `report-external.qmd`
 title: "Data quality evaluation"
 format:

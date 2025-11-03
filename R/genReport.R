@@ -11,6 +11,7 @@
 genReportUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    # Normalization method selection
     shiny::radioButtons(
       inputId = ns("norm_method"),
       label = "Normalization method",
@@ -18,6 +19,12 @@ genReportUI <- function(uiId) {
                   "Closest RT" = "closest_norm",
                   "No normalization" = "before_norm"),
       selected = "loess_norm",
+    ),
+    # Interactive plot option
+    shiny::checkboxInput(
+      inputId = ns("interactive_plot"),
+      label = "Interactive plots in the HTML report?",
+      value = TRUE,
     ),
     shiny::br(),
     
@@ -73,6 +80,7 @@ genReportServer <- function(serverId, data_info) {
                 output_file = out_fname(),
                 execute_params = rlang::list2(
                   norm_method = input[["norm_method"]],
+                  interactive_plot = input[["interactive_plot"]],
                   project_title = data_info[["project_title"]],
                 ),
                 quarto_args = c("--output-dir", odir)
