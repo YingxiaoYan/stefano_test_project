@@ -55,6 +55,7 @@ show$ggplot_rsdp_metab(rsd_qstd, mat_ids) +
 ```
 
 The number of features with higher/lower RSD after normalization is counted below.
+
 ```{r}
 #| label: 'evaluation-normalization-closest-istd-count'
 #| results: 'markup'
