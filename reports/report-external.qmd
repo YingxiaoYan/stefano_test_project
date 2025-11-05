@@ -2,6 +2,7 @@
 params:
   norm_method: "loess_norm"
   log_calibration: false
+  interactive_plot: false      # No need here but needed by `report-internal.qmd`
   project_title: "Test"
 title: "Report on `r params$project_title`"
 format:

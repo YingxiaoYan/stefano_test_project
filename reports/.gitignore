@@ -13,3 +13,5 @@ _*.local
 
 /.quarto/
 /_*.local
+
+**/*.quarto_ipynb
