@@ -91,7 +91,7 @@ Blank subtraction is applied to all samples in the dataset except for the calibr
 
 ```{r}
 #| label: target_mode
-if (!SumExp::metadata(raw_se)$is_non_target_mode) {
+if (IS_TARGET_MODE) {
   cat("\n\n# Calibration\n\n")
   cat("\nThe calibration is performed per batch.\n\n")
   qmd <- "process-calibration-llox_from_llox_signal.qmd"

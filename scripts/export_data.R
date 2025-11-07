@@ -25,8 +25,6 @@ user_inputs <- msdial$get_user_input("input_file", "intermediate_dir", "table_di
 FILE <- list(
   i = rlang::list2(
     raw = user_inputs$input_file,     # Copy unsaved feature info into output files
-    # Processed data
-    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
     # Intermediate status of the data
     to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
@@ -36,7 +34,13 @@ io$chq_all_files_exist(FILE)
 to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
 norm_mat_ids <- to_report[["normalized matrix ids"]]   # `mat_ids` e.g. "loess_norm", "closest_norm"
-IS_NON_TARGET_MODE <- SumExp::metadata(to_report[["normalized"]])$is_non_target_mode
+IS_TARGET_MODE <- SumExp::metadata(to_report[["normalized"]])$is_non_target_mode
+
+if (IS_TARGET_MODE) {
+  # Processed data
+  FILE$i$proc <- msdial$get_raw_data_file_name(user_inputs, suffix = "proc")
+  io$chq_all_files_exist(FILE$i$proc)
+}
 
 # Output files
 FILE$o <- local({
@@ -48,10 +52,10 @@ FILE$o <- local({
   paste_file_name <- function(x, p) {
     file.path(user_inputs$table_dir, paste0(b, ".", x, ".", p, ".xlsx"))
   }
-  out_data <- if (IS_NON_TARGET_MODE) {
-    c("norm", "norm_blk")
-  } else {
+  out_data <- if (IS_TARGET_MODE) {
     c("norm", "norm_blk", "conc")
+  } else {
+    c("norm", "norm_blk")
   }
   lapply(setNames(nm = out_data), \(.x) {
     lapply(ns, paste_file_name, p = .x)
@@ -77,7 +81,7 @@ for (ii in seq_along(norm_mat_ids)) {
 }
 
 # Export concentration values ----------
-if (!IS_NON_TARGET_MODE) {
+if (IS_TARGET_MODE) {
   io$chq_all_files_exist(FILE$i$proc)
   # Load the concentration data
   concn_lst <- readRDS(FILE$i$proc)

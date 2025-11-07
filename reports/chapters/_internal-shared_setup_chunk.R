@@ -25,24 +25,28 @@ user_inputs <- msdial$get_user_input()
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
+IS_TARGET_MODE <- !SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
 COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
 
 # Input/Output files
 FILE <- list(
   i = rlang::list2(
-    # Processed data
-    proc = msdial$get_raw_data_file_name(user_inputs, suffix = "proc"),
     # Intermediate status of the data
     to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
 )
-# Check if input files and output directories exist
-io$check_io_exist(FILE)
+if (IS_TARGET_MODE) {
+  # Processed data
+  FILE$i$proc <- msdial$get_raw_data_file_name(user_inputs, suffix = "proc")
+  io$check_io_exist(FILE)
 
-# Load the processed data using the specified normalization method
-lst_proc <- readRDS(FILE$i$proc) |>
-  lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])
+  # Load the processed data using the specified normalization method
+  lst_proc <- readRDS(FILE$i$proc) |>
+    lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])
+} else {
+  io$check_io_exist(FILE)
+}
 
 # Load the intermediate data during QC
 to_report <- readRDS(FILE$i$to_rep)

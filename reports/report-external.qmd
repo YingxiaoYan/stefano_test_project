@@ -50,9 +50,12 @@ user_inputs <- msdial$get_user_input()
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
-IS_NON_TARGET_MODE <- SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
 COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
+
+if (SumExp::metadata(raw_se)$is_non_target_mode) {
+  stop("This report is only for targeted analysis mode.")
+}
 
 # Input files
 FILE <- list(

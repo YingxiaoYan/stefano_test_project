@@ -31,14 +31,25 @@ The concentration is extracted from the provided sample ID.
 The IDs are in the format `Cal[[:digit:]-]+` with optional numbers and/or characters before and after of it. 
 Concentration is extracted from the numeric part in the format after the replacement of `-` with `.`.
 
+```{r}
+#| purl: true
+df_show <- if (IS_TARGET_MODE) {
+  # Present the sample IDs for the calibration curve
+  SumExp::col_df(raw_se) |> 
+    dplyr::filter(util$ctrl_smpl_cat(raw_se) == "CalCurve") |> 
+    dplyr::arrange(c_conc) |> 
+    dplyr::select(sample_name, c_conc)
+} else {
+  tibble::tibble(
+    sample_name = character(0),
+    c_conc = numeric(0)
+  )
+}
+```
+
 ##### Sample IDs
 
 ```{r}
-# Present the sample IDs for the calibration curve
-df_show <- SumExp::col_df(raw_se) |> 
-  dplyr::filter(util$ctrl_smpl_cat(raw_se) == "CalCurve") |> 
-  dplyr::arrange(c_conc) |> 
-  dplyr::select(sample_name, c_conc)
 df_show |> 
   knitr::kable(
     row.names = FALSE,
