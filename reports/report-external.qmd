@@ -94,7 +94,14 @@ summary_tbl <- lapply(concn_lst, show$tbl_chemical_summary) |>
     chem_name = stringr::str_trunc(chem_name, 40),
     perc_detf = round(perc_detf, 1),
     model_r2 = round(model_r2, 3),
-    dplyr::across(c(median, mean, min, max, lod, lloq), ~ round(.x, 2))
+    dplyr::across(
+      c(median, mean, min, max),
+      ~ round(.x, 4)
+    ),
+    dplyr::across(
+      c(median, mean, min, max, lod, lloq), 
+      ~ as.character(.x)
+    )
   ) 
 ```
 
@@ -288,14 +295,13 @@ for (batch_id in names(concn_lst)) {
     text1 <- local(
       envir = as.list(summary_tbl[summary_tbl$chem_id == i_chem & summary_tbl$Batch == batch_id, ]),
       {
-        perc_detf <- sprintf("%.1f%%", perc_detf)
         paste0(
           "Best model: ", best_model, "  \n",
           "R2: ", model_r2, "  \n",
           "N of points: ", n_conc, "  \n",
           "DF: ", perc_detf, " (", n_det, "/", n_samples, ")", "  \n",
-          "LOD: ", sprintf("%.2f", lod), "  \n",
-          "LLOQ: ", sprintf("%.2f", lloq), "  \n",
+          "LOD: ", lod, "  \n",
+          "LLOQ: ", lloq, "  \n",
           ""         # For trailing comma
         ) |> 
           textbox_of_a_width(width = unit(7, "cm"))
