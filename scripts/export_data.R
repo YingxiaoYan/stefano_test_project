@@ -34,7 +34,7 @@ io$chq_all_files_exist(FILE)
 to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
 norm_mat_ids <- to_report[["normalized matrix ids"]]   # `mat_ids` e.g. "loess_norm", "closest_norm"
-IS_TARGET_MODE <- SumExp::metadata(to_report[["normalized"]])$is_non_target_mode
+IS_TARGET_MODE <- !to_report[["is_non_target_mode"]]
 
 if (IS_TARGET_MODE) {
   # Processed data
