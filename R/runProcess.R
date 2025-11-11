@@ -17,6 +17,12 @@ runProcessUI <- function(uiId) {
       label = "Process data per batch?",
       value = TRUE,
     ),
+    # Option for keeping all calibration points (even though outside range)
+    shiny::checkboxInput(
+        inputId = ns("keep_cal_points"),
+        label = "Keep all cal points, despite being outside sample range?",
+        value = FALSE,
+    ),
     # JS handler to enable/disable weight options
     shiny::tags$script(HTML("
       Shiny.addCustomMessageHandler('toggleWeightOptions', function(message) {
@@ -100,6 +106,7 @@ runProcessServer <- function(serverId) {
     what = "Processing data", 
     param_ids = c(
       "per_batch",
+      "keep_cal_points",
       "rm_outlier", 
       "log_calibration",
       "weight", 

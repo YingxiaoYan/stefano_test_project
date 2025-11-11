@@ -11,6 +11,10 @@ option_list <- rlang::list2(
     help = "Process data per batch? [default: %default]"
   ),
   optparse::make_option(
+    c("--keep_cal_points"), type = "logical", default = TRUE,
+    help = "Keep all cal points despite sample range? [default: %default]"
+  ),
+  optparse::make_option(
     c("--rm_outlier"), type = "logical", default = TRUE,
     help = "Remove outlier samples? [default: %default]"
   ),
@@ -44,6 +48,7 @@ params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
   "  - Per batch processing:", params$per_batch, "\n",
+  "  - Keep cal points: ", params$keep_cal_points, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",

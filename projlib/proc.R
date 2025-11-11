@@ -645,8 +645,19 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   # Calibration curve concentration upper limit
   mat_q <- util$exclude_ctrl_smpl_cat(se_lst$quant, excl_cat = "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
-  max_c_conc <- max_conc_for_curve(mat_m, mat_q) |>
-    make_sure_to_have_enough_calcurve_pts(min_c_conc, conc_pts, min_n = 3, enough_n = 3)
+  # Anton: If user decided to keep all cal points then no filtering performed
+  # reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
+  if(params$keep_cal_points){
+    out <- rep(NA, nrow(mat_m))
+    max_pt <- max(as.numeric(colnames(mat_m)))
+    out[is.na(out)] <- max_pt
+    max_c_conc <- labelled::set_label_attribute(out, "Maximum Concentration")
+    stopifnot(identical(names(out), rownames(mat_q)))
+    
+  } else {
+    max_c_conc <- max_conc_for_curve(mat_m, mat_q) |>
+      make_sure_to_have_enough_calcurve_pts(min_c_conc, conc_pts, min_n = 3, enough_n = 3)
+  }
   stopifnot(identical(names(min_c_conc), names(max_c_conc)))
   # data.frame for SumExp::row_df, instead of tibble
   limits_df <- data.frame(min_c_conc, max_c_conc, lod, lloq, lloq_avg_signal)
@@ -771,8 +782,10 @@ fit_and_test_calcurve_model <- function(conc,
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
   names(lmodels) <- paste("linear", names(lmodels), sep = "-")
+  
   qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, signal, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
+  
   models <- c(lmodels, qmodels)
   r2s <- sapply(models, \(x) suppressWarnings(summary(x$inv_mod)$r.squared))
   # Panelty to quadratic models
