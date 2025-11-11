@@ -207,7 +207,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   # Log-transform the data
   istd_log <- log(istd_se[[mat_id]])
   rt_istd <- util$retention_time(istd_se)
-
+  
   # Normalize the data using the internal standards
   # Mean of each internal standard feature for overall measurement samples
   # , excluding the calibration curve and blank samples
@@ -216,7 +216,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   istd_m <- rowMeans(mat)
   # Subtract the mean from the data
   fr_m_log <- istd_log - istd_m
-
+  
   # Expand to smallest RT
   istd_smallest_rt <- fr_m_log[which.min(rt_istd), ]
   # Expand to largest RT
@@ -596,7 +596,8 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, 
                                                          mat_id, 
                                                          compute_llox_signal_fun,
-                                                         use_rsd20) {
+                                                         use_rsd20,
+                                                         keep_cal_points) {
   neg_ctrl_or_not <- local({
     c_pt <- util$spiked_conc_pts(sumexp)
     is_neg_ctrl <- !is.na(c_pt) & c_pt == 0
@@ -645,8 +646,17 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   # Calibration curve concentration upper limit
   mat_q <- util$exclude_ctrl_smpl_cat(se_lst$quant, excl_cat = "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
-  max_c_conc <- max_conc_for_curve(mat_m, mat_q) |>
-    make_sure_to_have_enough_calcurve_pts(min_c_conc, conc_pts, min_n = 3, enough_n = 3)
+  # Anton: If user decided to keep all cal points then no filtering performed
+  # reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
+  if(keep_cal_points){
+    out <- rep(max(as.numeric(colnames(mat_m))), nrow(mat_m))
+    names(out) <- rownames(mat_m)
+    max_c_conc <- labelled::set_label_attribute(out, "Maximum Concentration")
+    stopifnot(identical(names(out), rownames(mat_q)))
+  } else {
+    max_c_conc <- max_conc_for_curve(mat_m, mat_q) |>
+      make_sure_to_have_enough_calcurve_pts(min_c_conc, conc_pts, min_n = 3, enough_n = 3)
+  }
   stopifnot(identical(names(min_c_conc), names(max_c_conc)))
   # data.frame for SumExp::row_df, instead of tibble
   limits_df <- data.frame(min_c_conc, max_c_conc, lod, lloq, lloq_avg_signal)
@@ -771,8 +781,10 @@ fit_and_test_calcurve_model <- function(conc,
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
   names(lmodels) <- paste("linear", names(lmodels), sep = "-")
+  
   qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, signal, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
+  
   models <- c(lmodels, qmodels)
   r2s <- sapply(models, \(x) suppressWarnings(summary(x$inv_mod)$r.squared))
   # Panelty to quadratic models
@@ -866,7 +878,7 @@ replace_below_lod_lloq <- function(sumexp, conc_mat_id) {
   c_mat <- sumexp[[conc_mat_id]]
   lod <- SumExp::row_df(sumexp)[, "lod"]
   lloq <- SumExp::row_df(sumexp)[, "lloq"]
-
+  
   out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
   out <- ifelse(c_mat < lloq, lloq / 2, out)
@@ -899,7 +911,7 @@ replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
   lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
-
+  
   out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
   out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, lloq / 2, out)
@@ -929,7 +941,7 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
   lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
-
+  
   out <- c_mat
   # Replace the values above LLOQ with LLOQ
   out <- ifelse(signal_mat > lloq_avg_signal & out <= lloq, lloq, out)

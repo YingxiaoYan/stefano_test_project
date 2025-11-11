@@ -11,6 +11,10 @@ option_list <- rlang::list2(
     help = "Process data per batch? [default: %default]"
   ),
   optparse::make_option(
+    c("--keep_cal_points"), type = "logical", default = TRUE,
+    help = "Keep all cal points despite sample range? [default: %default]"
+  ),
+  optparse::make_option(
     c("--rm_outlier"), type = "logical", default = TRUE,
     help = "Remove outlier samples? [default: %default]"
   ),
@@ -44,6 +48,7 @@ params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
   "  - Per batch processing:", params$per_batch, "\n",
+  "  - Keep cal points: ", params$keep_cal_points, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
@@ -260,7 +265,7 @@ for (batch_id in unique(batch_ids)) {
       "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
     )
     quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
-      quant_se, mat_id0, fun, params$use_rsd20
+      quant_se, mat_id0, fun, params$use_rsd20, params$keep_cal_points
     )
 
     # Exclude the chemicals having no appropriate concentration range
