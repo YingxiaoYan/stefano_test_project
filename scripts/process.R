@@ -258,7 +258,7 @@ for (batch_id in unique(batch_ids)) {
       "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
     )
     quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
-      quant_se, mat_id0, fun, params$use_rsd20
+      quant_se, mat_id0, fun, params$use_rsd20, params$keep_cal_points
     )
 
     # Exclude the chemicals having no appropriate concentration range
