@@ -75,13 +75,20 @@ FILE <- rlang::list2(
   # Intermediate status of the data for reporting
   to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
 )
-# For reports, store intermediate data during quality control steps.
-to_report <- list("params" = params, "Completed" = FALSE)
-
 cat("\nProcessing steps are started.\n")
 # Read the parsed data by `read-msdial.R`. If not available, warn the user
 # This 'proc_sumexp' is the main data object that will undergo processing.
 proc_sumexp <- msdial$read_parsed_msdial_data(user_inputs)
+# no calibration points model
+IS_NON_TARGET_MODE <- SumExp::metadata(proc_sumexp)$is_non_target_mode
+stopifnot(!is.null(IS_NON_TARGET_MODE))
+
+# For reports, store intermediate data during quality control steps.
+to_report <- rlang::list2(
+  "params" = params, 
+  "Completed" = FALSE,
+  "is_non_target_mode" = IS_NON_TARGET_MODE,
+)
 
 # Normalization using internal standards -------------------------------------------------
 
@@ -218,7 +225,7 @@ mark_completed <- function() {
   cat("The intermediate data saved to:", FILE$to_rep, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
-if (SumExp::metadata(proc_sumexp)$is_non_target_mode) {
+if (IS_NON_TARGET_MODE) {
   warning("NO CALIBRATION under non-target mode.")
   mark_completed()
   proc$stop_quietly()
