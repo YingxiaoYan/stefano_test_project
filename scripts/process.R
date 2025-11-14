@@ -92,10 +92,6 @@ to_report <- rlang::list2(
 
 # Normalization using internal standards -------------------------------------------------
 
-# For any preprocessing steps between reading the data and normalization, keep the raw data as is
-# Label the matrix before normalization as "before_norm"
-proc_sumexp[["before_norm"]] <- proc_sumexp[["raw"]] |> 
-  labelled::set_variable_labels("No normalization")
 to_report[["before normalization"]] <- proc_sumexp
 
 # Extract internal standard features
@@ -110,7 +106,7 @@ internal_std_se <- local(
 to_report[["internal std. before qc"]] <- internal_std_se
 
 ## Failed internal standards     ---------------
-num_zeros <- proc$count_zeros_per_feature(internal_std_se[["before_norm"]])
+num_zeros <- proc$count_zeros_per_feature(internal_std_se[["raw"]])
 # Mark features with > 10% zeros
 is_failed <- num_zeros > ncol(internal_std_se) * 0.1
 to_report[["is failed internal std."]] <- is_failed
@@ -119,14 +115,14 @@ is_failed_in_proc_sumexp <- rownames(proc_sumexp) %in% rownames(internal_std_se)
 proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
 internal_std_se <- internal_std_se[!is_failed, ]
 # Impute remaining zeros with the mean of the same type
-internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, "before_norm")
+internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, "raw")
 cat("Failed internal standards (N = ", sum(is_failed), ") are removed.\n", sep = "")
 
 ## Outlier sample removal     ---------------
 
 if (params$rm_outlier) {    # Controlled by the command line option
   # Number of outlying internal standard features per sample
-  n_out <- proc$count_outliers_per_sample(internal_std_se, "before_norm", times = 3)
+  n_out <- proc$count_outliers_per_sample(internal_std_se, "raw", times = 3)
   n_internal_std <- nrow(internal_std_se)
   # Outlier samples: number of outlying features > 20% of the total number of features
   is_outlier <- n_out > (0.2 * n_internal_std)
@@ -150,9 +146,9 @@ if (params$rm_outlier) {    # Controlled by the command line option
 closest_istd <- proc$get_value_of_closest_istd(
   se = proc_sumexp, 
   istd_se = internal_std_se, 
-  mat_id = "before_norm"
+  mat_id = "raw"
 )
-proc_sumexp[["closest_norm"]] <- (proc_sumexp[["before_norm"]] / closest_istd) |> 
+proc_sumexp[["closest_norm"]] <- (proc_sumexp[["raw"]] / closest_istd) |> 
   labelled::set_variable_labels("Closest RT normalized")
 cat("Closest internal standard normalization is done.\n")
 
@@ -166,7 +162,7 @@ loess_fit <- proc$get_loess_fit(
   excl_cat = excl_cat,
   overall_rt_range = overall_rt_range,
   span = 1,
-  mat_id = "before_norm"
+  mat_id = "raw"
 )
 to_report[["LOESS fit"]] <- loess_fit
 # Normalize the data by LOESS fit along RT
@@ -174,15 +170,14 @@ rt <- util$retention_time(proc_sumexp)
 proc_sumexp[["loess_norm"]] <- sapply(
   colnames(proc_sumexp), function(sample_id) {
     norm_factor <- predict(loess_fit[[sample_id]], newdata = rt)
-    exp(log(proc_sumexp[["before_norm"]][, sample_id]) - norm_factor)     # Normalize in log scale
+    exp(log(proc_sumexp[["raw"]][, sample_id]) - norm_factor)     # Normalize in log scale
   }
 ) |> 
   labelled::set_variable_labels("LOESS normalized")
 cat("LOESS normalization is done.\n")
 
 ## Blank subtraction     ---------------
-norm_mat_ids <- c("loess_norm", "closest_norm", "before_norm")
-to_report[["normalized matrix ids"]] <- norm_mat_ids
+norm_mat_ids <- c("loess_norm", "closest_norm")
 to_report[["normalized"]] <- proc_sumexp    # Before blank subtraction. For reports
 
 # Get batch IDs
@@ -201,15 +196,17 @@ if (params$per_batch) {
 # Split the data by batch IDs
 per_batch_proc_se_lst <- SumExp::split_columns(proc_sumexp, batch_ids)
 
-norm_blk_mat_ids <- util$mat_id_of_blank_subtracted(norm_mat_ids)
+to_blk_subt <- c("raw", norm_mat_ids)  # Matrix IDs to perform blank subtraction
+to_report[["matrix ids to blk subt"]] <- to_blk_subt
+mat_ids_after_blk_subt <- util$mat_id_of_blank_subtracted(to_blk_subt)
 # Per batch, then per normalization method
 for (batch_id in unique(batch_ids)) {
   se <- per_batch_proc_se_lst[[batch_id]]
   per_batch_proc_se_lst[[batch_id]] <- proc$add_blank_subtracted_sumexp(
     sumexp = se,
     no_change = util$ctrl_smpl_cat(se) == "CalCurve",
-    mat_ids = norm_mat_ids, 
-    out_mat_ids = norm_blk_mat_ids
+    mat_ids = to_blk_subt, 
+    out_mat_ids = mat_ids_after_blk_subt
   )
 }
 to_report[["normalized - blank"]] <- per_batch_proc_se_lst
@@ -245,7 +242,7 @@ for (batch_id in unique(batch_ids)) {
   lst_proc[[batch_id]] <- list()    # To collect the output per batch
   
   # Per normalization method
-  for (mat_id0 in norm_blk_mat_ids) {    # Use normalized and blank subtracted
+  for (mat_id0 in mat_ids_after_blk_subt) {    # Use normalized and blank subtracted
     quant_se <- per_batch_proc_se_lst[[batch_id]]   # Change across the steps
     # Limit to the samples to be calibrated (or quantified)
     # Before excluding out-of-range calibration concentrations

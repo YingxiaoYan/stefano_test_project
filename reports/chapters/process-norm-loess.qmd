@@ -69,12 +69,12 @@ loess_curve_df <- local({
 # Deviation from the mean
 dev_from_mean <- local(envir = list(se = norm_se, i_sel = i_sel, to_excl = to_excl), {
   # Log-transform the data
-  mat <- log(se[["before_norm"]][, !to_excl, drop = FALSE])
+  mat <- log(se[["raw"]][, !to_excl, drop = FALSE])
   mat[!is.finite(mat)] <- NA    # nan = -Inf - -Inf. Replace -Inf by `log` with NA
   # Overall mean of every feature
   mean_log <- rowMeans(mat, na.rm = TRUE)
   out_se <- se[, i_sel]
-  for (ii in c("before_norm", "loess_norm")) {
+  for (ii in c("raw", "loess_norm")) {
     out_se[[ii]] <- sweep(log(out_se[[ii]]), 1, mean_log, FUN = "-")
   }
   # Reclassify standard types for compound classes
@@ -88,14 +88,14 @@ dev_from_mean <- local(envir = list(se = norm_se, i_sel = i_sel, to_excl = to_ex
 })
 
 df_to_show <- SumExp::as_tibble(dev_from_mean) |>
-  tidyr::pivot_longer(cols = c(dplyr::all_of("before_norm"), loess_norm), 
+  tidyr::pivot_longer(cols = c(dplyr::all_of("raw"), loess_norm), 
                       names_to = "Data", 
                       values_to = "Value") |> 
   dplyr::mutate(Type = factor(Type, levels = c("IS", "Quant", "non-target"))) |> 
   dplyr::arrange(desc(Type)) |>  # To show IS on top
   dplyr::mutate(
     Data = dplyr::case_when(
-      Data == "before_norm" ~ labelled::get_label_attribute(norm_se[["before_norm"]]),
+      Data == "raw" ~ labelled::get_label_attribute(norm_se[["raw"]]),
       Data == "loess_norm" ~ "LOESS Normalized"
     )
   )
@@ -131,11 +131,11 @@ Quality control (QC) samples are used for this evaluation because they are techn
 # Quantification standard features of QC samples
 qc_se <- show$extract_quant_qc(norm_se)
 # Calculate RSD of the quantification standard samples
-mat_ids <- c("before_norm", "loess_norm")
+mat_ids <- c("raw", "loess_norm")
 rsd_qstd <- show$calc_rsd_qstd(qc_se, mat_ids)
 rsd_qstd <- rsd_qstd |> 
   dplyr::mutate(
-    sign = .data[["before_norm"]] > loess_norm,
+    sign = .data[["raw"]] > loess_norm,
     sign = ifelse(sign, "↓", "↑"),
     sign = ifelse(is.na(sign), "All 0s", sign),
     sign = factor(sign, levels = c("↓", "↑", "All 0s"))

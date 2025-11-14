@@ -17,7 +17,7 @@ genReportUI <- function(uiId) {
       label = "Normalization method",
       choices = c("LOESS" = "loess_norm", 
                   "Closest RT" = "closest_norm",
-                  "No normalization" = "before_norm"),
+                  "without normalization" = "raw"),
       selected = "loess_norm",
     ),
     # Interactive plot option

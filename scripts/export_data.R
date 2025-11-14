@@ -33,7 +33,7 @@ io$chq_all_files_exist(FILE)
 # Load the normalized data
 to_report <- readRDS(FILE$i$to_rep)
 stopifnot("Processing NOT completed." = to_report[["Completed"]])
-norm_mat_ids <- to_report[["normalized matrix ids"]]   # `mat_ids` e.g. "loess_norm", "closest_norm"
+mat_ids_to_export <- to_report[["matrix ids to blk subt"]]     # IDs of matrices to export
 IS_TARGET_MODE <- !to_report[["is_non_target_mode"]]
 
 if (IS_TARGET_MODE) {
@@ -48,7 +48,7 @@ FILE$o <- local({
   # "(base name).(normalized method).conc.xlsx", "().norm.xlsx" and "().norm_blk.xlsx"
   b <- basename(user_inputs$input_file) |> 
     tools::file_path_sans_ext()    # Without extension
-  ns <- stringr::str_remove(norm_mat_ids, "_norm")
+  ns <- stringr::str_remove(mat_ids_to_export, "_norm")
   paste_file_name <- function(x, p) {
     file.path(user_inputs$table_dir, paste0(b, ".", x, ".", p, ".xlsx"))
   }
@@ -64,17 +64,17 @@ FILE$o <- local({
 io$mkdir_if_not_exist(dirname(unlist(FILE$o)))
 
 # Export normalized data ----------
-for (ii in seq_along(norm_mat_ids)) {
+for (ii in seq_along(mat_ids_to_export)) {
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized"]], 
-    mat_id = norm_mat_ids[ii],
+    mat_id = mat_ids_to_export[ii],
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm[[ii]]
   )
 
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized - blank"]],
-    mat_id = util$mat_id_of_blank_subtracted(norm_mat_ids[ii]),
+    mat_id = util$mat_id_of_blank_subtracted(mat_ids_to_export[ii]),
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]]
   )
@@ -86,9 +86,9 @@ if (IS_TARGET_MODE) {
   # Load the concentration data
   concn_lst <- readRDS(FILE$i$proc)
 
-  for (ii in seq_along(norm_mat_ids)) {
+  for (ii in seq_along(mat_ids_to_export)) {
     # The ID of the matrix to use for calibration
-    mat_id_for_calib <- norm_mat_ids[ii] |>
+    mat_id_for_calib <- mat_ids_to_export[ii] |>
       util$mat_id_of_blank_subtracted() |>
       util$mat_id_for_calibration()
     # Load the processed data using the specified normalization method
