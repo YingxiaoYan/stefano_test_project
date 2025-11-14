@@ -143,11 +143,13 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
 #' @param istd_se A [`SumExp::SumExp`] object of internal standard features
 #' @param mat_id The name of a matrix in `se`
 #' @param verbose A logical value indicating whether to show messages
-#' @returns A numeric matrix of the values of the closest internal standard features
+#' @returns A list of two elements:
+#' * `mat`: a numeric matrix of the values of the closest internal standard features
+#' * `idx`: an integer vector of the indices of the closest internal standard features
 #' @md
 #' @export
-get_value_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
-  out <- get_value_of_closest_istd_in_class(se, istd_se, mat_id)
+get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
+  out <- get_value_idx_of_closest_istd_in_class(se, istd_se, mat_id)
   # When any compound target classes are specified
   istd_std_type <- util$std_type(istd_se)
   is_sub_istd <- grepl("^IS\\\\", istd_std_type)
@@ -166,28 +168,28 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
         warning(paste0("No quantification features for the compound class: ", g))
         next
       }
-      g_out <- get_value_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
+      g_out <- get_value_idx_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
       # Replace the values of the closest internal standard features in the original matrix
       # with the values of the closest internal standard features in the compound class
-      out[is_sub_quant, ] <- g_out
+      out$mat[is_sub_quant, ] <- g_out$mat
+      out$idx[is_sub_quant] <- g_out$idx
     }
   }
   return(out)
 }
-#' @rdname get_value_of_closest_istd
-#' [get_value_of_closest_istd_in_class()] is a helper function to get the values of the
+#' @rdname get_value_idx_of_closest_istd
+#' [get_value_idx_of_closest_istd_in_class()] is a helper function to get the values of the
 #' closest internal standard features within each subgroup.
 #' @md
-#' @export
-get_value_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
+get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   rt_x <- util$retention_time(se)
   rt_istd <- util$retention_time(istd_se)
   # Find the closest internal standard feature
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
-  # dim(out) == dim(se) Not dim(istd_se)
-  out <- istd_se[[mat_id]][i_closest, , drop = FALSE]
-  rownames(out) <- rownames(se)
-  out
+  # dim(mat) == dim(se) Not dim(istd_se)
+  mat <- istd_se[[mat_id]][i_closest, , drop = FALSE]
+  rownames(mat) <- rownames(se)
+  list(mat = mat, idx = i_closest)
 }
 
 

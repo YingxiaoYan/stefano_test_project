@@ -87,8 +87,9 @@ if (IS_TARGET_MODE) {
   concn_lst <- readRDS(FILE$i$proc)
 
   for (ii in seq_along(mat_ids_to_export)) {
+    mat_id <- mat_ids_to_export[ii]
     # The ID of the matrix to use for calibration
-    mat_id_for_calib <- mat_ids_to_export[ii] |>
+    mat_id_for_calib <- mat_id |>
       util$mat_id_of_blank_subtracted() |>
       util$mat_id_for_calibration()
     # Load the processed data using the specified normalization method
@@ -97,7 +98,8 @@ if (IS_TARGET_MODE) {
     msdial$export_concentration_xlsx(
       # Concentration has been computed on the blank subtracted data
       sumexp_lst = lst_proc,
-      file = FILE$o$conc[[ii]]
+      file = FILE$o$conc[[ii]],
+      is_closest_norm = mat_id == "closest_norm"
     )
   }
 }
