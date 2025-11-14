@@ -94,18 +94,19 @@ The concentration range for each chemical is detailed below.
 show_df <- limit_df |> 
   dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
   dplyr::mutate(
-    Note = dplyr::case_when(
-      !has_proper_range ~ "Excluded", 
-      TRUE ~ ""
-    ),
     lod = ifelse(is.na(lod), "N.A.", as.character(lod)),
     min_c = ifelse(is.na(min_c), "No valid pts.", as.character(min_c)),
-    max_c = dplyr::case_when(
+    Note = dplyr::case_when(
       max_c == 0 ~ "All zero",
+      is.na(max_c) ~ "<3 valid pts.",
+      !has_proper_range ~ "Excluded", 
+      .default = ""
+    ),
+    max_c = dplyr::case_when(
       max_c == -9 ~ "No valid max",
-      is.na(max_c) ~ "Not enough range",
-      TRUE ~ as.character(max_c)
-    )
+      max_c == 0 | is.na(max_c) ~ "",
+      .default = as.character(max_c)
+    ),
   ) |>
   dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
   dplyr::select(
@@ -117,6 +118,7 @@ show_df <- limit_df |>
     Note,
   )
 
+stopifnot(nrow(show_df) == nrow(limit_df))
 knitr::kable(
   show_df,
   caption = "Concentration range of the calibration curve samples",
@@ -125,5 +127,5 @@ knitr::kable(
   kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
   kableExtra::scroll_box(height = "350px") |> 
   # Color the rows that are marked in Note
-  kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
+  kableExtra::row_spec(which(limit_df$has_proper_range == FALSE), background = "lightcoral")
 ```
