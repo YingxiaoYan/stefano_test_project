@@ -5,26 +5,44 @@ The given file contains data of `r nrow(raw_se)` features and `r ncol(raw_se)` s
 
 ## Samples
 
-### By class
-
-There are `r dplyr::n_distinct(SumExp::col_df(raw_se)$Class)` classes of samples in the data.
-The number of samples for each class is as follows:
+### By category/class
 
 ```{r}
-show$kable_number_of(SumExp::col_df(raw_se)$Class)
+#| purl: true
+# Category and class of samples
+catg <- util$ctrl_smpl_cat(raw_se)
+catg[catg == ""] <- "Sample"      # Samples were not assigned to any special categories
 ```
 
-### Special categories for processing
-
-There are `r length(table(util$ctrl_smpl_cat(raw_se), exclude = ""))` special sample categories for in the data.
-The data of those are important in the following processing steps.
-The number of samples for each category is as follows:
+There are `r length(table(catg))` categories and 
+`r dplyr::n_distinct(SumExp::col_df(raw_se)$Class)` classes of samples in the data.
+The number of samples for each class except `CalCurve` and `QC` is as follows:
 
 ```{r}
-show$kable_number_of(util$ctrl_smpl_cat(raw_se), exclude = "")
+catg_cl <- tibble::tibble(
+  Category = catg,
+  Class = SumExp::col_df(raw_se)$Class,
+) |>
+  dplyr::mutate(Class = ifelse(Category %in% c("CalCurve", "QC"), "", Class)) |>
+  tidyr::unite("catg_cl", c(Category, Class), sep = ":", remove = FALSE)
+tb <- janitor::tabyl(catg_cl, catg_cl) |>
+  janitor::adorn_pct_formatting() |>
+  dplyr::right_join(dplyr::distinct(catg_cl), y = _, by = "catg_cl") |>
+  dplyr::arrange(Category, Class)
+stopifnot(anyDuplicated(tb$catg_cl) == 0)   # Ensure no duplicated category-class combinations
+
+tb |>
+  dplyr::select(-catg_cl) |>
+  knitr::kable(
+    row.names = FALSE,          # To avoid excluded row numbers
+    col.names = c("Category", "Class", "Number of Samples", "Percent"),
+    align = "llrr"
+  ) |>
+  kableExtra::kable_styling(full_width = FALSE) |>
+  kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
-#### Calibration curve samples
+### Calibration curve samples
 
 The samples for the calibration curve are identified by the sample type `Standard`.
 The concentration is extracted from the provided sample ID.
@@ -47,7 +65,7 @@ df_show <- if (IS_TARGET_MODE) {
 }
 ```
 
-##### Sample IDs
+#### Sample IDs
 
 ```{r}
 df_show |> 
@@ -60,7 +78,7 @@ df_show |>
   kableExtra::scroll_box(height = "160px")
 ```
 
-##### The number of samples per concentration
+#### The number of samples per concentration
 
 ```{r}
 #| label: 'calcurve-samples-summary'
@@ -74,7 +92,7 @@ table(v) |>
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
 
-#### Quality control samples
+### Quality control samples
 
 Aliquots of some samples were measured as technical replicates for quality control.
 The number of the replicates were as below.
