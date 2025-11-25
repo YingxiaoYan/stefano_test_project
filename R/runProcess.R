@@ -84,7 +84,7 @@ runProcessUI <- function(uiId) {
 #'
 #' @param serverId A string that identifies the server module.
 #' @export
-runProcessServer <- function(serverId) {
+runProcessServer <- function(serverId, data_info) {
   shiny::moduleServer(serverId, function(input, output, session) {
     
     # Disable/enable weight options based on log_calibration
@@ -112,7 +112,8 @@ runProcessServer <- function(serverId) {
       "weight", 
       "llox_method",
       "use_rsd20"
-    )
+    ),
+    data_info = data_info
   )
 }
 

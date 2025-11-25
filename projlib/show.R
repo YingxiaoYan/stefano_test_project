@@ -252,7 +252,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   cc_df <- SumExp::as_tibble(cc_se) |>
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id))) |>
-    dplyr::mutate(txt = paste("inj:", injection_order))   # Label for the points
+    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", c_conc))   # Label for the points
   # LLOQ, LOD, max_c_conc of each `feature_id`
   lim_df <- SumExp::row_df(x_se) |>
     # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`

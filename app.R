@@ -32,9 +32,9 @@ server <- function(input, output, session) {
   data_info <- msdialInfoServer("data_info")
   
   # Run scripts and display output
-  runScriptServer("read_msdial", "scripts/read-msdial.R", "Read MS-Dial")
-  runProcessServer("proc")
-  runScriptServer("export_data", "scripts/export_data.R", "Export data into tables")
+  runScriptServer("read_msdial", "scripts/read-msdial.R", "Read MS-Dial", data_info=data_info)
+  runProcessServer("proc", data_info=data_info)
+  runScriptServer("export_data", "scripts/export_data.R", "Export data into tables", data_info=data_info)
   
   genReportServer("report", data_info = data_info)
 }

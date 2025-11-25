@@ -29,6 +29,14 @@ source("code/reports/chapters/_internal-shared_setup_chunk.R")
 set.seed(7579)
 ```
 
+# Settings used for processing
+
+```{r}
+#| child: code/reports/chapters/process-internal-settings.qmd
+```
+
+--------------------------------------------
+
 # Data input
 
 {{< include chapters/_read-msdial.qmd >}}

@@ -79,7 +79,7 @@ calcurve_plot <- function(dfm, y = params$norm_method) {
   dfm <- dfm |>
     dplyr::mutate(
       # Label for the points
-      txt = paste0("inj: ", injection_order, ", conc: ", .cc_pt)
+      txt = paste0("inj: ", injection_order, ", conc: ", .cc_pt, ", int: ", signif(.data[[y]], 6))
     )
   facet_fill <- if (any(!dfm$has_proper_range)) "lightcoral" else "lightgray"
   ggplot(dfm, aes(x = .cc_pt, y = .data[[y]], shape = Batch)) +

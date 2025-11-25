@@ -331,6 +331,7 @@ split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
   conc <- util$spiked_conc_pts(cc_se)
   stopifnot("Spiked concentration values are not numeric" = is.numeric(conc))
   sorted <- stats::setNames(nm = sort(unique(conc)))
+  
   lapply(sorted, \(.x) cc_se[[mat_id]][, conc == .x, drop = FALSE])
 }
 
@@ -345,6 +346,38 @@ split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
 #' @md
 apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TRUE) { # nolint
   cc_lst <- split_in_columns_and_sort_by_spiked_conc(cc_se, mat_id)
+  
+  # Checking that calibration standards are increasing with higher conc and if
+  # not replacing lower signals with 0
+  for(i in seq_len(nrow(cc_se))){ # Loop over each compound
+    cal_list <- list()
+    
+    for(l in seq_len(length(cc_lst))){  # Loop over each conc (separated into list items)
+      for(len in seq_len(ncol(cc_lst[[l]]))){ # Loop over each col of each conc
+        if(l == 1){
+          cal_list[[len]] <- c(NA)
+        }
+        temp_vec <- cc_lst[[l]][i,len]
+        names(temp_vec) <- rep(names(cc_lst)[l], length(temp_vec))
+        cal_list[[len]] <- c(cal_list[[len]],
+                             temp_vec)
+      }
+    }
+    
+    start_ind <- list()
+    for(len in seq_len(length(cal_list))){
+      cal_list[[len]] <- cal_list[[len]][-1]
+      start_ind <- find_increasing_start(cal_list[[len]])
+      
+      if(start_ind > 2){
+        
+        for(lst_ind in seq_len((start_ind-1))[-1]){
+          cc_lst[[lst_ind]][i,len] <- 0
+        }
+      }
+    }
+  }
+  
   sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }
 
@@ -624,6 +657,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   mat_m  <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, mean, na.rm = TRUE)
   mat_sd <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, stats::sd, na.rm = TRUE)
   stopifnot(is.matrix(mat_m), is.matrix(mat_sd))
+  
   # Limit of detection
   lod_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 3)
   stopifnot(identical(rownames(sumexp), names(lod_signal)))
@@ -632,10 +666,21 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   lloq_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 10)
   stopifnot(identical(rownames(sumexp), names(lloq_signal)))
   mat_cond <- mat_m > lloq_signal
+  
+  #Throwing error telling user that no cal points > lloq
+  if(!any(mat_cond)){
+    stop("No cal points above lloq_signal")
+  }
+  
   if (use_rsd20) {
     mat_rsd <- mat_sd / mat_m
     mat_rsd[mat_m == 0] <- Inf  # Avoid division by zero
     mat_cond <- mat_cond & (mat_rsd <= 0.2)
+    
+    #Throwing error telling user that no cal points survived cut-offs
+    if(!any(mat_cond)){
+      stop("No cal point RSD < 20% and above lloq_signal")
+    }
   }
   lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
   # Average signal of the LLOQ point
@@ -647,7 +692,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   mat_q <- util$exclude_ctrl_smpl_cat(se_lst$quant, excl_cat = "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
   # Anton: If user decided to keep all cal points then no filtering performed
-  # reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
+  # Reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
   if(keep_cal_points){
     out <- rep(max(as.numeric(colnames(mat_m))), nrow(mat_m))
     names(out) <- rownames(mat_m)
@@ -764,9 +809,11 @@ fit_and_test_calcurve_model <- function(conc,
                                         signal,
                                         weight_method = "largestR2",
                                         penalty_quadratic = 0) {
+  #If no signal return NA
   if (all(is.na(signal) | signal == 0)) {
     return(NA)
   }
+  
   # Weight alternatives
   weights_alt <- rlang::list2(
     "1" = rep(1, length(conc)),
@@ -948,4 +995,22 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
   out <- labelled::copy_labels(c_mat, out)
   sumexp[[conc_mat_id]] <- out
   sumexp
+}
+
+
+#' Find out in which calibration point there is continuous increase in following points
+#'
+#' @param signal A vector with signals from instrument sorted in increasing theoretical conc
+#'
+#' @returns Index of the cal point at which point there is always increasing signal
+#' @md
+#' @export
+find_increasing_start <- function(signal) {
+  n <- length(signal)
+  for (i in seq_len(n)) {
+    if (all(diff(signal[i:n]) > 0)) {
+      return(i)
+    }
+  }
+  return(NA) # No such index found
 }

@@ -2,6 +2,9 @@
 # A Shiny module to run a script and display the output
 # ------------------------------------------------------------------------------------------- #
 
+# "params.yml": The parameter file in YAML format that stores user's MS-DIAL info
+# .yml_file <- "../params.yml"
+
 #' A Shiny UI module to run a script and display the output
 #'
 #' @param uiId A string that identifies the UI module.
@@ -26,13 +29,19 @@ runScriptUI <- function(uiId, label) {
 #' @param param_ids A list of parameter IDs to be passed to the script (optional).
 #'
 #' @export
-runScriptServer <- function(serverId, script_path, what, param_ids = NULL) {
+runScriptServer <- function(serverId, script_path, what, param_ids = NULL, data_info) {
   shiny::moduleServer(serverId, function(input, output, session) {
     output_txt <- shiny::reactiveVal("")
     proc <- shiny::reactiveVal(NULL)
     timer <- shiny::reactiveTimer(1000)
+    # data_info <- shiny::reactive(data_info)
     
     shiny::observeEvent(input[["run_button"]], {
+      # Save .yml file with parameters
+      save_user_data_info(.yml_file, .user_params$id, 
+                          # data_info)
+                          shiny::reactiveValuesToList(data_info))
+      
       # Launch the script
       tryCatch({
         # Ensure the script path is valid
@@ -79,6 +88,7 @@ runScriptServer <- function(serverId, script_path, what, param_ids = NULL) {
           output_txt(paste(output_txt(), all_lines, "", sep = "\n"))
         }
         if (! p$is_alive()) {    # Process has finished
+          output_txt(paste(output_txt(), "File successfully read!", sep = "\n"))
           proc(NULL)  # Clear the process object
         }
       })

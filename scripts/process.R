@@ -132,7 +132,7 @@ if (params$rm_outlier) {    # Controlled by the command line option
   is_outlier <- n_out > (0.2 * n_internal_std)
   to_report[["number of outlier internal std. per sample"]] <- n_out
   to_report[["is outlier sample"]] <- is_outlier
-
+  
   if (any(is_outlier)) {
     # Exclude the outlying samples
     stopifnot(identical(names(is_outlier), colnames(internal_std_se)))
@@ -254,7 +254,7 @@ for (batch_id in unique(batch_ids)) {
     quant_se <- quant_se[order(SumExp::row_df(quant_se)$feature_name), ]
     # Label for the normalized data.
     norm_lab <- labelled::get_label_attribute(quant_se[[mat_id0]])
-   
+    
     # Log scale for calibration curve fitting
     if (log_scale) quant_se[[mat_id0]] <- log1p(quant_se[[mat_id0]])    # log1p(x) = log(x + 1)
     
@@ -267,7 +267,7 @@ for (batch_id in unique(batch_ids)) {
     quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
       quant_se, mat_id0, fun, params$use_rsd20, params$keep_cal_points
     )
-
+    
     # Exclude the chemicals having no appropriate concentration range
     has_proper_range <- proc$has_proper_calibration_range(quant_se)
     SumExp::row_df(quant_se) <- cbind(SumExp::row_df(quant_se), has_proper_range)
@@ -287,10 +287,10 @@ for (batch_id in unique(batch_ids)) {
     lst_q_se <- util$split_into_calcurve_and_other(quant_se, c("cc", "concn"))
     calcurve_se <- lst_q_se$cc
     concn_se    <- lst_q_se$concn
-
+    
     # Replace the values outside the concentration range with NA
     calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
-  
+    
     # Fit the calibration curve
     cc_mat_norm <- calcurve_se[[mat_id]]
     c_concs <- util$spiked_conc_pts(calcurve_se)
@@ -323,7 +323,7 @@ for (batch_id in unique(batch_ids)) {
       proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc0")
     labelled::label_attribute(concn_se) <- norm_lab
     if (log_scale) concn_se[[mat_id]] <- expm1(concn_se[[mat_id]])    # Back transform
-
+    
     # Exclude the chemicals with no quantification
     non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc0"]]
     any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
