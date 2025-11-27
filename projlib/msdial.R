@@ -427,14 +427,146 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
       )
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
+  
+  
   # It had batch ID only, e.g. "1", "all"
   names(per_batch_to_export_table) <- paste("Batch", names(sumexp_lst))
+  
+  # Setting up stylization for excel documents
+  half_style <- openxlsx::createStyle(fgFill = "yellow")
+  quarter_style <- openxlsx::createStyle(fgFill = "red")
+  
+  # Making a range from which to pick out actual data of final format
+  row_range <- c(7:nrow(per_batch_to_export_table[[1L]]))
+  col_range <- c(17:ncol(per_batch_to_export_table[[1L]]))
 
+  # If only 1 batch / all batches evaluated together
   if (length(sumexp_lst) == 1L) {
-    per_batch_to_export_table[[1L]] |>
-      writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
+    
+    #Add openxlsx functionality
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb=wb,
+                           sheetName=names(per_batch_to_export_table))
+    openxlsx::writeData(wb,
+                        sheet=1,
+                        x = per_batch_to_export_table[[1L]],
+                        colNames = F)
+    
+    # Making number exclusive data frame of conc after imputation
+    vals <- per_batch_to_export_table[[1L]][row_range,
+                                            col_range]
+    vals <- as.data.frame(sapply(vals, as.numeric))
+    
+    # Making LLOQ vector
+    LLOQs <- as.numeric(per_batch_to_export_table[[1L]]$LLOQ[row_range])
+    
+    # Creating empty differ-matrix to fill with which imputed and how much
+    diff_mat <- matrix(ncol=ncol(vals), nrow = nrow(vals))
+    diff_mat[is.na(diff_mat)] <- 0
+    
+    # Finding values that differ = have been imputed
+    for(curr_row in seq_len(nrow(vals))){
+      which_half = which(vals[curr_row,] ==  (LLOQs[curr_row]/2))
+      which_quarter = which(vals[curr_row,] ==  (LLOQs[curr_row]/4))
+      
+      # Checking which are half or quarter
+      if(length(which_half) > 0){
+        diff_mat[curr_row, which_half] <- 0.5
+      }
+      if(length(which_quarter) > 0){
+        diff_mat[curr_row, which_quarter] <- 0.25
+      }
+    }
+    
+    
+    # Go through every cell and change color depending on whether value in 
+    # diff_mat is 1 or something else
+    for(curr_row in seq_len(nrow(vals))){
+      for(curr_col in seq_len(ncol(vals))){
+        
+        if(diff_mat[curr_row, curr_col] == 0.5){
+          openxlsx::addStyle(wb,
+                             sheet=1,
+                             half_style,
+                             curr_row+6,
+                             curr_col+16)
+        } else if(diff_mat[curr_row, curr_col] == 0.25){
+          openxlsx::addStyle(wb,
+                             sheet=1,
+                             quarter_style,
+                             curr_row+6,
+                             curr_col+16)
+          
+        }
+      }
+    }
+
+    openxlsx::saveWorkbook(wb, file, overwrite = T)
   } else {  # Multiple batches
-    c(list("Full" = all_batches_to_export_table), per_batch_to_export_table) |>
-      writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb=wb,
+                           sheetName="Full")
+    openxlsx::writeData(wb,
+                        sheet=1,
+                        x = all_batches_to_export_table,
+                        colNames = F)
+    
+    for(i in seq_len(length(per_batch_to_export_table))){
+      openxlsx::addWorksheet(wb=wb,
+                             sheetName=names(per_batch_to_export_table)[i])
+      openxlsx::writeData(wb,
+                          sheet=(i+1),
+                          x = per_batch_to_export_table[[i]],
+                          colNames = F)
+      
+      # Making number exclusive data frame of conc after imputation
+      vals <- per_batch_to_export_table[[i]][row_range,
+                                              col_range]
+      vals <- as.data.frame(sapply(vals, as.numeric))
+      
+      # Making LLOQ vector
+      LLOQs <- as.numeric(per_batch_to_export_table[[i]]$LLOQ[row_range])
+      
+      # Creating empty differ-matrix to fill with which imputed and how much
+      diff_mat <- matrix(ncol=ncol(vals), nrow = nrow(vals))
+      diff_mat[is.na(diff_mat)] <- 0
+      
+      # Finding values that differ = have been imputed
+      for(curr_row in seq_len(nrow(vals))){
+        which_half = which(vals[curr_row,] ==  (LLOQs[curr_row]/2))
+        which_quarter = which(vals[curr_row,] ==  (LLOQs[curr_row]/4))
+        
+        # Checking which are half or quarter
+        if(length(which_half) > 0){
+          diff_mat[curr_row, which_half] <- 0.5
+        }
+        if(length(which_quarter) > 0){
+          diff_mat[curr_row, which_quarter] <- 0.25
+        }
+        
+        #Applying style to each column in the row based on LLOQ
+        for(curr_col in seq_len(ncol(vals))){
+          
+          if(diff_mat[curr_row, curr_col] == 0.5){
+            openxlsx::addStyle(wb,
+                               sheet=(i+1),
+                               half_style,
+                               curr_row+6,
+                               curr_col+16)
+          } else if(diff_mat[curr_row, curr_col] == 0.25){
+            openxlsx::addStyle(wb,
+                               sheet=(i+1),
+                               quarter_style,
+                               curr_row+6,
+                               curr_col+16)
+            
+          }
+        }
+      }
+    }
+    
+    openxlsx::saveWorkbook(wb, file, overwrite = T)
+    # c(list("Full" = all_batches_to_export_table), per_batch_to_export_table) |>
+    #   writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
   }
 }  

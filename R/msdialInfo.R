@@ -82,6 +82,11 @@ msdialInfoUI <- function(uiId) {
         })
       )
     }),
+    shiny::actionButton(inputId = shiny::NS(uiId, "auto_fill"),
+                        label = "Auto-fill intermediate dir to rest",
+                        disabled = TRUE),
+    # shiny::br(),
+    # shiny::br(),
     shiny::actionButton(inputId = shiny::NS(uiId, "save_param_button"), 
                         label = "Save the parameters above"),
     # Display the "saved" message
@@ -154,8 +159,23 @@ msdialInfoServer <- function(serverId) {
                           shiny::reactiveValuesToList(data_info))
       output$saved <- renderText("User data information saved successfully.")
     })
+    
+    # Observe user choosing an intermediate dir and enable auto_fill button
+    observe({
+      req(data_info[[user_dirs[[1]]]])
+      updateActionButton(inputId = "auto_fill",
+                         disabled=FALSE)
+    })
+
+    
+    #  Observe auto_fill button and fill up other two fields
+    shiny::observeEvent(input$auto_fill, {
+      for(id in user_dirs[2:3]){
+        data_info[[id]] <- data_info[[user_dirs[[1]]]]
+      }
+    })
     # Return of this module, to be used by other modules
-    data_info
+    return(data_info)
   })
 }
 

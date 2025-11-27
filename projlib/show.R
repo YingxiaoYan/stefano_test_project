@@ -252,7 +252,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   cc_df <- SumExp::as_tibble(cc_se) |>
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id))) |>
-    dplyr::mutate(txt = paste("inj:", injection_order))   # Label for the points
+    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", c_conc, "\nname: ", sample_name, "\nint: ", round(.data[[mat_id]],0)))   # Label for the points
   # LLOQ, LOD, max_c_conc of each `feature_id`
   lim_df <- SumExp::row_df(x_se) |>
     # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
@@ -261,8 +261,8 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |>
     tidyr::drop_na(conc) |>
-    dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
- 
+    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", conc, "\nname: ", sample_name, "\nint: ", round(.data[[mat_id]],0)))    # Label for the points
+  
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     geom_calibration_curve_line(lim_df, log_scale = log_scale) +
     # Shade the region below the LLOQ
@@ -456,6 +456,8 @@ tbl_chemical_summary <- function(sumexp) {
     dplyr::rename(chem_name = "feature_name")
   # Concentration
   mat <- sumexp[["conc"]]
+  mat_original <- sumexp[["conc_original"]]
+  
   # Summary about the concentration ranges
   conc_summary <- chemicals |>
     dplyr::mutate(
@@ -464,7 +466,7 @@ tbl_chemical_summary <- function(sumexp) {
       perc_detf = n_det / n_samples * 100,
       median = apply(mat, 1, stats::median),
       mean = rowMeans(mat),
-      min = apply(mat, 1, min),
+      min = apply(mat_original, 1, min),
       max = apply(mat, 1, max),
     )
  
