@@ -349,34 +349,34 @@ apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TR
   
   # Checking that calibration standards are increasing with higher conc and if
   # not replacing lower signals with 0
-  # for(i in seq_len(nrow(cc_se))){ # Loop over each compound
-  #   cal_list <- list()
-  #   
-  #   for(l in seq_len(length(cc_lst))){  # Loop over each conc (separated into list items)
-  #     for(len in seq_len(ncol(cc_lst[[l]]))){ # Loop over each col of each conc
-  #       if(l == 1){
-  #         cal_list[[len]] <- c(NA)
-  #       }
-  #       temp_vec <- cc_lst[[l]][i,len]
-  #       names(temp_vec) <- rep(names(cc_lst)[l], length(temp_vec))
-  #       cal_list[[len]] <- c(cal_list[[len]],
-  #                            temp_vec)
-  #     }
-  #   }
-  #   
-  #   start_ind <- list()
-  #   for(len in seq_len(length(cal_list))){
-  #     cal_list[[len]] <- cal_list[[len]][-1]
-  #     start_ind <- find_increasing_start(cal_list[[len]])
-  #     
-  #     if(start_ind > 1){ #Change to 2 here if 0 always kept
-  #       
-  #       for(lst_ind in seq_len((start_ind-1))){ #Remove first if 0 always kept seq_len((start_ind-1))[-1]
-  #         cc_lst[[lst_ind]][i,len] <- 0
-  #       }
-  #     }
-  #   }
-  # }
+  for(i in seq_len(nrow(cc_se))){ # Loop over each compound
+    cal_list <- list()
+
+    for(l in seq_len(length(cc_lst))){  # Loop over each conc (separated into list items)
+      for(len in seq_len(ncol(cc_lst[[l]]))){ # Loop over each col of each conc
+        if(l == 1){
+          cal_list[[len]] <- c(NA)
+        }
+        temp_vec <- cc_lst[[l]][i,len]
+        names(temp_vec) <- rep(names(cc_lst)[l], length(temp_vec))
+        cal_list[[len]] <- c(cal_list[[len]],
+                             temp_vec)
+      }
+    }
+
+    start_ind <- list()
+    for(len in seq_len(length(cal_list))){
+      cal_list[[len]] <- cal_list[[len]][-1]
+      start_ind <- find_increasing_start(cal_list[[len]])
+
+      if(start_ind > 1){ #Change to 2 here if 0 always kept
+
+        for(lst_ind in seq_len((start_ind-1))){ #Remove first if 0 always kept seq_len((start_ind-1))[-1]
+          cc_lst[[lst_ind]][i,len] <- 0
+        }
+      }
+    }
+  }
   
   sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }

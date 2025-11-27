@@ -378,12 +378,6 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
     mat_id = "conc",
     feat_tbl = sum_all_batches
   )
-  # Making table of pre-imputation conc of all batches
-  all_batches_to_export_table_orig <- .merge_sample_info_and_feature_data(
-    merged_se,
-    mat_id = "conc_original",
-    feat_tbl = sum_all_batches
-  )
   
   # Per-batch tables to export
   per_batch_to_export_table <- lapply(sumexp_lst, \(se) {
@@ -420,43 +414,6 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "N of points" = n_conc,
       )
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
-  })
-  
-  #Per batch original conc table
-  per_batch_to_export_table_orig <- lapply(sumexp_lst, \(se) {
-    # Drop all features that are not to be exported per batch
-    se <- se[SumExp::row_df(se)$to_export, ]
-    # Prepare the chemical summary table per batch
-    chem_col <- tbl_chemical_summary(se) |> 
-      dplyr::mutate(
-        unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
-      ) |>
-      dplyr::mutate(      # Tidy up the table
-        perc_detf = round(perc_detf, 1),
-        n_d_s = paste0("(", n_det, "/", n_samples, ")"),
-        model_r2 = round(model_r2, 3),
-        dplyr::across(c(min, max, mean), ~ round(.x, 4)),
-        dplyr::across(c(lod, lloq, min, max, mean), ~ as.character(.x)),
-      ) |> 
-      dplyr::select(
-        "Alignment ID" = alignment_id,
-        "Chemical" = chem_name,
-        "Average Mz" = mz,
-        "Average Rt(min)" = .rt,
-        "DF%" = perc_detf,
-        "Samples (d/n)" = n_d_s,
-        "Concentration" = unit,
-        "LOD" = lod,
-        "LLOQ" = lloq,
-        "Min Conc." = min,
-        "Max Conc." = max,
-        "Avg. Conc." = mean,
-        "R2" = model_r2,
-        "Model" = best_model,
-        "Equation" = eqn,
-        "N of points" = n_conc,
-      )
-    .merge_sample_info_and_feature_data(se, "conc_original", chem_col)
   })
   
   
