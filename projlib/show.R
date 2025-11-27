@@ -219,7 +219,7 @@ geom_calibration_curve_line <- function(lim_df, log_scale = FALSE, color = "cade
   }) |>
     dplyr::bind_rows() |>
     dplyr::arrange(feature_id, conc)      # To make sure
- 
+  
   ggplot2::geom_line(
     ggplot2::aes(x = conc, y = .y_value), data = ccline_df,
     color = color,
@@ -252,7 +252,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   cc_df <- SumExp::as_tibble(cc_se) |>
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id))) |>
-    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", c_conc))   # Label for the points
+    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", c_conc, "\n int: ", round(.data[[mat_id]],0)))   # Label for the points
   # LLOQ, LOD, max_c_conc of each `feature_id`
   lim_df <- SumExp::row_df(x_se) |>
     # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
@@ -261,8 +261,8 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |>
     tidyr::drop_na(conc) |>
-    dplyr::mutate(txt = paste("inj:", injection_order))    # Label for the points
- 
+    dplyr::mutate(txt = paste("inj:", injection_order, "\n int: ", round(.data[[mat_id]],0)))    # Label for the points
+  
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     geom_calibration_curve_line(lim_df, log_scale = log_scale) +
     # Shade the region below the LLOQ
@@ -332,7 +332,7 @@ CoordZoomInByCC <- ggplot2::ggproto(
   mat_id = NULL,           # Matrix ID column name
   feat_id = ".row_id",     # Feature ID column name
   facet_by = "feature_name",    # Facet by feature name
- 
+  
   # Set updated limits by the calibration points
   setup_panel_params = function(self, scale_x, scale_y, params = list()) {
     # Iteratively run for each panel
@@ -350,7 +350,7 @@ CoordZoomInByCC <- ggplot2::ggproto(
       reverse = self$reverse %||% "none"
     )
   },
- 
+  
   # Filter out the data above the upper-bound
   setup_data = function(self, data, params) {
     df_cc <- data[[self$i_data]]    # Data for calibration points
@@ -368,7 +368,7 @@ CoordZoomInByCC <- ggplot2::ggproto(
     data[[self$i_data]] <- df_cc
     data
   },
-
+  
   # Initialize the panel counter and save the layout for `setup_panel_params`
   setup_layout = function(self, layout, params) {
     self$panel_counter <- 0
@@ -456,6 +456,8 @@ tbl_chemical_summary <- function(sumexp) {
     dplyr::rename(chem_name = "feature_name")
   # Concentration
   mat <- sumexp[["conc"]]
+  mat_original <- sumexp[["conc_original"]]
+  
   # Summary about the concentration ranges
   conc_summary <- chemicals |>
     dplyr::mutate(
@@ -464,10 +466,10 @@ tbl_chemical_summary <- function(sumexp) {
       perc_detf = n_det / n_samples * 100,
       median = apply(mat, 1, stats::median),
       mean = rowMeans(mat),
-      min = apply(mat, 1, min),
+      min = apply(mat_original, 1, min),
       max = apply(mat, 1, max),
     )
- 
+  
   # Write an equation for the calibration curve model
   get_equation <- function(cc_model) {
     num_f <- function(x) {
@@ -502,7 +504,7 @@ tbl_chemical_summary <- function(sumexp) {
     out
   }) |>
     dplyr::bind_rows()
-
+  
   cbind(conc_summary, m_sum) |>
     dplyr::select(-calcurve_model) |>
     dplyr::mutate(
@@ -528,7 +530,7 @@ df_for_injection_order <- function(sumexp, mat_ids = names(sumexp), inj_ord = in
   labs <- SumExp::name_labs(sumexp)
   stopifnot(all(mat_ids %in% labs))
   labs <- labs[match(mat_ids, labs)]   # The same order as `mat_ids`
-
+  
   SumExp::as_tibble(sumexp) |>
     tidyr::pivot_longer(cols = dplyr::all_of(mat_ids),
                         names_to = "Data",
