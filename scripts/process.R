@@ -7,10 +7,6 @@
 # The options are used to control the processing steps
 option_list <- rlang::list2(
   optparse::make_option(
-    c("--per_batch"), type = "logical", default = TRUE,
-    help = "Process data per batch? [default: %default]"
-  ),
-  optparse::make_option(
     c("--keep_cal_points"), type = "logical", default = TRUE,
     help = "Keep all cal points despite sample range? [default: %default]"
   ),
@@ -47,7 +43,6 @@ opt_parser <- optparse::OptionParser(
 params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
-  "  - Per batch processing:", params$per_batch, "\n",
   "  - Keep cal points: ", params$keep_cal_points, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
@@ -184,17 +179,12 @@ to_report[["normalized"]] <- proc_sumexp    # Before blank subtraction. For repo
 
 # Get batch IDs
 batch_ids <- as.character(SumExp::col_df(proc_sumexp)[["batch_id"]])
-if (params$per_batch) {
+if (dplyr::n_distinct(batch_ids) > 1) {
   cat(
     "Processing blank substraction per batch.", 
     "Found batch_ids:", paste(unique(batch_ids), collapse = ", "), "\n"
   )
-} else {
-  # If not processing per batch, assign all samples to a single batch
-  SumExp::col_df(proc_sumexp)[["org_batch_id"]] <- batch_ids   # Keep the original batch IDs
-  batch_ids <- rep("all", ncol(proc_sumexp))
-  SumExp::col_df(proc_sumexp)[["batch_id"]] <- batch_ids
-}
+} 
 # Split the data by batch IDs
 per_batch_proc_se_lst <- SumExp::split_columns(proc_sumexp, batch_ids)
 
@@ -233,7 +223,7 @@ if (IS_NON_TARGET_MODE) {
 log_scale <- params$log_calibration
 if (log_scale) cat("Log scale for calibration curve fitting is applied.\n")
 
-if (params$per_batch) cat("Processing calibration per batch.")
+if (dplyr::n_distinct(batch_ids) > 1) cat("Processing calibration per batch.")
 # Collect the output
 lst_proc <- list()
 

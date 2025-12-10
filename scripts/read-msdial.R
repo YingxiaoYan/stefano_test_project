@@ -5,6 +5,25 @@
 #   whenever this script is modified.
 # ------------------------------------------------------------------------------------------- #
 
+# Handle command line options     ---------------
+# The options are used to control the processing steps
+option_list <- rlang::list2(
+  optparse::make_option(
+    c("--per_batch"), type = "logical", default = TRUE,
+    help = "Process data per batch? [default: %default]"
+  ),
+)
+opt_parser <- optparse::OptionParser(
+  option_list = option_list,
+  usage = "Usage: %prog [options]",
+  description = "Read MS-Dial output files and save the results."
+)
+params <- optparse::parse_args(opt_parser)
+cat(
+  "\nRead MS-Dial parameters:\n",
+  "  - Per batch processing:", params$per_batch, "\n"
+)
+
 # Load packages and project local libraries
 options(box.path = "code/")           # Path to project local libraries
 box::use(
@@ -130,6 +149,16 @@ batch_ids <- unique(sample_info$batch_id)
 stopifnot("`Batch ID` must not be NA." = all(!is.na(batch_ids)))
 if (length(batch_ids) > 1) {
   cat("Multiple batches are detected: ", paste(batch_ids, collapse = ", "), "\n")
+  # If not processing per batch, assign all samples to a single batch
+  if (! params$per_batch) {
+    cat("Processing per batch is disabled. Assigning all samples to a single batch, `all`.\n")
+    sample_info <- sample_info |> 
+      dplyr::mutate(
+        org_batch_id = batch_id,
+        batch_id = "all"
+      )
+    batch_ids <- "all"
+  }
 }
 for (i_batch in batch_ids) {
   sinfo_b <- sample_info[sample_info$batch_id == i_batch, ]
