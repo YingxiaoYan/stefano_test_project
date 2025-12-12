@@ -383,6 +383,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
   per_batch_to_export_table <- lapply(sumexp_lst, \(se) {
     # Drop all features that are not to be exported per batch
     se <- se[SumExp::row_df(se)$to_export, ]
+    
     # Prepare the chemical summary table per batch
     chem_col <- tbl_chemical_summary(se) |> 
       dplyr::mutate(

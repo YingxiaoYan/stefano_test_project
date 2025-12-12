@@ -120,7 +120,7 @@ proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
 internal_std_se <- internal_std_se[!is_failed, ]
 # Impute remaining zeros with the mean of the same type
 internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, "before_norm")
-cat("Failed internal standards (N = ", sum(is_failed), ") are removed.\n", sep = "")
+cat("Internal standards check done (N = ", sum(is_failed), " failed have been removed).\n", sep = "")
 
 ## Outlier sample removal     ---------------
 
