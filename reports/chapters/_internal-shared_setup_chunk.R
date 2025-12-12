@@ -1,29 +1,29 @@
 # ------------------------------------------------------------------------------------------- #
 # Shared setup chunk used across multiple Quarto markdown files for `report-ineternal.qmd`
-# - Requires: 
+# - Requires:
 #   - `params$norm_method`
 # ------------------------------------------------------------------------------------------- #
 
 # Load packages and project local libraries
-options(box.path = "code/")           # Path to project local libraries
+options(box.path = "code/") # Path to project local libraries
 box::use(
-  SumExp,             # Light SummarizedExperiment, to use `[`
-  util = projlib/msdial_utils,        # Utility functions for MS-Dial data
-  projlib/msdial,     # Handle MS-Dial files
-  projlib/show,       # Functions to present data
-  ggplot2[...],        # Too long to write and usually specific enough
-  io = projlib/check_io_exist,       # Check input/output files
+  SumExp, # Light SummarizedExperiment, to use `[`
+  util = projlib / msdial_utils, # Utility functions for MS-Dial data
+  projlib / msdial, # Handle MS-Dial files
+  projlib / show, # Functions to present data
+  ggplot2[...], # Too long to write and usually specific enough
+  io = projlib / check_io_exist, # Check input/output files
 )
 
-# The ID of the matrix to use for calibration
-MAT_ID_FOR_CALIB <- params$norm_method |>
-  util$mat_id_of_blank_subtracted() |>
-  util$mat_id_for_calibration()
+# The ID of the matrix to use in calibration
+MAT_ID_BLANK_SUBT <- params$norm_method |>
+  util$mat_id_of_blank_subtracted()
+MAT_ID_IN_CALIB <- util$mat_id_in_calibration(MAT_ID_BLANK_SUBT)
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
 constants_yml <- yaml::read_yaml("code/constants.yml")
-COLORS <- lapply(constants_yml$COLORS, unlist)    # Lists to named vectors
+COLORS <- lapply(constants_yml$COLORS, unlist) # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
 IS_TARGET_MODE <- !SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
@@ -42,8 +42,7 @@ if (IS_TARGET_MODE) {
   io$check_io_exist(FILE)
 
   # Load the processed data using the specified normalization method
-  lst_proc <- readRDS(FILE$i$proc) |>
-    lapply(\(.x) .x[[MAT_ID_FOR_CALIB]])
+  lst_proc <- readRDS(FILE$i$proc)[[MAT_ID_BLANK_SUBT]]
 } else {
   io$check_io_exist(FILE)
 }
@@ -55,9 +54,9 @@ pre_norm_se <- to_report[["before normalization"]]
 
 # Conversion tables between IDs (syntactically acceptable) and names (human-readable)
 # These are used for presenting tables and figures in reports
-sample_id_name_tbl <- SumExp::col_df(raw_se) |> 
-  tibble::rownames_to_column("sample_id") |> 
+sample_id_name_tbl <- SumExp::col_df(raw_se) |>
+  tibble::rownames_to_column("sample_id") |>
   dplyr::select(sample_id, sample_name)
-feature_id_name_tbl <- SumExp::row_df(raw_se) |> 
-  tibble::rownames_to_column("feature_id") |> 
+feature_id_name_tbl <- SumExp::row_df(raw_se) |>
+  tibble::rownames_to_column("feature_id") |>
   dplyr::select(feature_id, feature_name)

@@ -101,7 +101,7 @@ spiked_conc_pts <- function(cc_se) {
 }
 
 #' Special control sample categories
-#' 
+#'
 #' For example, "CalCurve", "QC", and "Blank" are special control sample categories.
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @returns
@@ -130,7 +130,7 @@ exclude_ctrl_smpl_cat <- function(sumexp, excl_cat) {
     return(sumexp)
   }
   s_cat <- ctrl_smpl_cat(sumexp)
-  sumexp[, (! s_cat %in% excl_cat) | is.na(s_cat)]
+  sumexp[, (!s_cat %in% excl_cat) | is.na(s_cat)]
 }
 #' @rdname ctrl_smpl_cat
 #' @description
@@ -167,7 +167,7 @@ split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Oth
 # Variables created during processing ----------------------------------------------------
 
 #' Get or set the calibration curve model for a given matrix
-#' 
+#'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @param mat_id The name of a matrix
 #' @param value The calibration curve model to be stored
@@ -192,7 +192,7 @@ calcurve_model <- function(sumexp, mat_id) {
   if (any(is.na(i_match))) {
     stop("Some feature IDs in 'value' are not found in 'sumexp'.")
   }
-  SumExp::row_df(sumexp)[[nm]] <- NA     # Allow missing row names in 'value'
+  SumExp::row_df(sumexp)[[nm]] <- NA # Allow missing row names in 'value'
   SumExp::row_df(sumexp)[[nm]][i_match] <- value
   sumexp
 }
@@ -214,15 +214,15 @@ mat_id_before_blank_subtraction <- function(mat_id) {
 }
 
 #' Get the matrix ID for calibration
-#' 
+#'
 #' @param mat_id The name of a matrix
 #' @returns The name of the matrix to be used for calibration
 #' @export
-mat_id_for_calibration <- function(mat_id) {
+mat_id_in_calibration <- function(mat_id) {
   paste0(mat_id, "_calib")
 }
 #' Get the matrix ID before calibration
-#' @rdname mat_id_for_calibration
+#' @rdname mat_id_in_calibration
 #' @export
 mat_id_before_calibration <- function(mat_id) {
   sub("_calib$", "", mat_id)

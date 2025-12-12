@@ -83,18 +83,15 @@ for (ii in seq_along(mat_ids_to_export)) {
 # Export concentration values ----------
 if (IS_TARGET_MODE) {
   io$chq_all_files_exist(FILE$i$proc)
-  # Load the concentration data
-  concn_lst <- readRDS(FILE$i$proc)
 
   for (ii in seq_along(mat_ids_to_export)) {
     mat_id <- mat_ids_to_export[ii]
     # The ID of the matrix to use for calibration
-    mat_id_for_calib <- mat_id |>
-      util$mat_id_of_blank_subtracted() |>
-      util$mat_id_for_calibration()
+    input_mat_id <- mat_id |>
+      util$mat_id_of_blank_subtracted()
     # Load the processed data using the specified normalization method
-    lst_proc <- lapply(concn_lst, \(.x) .x[[mat_id_for_calib]])    # per batch
-    lst_proc <- lapply(lst_proc, \(ea) ea[["concn"]])   # Extract concentration data
+    lst_proc <- readRDS(FILE$i$proc)[[input_mat_id]]
+    lst_proc <- lapply(lst_proc, \(ea) ea[["concn"]])    # Out of `done`, `calcurve`, `concn`
     msdial$export_concentration_xlsx(
       # Concentration has been computed on the blank subtracted data
       sumexp_lst = lst_proc,
