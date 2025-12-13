@@ -414,6 +414,29 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
         "Equation" = eqn,
         "N of points" = n_conc,
       )
+    
+    # Making a new column with the slope from the equation more easily accessible
+    slope_vec <- c()
+    for(i in seq_len(nrow(chem_col))){
+      split_eqn <- strsplit(chem_col$Equation[i], " ")[[1]]
+      
+      
+      if(grepl("quadratic", chem_col$Model[i])){ #"y = -1.72e+05 * x^2 + 1.87e+07 * x + 3.35e+06"
+        b <- -(as.double(split_eqn[7]))
+        a <- 2*(as.double(split_eqn[3]))
+        slope <- b/a
+      } else { #"y = 4.93e+06 * x + -4.07e+05"
+        slope <- split_eqn[3]
+      }
+      
+      slope_vec <- c(slope_vec, slope)
+    }
+    
+    chem_col <- cbind(chem_col,
+                      slope_vec)
+    
+    colnames(chem_col)[ncol(chem_col)] <- "Slope"
+    
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
   
