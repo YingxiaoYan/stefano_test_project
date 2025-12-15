@@ -627,7 +627,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
                                                          mat_id, 
                                                          compute_llox_signal_fun,
                                                          use_rsd20,
-                                                         keep_cal_points) {
+                                                         optimize_cal_points) {
   neg_ctrl_or_not <- local({
     c_pt <- util$spiked_conc_pts(sumexp)
     is_neg_ctrl <- !is.na(c_pt) & c_pt == 0
@@ -691,7 +691,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   conc_pts <- as.numeric(colnames(mat_m))
   # Anton: If user decided to keep all cal points then no filtering performed
   # Reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
-  if(keep_cal_points){
+  if(!optimize_cal_points){
     out <- rep(max(as.numeric(colnames(mat_m))), nrow(mat_m))
     names(out) <- rownames(mat_m)
     max_c_conc <- labelled::set_label_attribute(out, "Maximum Concentration")

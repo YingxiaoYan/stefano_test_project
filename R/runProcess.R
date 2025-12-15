@@ -19,7 +19,7 @@ runProcessUI <- function(uiId) {
     ),
     # Option for keeping all calibration points (even though outside range)
     shiny::checkboxInput(
-        inputId = ns("keep_cal_points"),
+        inputId = ns("optimize_cal_points"),
         label = "Optimize cal curves to exclude points outside sample range",
         value = FALSE,
     ),
@@ -106,7 +106,7 @@ runProcessServer <- function(serverId, data_info) {
     what = "Processing data", 
     param_ids = c(
       "per_batch",
-      "keep_cal_points",
+      "optimize_cal_points",
       "rm_outlier", 
       "log_calibration",
       "weight", 

@@ -11,16 +11,16 @@ option_list <- rlang::list2(
     help = "Process data per batch? [default: %default]"
   ),
   optparse::make_option(
-    c("--keep_cal_points"), type = "logical", default = TRUE,
-    help = "Keep all cal points despite sample range? [default: %default]"
+    c("--optimize_cal_points"), type = "logical", default = TRUE,
+    help = "Optimize cal curves to exclude points outside sample range [default: %default]"
   ),
   optparse::make_option(
     c("--rm_outlier"), type = "logical", default = TRUE,
-    help = "Remove outlier samples? [default: %default]"
+    help = "Quality control: remove outlier samples [default: %default]"
   ),
   optparse::make_option(
     c("--log_calibration"), type = "logical", default = FALSE,
-    help = "Use log scale for calibration curve fitting? [default: %default]"
+    help = "Log scale for calibration curve fitting [default: %default]"
   ),
   optparse::make_option(
     c("--weight"), type = "character", default = "largestR2",
@@ -36,7 +36,7 @@ option_list <- rlang::list2(
   ),
   optparse::make_option(
     c("--use_rsd20"), type = "logical", default = TRUE,
-    help = "Use RSD% 20% threshold for LLOQ? [default: %default]"
+    help = "Use RSD% 20% threshold for LLOQ [default: %default]"
   )
 )
 opt_parser <- optparse::OptionParser(
@@ -48,7 +48,7 @@ params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
   "  - Per batch processing:", params$per_batch, "\n",
-  "  - Keep cal points: ", params$keep_cal_points, "\n",
+  "  - Optimize cal points: ", params$optimize_cal_points, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
@@ -265,7 +265,7 @@ for (batch_id in unique(batch_ids)) {
       "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
     )
     quant_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
-      quant_se, mat_id0, fun, params$use_rsd20, params$keep_cal_points
+      quant_se, mat_id0, fun, params$use_rsd20, params$optimize_cal_points
     )
     
     # Exclude the chemicals having no appropriate concentration range
