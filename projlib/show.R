@@ -456,7 +456,7 @@ tbl_chemical_summary <- function(sumexp) {
     dplyr::rename(chem_name = "feature_name")
   # Concentration
   mat <- sumexp[["conc"]]
-  mat_original <- sumexp[["conc_original"]]
+  mat_original <- sumexp[["conc0"]]
   
   # Summary about the concentration ranges
   conc_summary <- chemicals |>

@@ -7,19 +7,16 @@
 # The options are used to control the processing steps
 option_list <- rlang::list2(
   optparse::make_option(
-    c("--keep_cal_points"),
-    type = "logical", default = TRUE,
-    help = "Keep all cal points despite sample range? [default: %default]"
+    c("--optimize_cal_points"), type = "logical", default = TRUE,
+    help = "Optimize cal curves to exclude points outside sample range [default: %default]"
   ),
   optparse::make_option(
-    c("--rm_outlier"),
-    type = "logical", default = TRUE,
-    help = "Remove outlier samples? [default: %default]"
+    c("--rm_outlier"), type = "logical", default = TRUE,
+    help = "Quality control: remove outlier samples [default: %default]"
   ),
   optparse::make_option(
-    c("--log_calibration"),
-    type = "logical", default = FALSE,
-    help = "Use log scale for calibration curve fitting? [default: %default]"
+    c("--log_calibration"), type = "logical", default = FALSE,
+    help = "Log scale for calibration curve fitting [default: %default]"
   ),
   optparse::make_option(
     c("--weight"),
@@ -36,9 +33,8 @@ option_list <- rlang::list2(
     help = "Method to compute LOD/LLOQ"
   ),
   optparse::make_option(
-    c("--use_rsd20"),
-    type = "logical", default = TRUE,
-    help = "Use RSD% 20% threshold for LLOQ? [default: %default]"
+    c("--use_rsd20"), type = "logical", default = TRUE,
+    help = "Use RSD% 20% threshold for LLOQ [default: %default]"
   )
 )
 opt_parser <- optparse::OptionParser(
@@ -49,7 +45,7 @@ opt_parser <- optparse::OptionParser(
 params <- optparse::parse_args(opt_parser)
 cat(
   "\nProcessing parameters:\n",
-  "  - Keep cal points: ", params$keep_cal_points, "\n",
+  "  - Optimize cal points: ", params$optimize_cal_points, "\n",
   "  - Outlier removal:", params$rm_outlier, "\n",
   "  - Log scale for calibration:", params$log_calibration, "\n",
   "  - Weight method:", params$weight, "\n",
@@ -119,7 +115,7 @@ proc_sumexp <- proc_sumexp[!is_failed_in_proc_sumexp, ]
 internal_std_se <- internal_std_se[!is_failed, ]
 # Impute remaining zeros with the mean of the same type
 internal_std_se <- proc$impute_zeros_with_mean_of_same_type(internal_std_se, "raw")
-cat("Failed internal standards (N = ", sum(is_failed), ") are removed.\n", sep = "")
+cat("Internal standards check done (N = ", sum(is_failed), " failed have been removed).\n", sep = "")
 
 ##  OUTLIER SAMPLE REMOVAL  --------------------------------
 
@@ -277,7 +273,7 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
     "pt_signal_mean_plus_sd" = proc$compute_llox_signal_using_mean_plus_sd_times
   )
   qt_se <- proc$find_calib_lim_pts_and_llox_from_llox_signal(
-    qt_se, mat_id_to_calib, fun, params$use_rsd20, params$keep_cal_points
+    qt_se, mat_id_to_calib, fun, params$use_rsd20, params$optimize_cal_points
   )
 
   # Exclude the chemicals having no appropriate concentration range

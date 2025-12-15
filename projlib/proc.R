@@ -348,40 +348,35 @@ split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
 #' @md
 apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TRUE) { # nolint
   cc_lst <- split_in_columns_and_sort_by_spiked_conc(cc_se, mat_id)
+  
+  # Checking that calibration standards are increasing with higher conc and if
+  # not replacing lower signals with 0
+  
+  # Creating df with ncol = number of concentration points and nrow = number of compounds
+  cal_curve_df <- data.frame(matrix(ncol=length(cc_lst), nrow=nrow(cc_se)))
+  rownames(cal_curve_df) <- rownames(cc_se)
+  colnames(cal_curve_df) <- names(cc_lst)
+  
+  # Looping through all concentrations and averaging all injections of same conc
+  # for all compounds simultaneously
+  for(i in seq_len(length(cc_lst))){
+    cal_curve_df[,i] <- rowMeans(cc_lst[[i]])
+  }
 
-  # # Checking that calibration standards are increasing with higher conc and if
-  # # not replacing lower signals with 0
-  # for (i in seq_len(nrow(cc_se))) { # Loop over each compound
-  #   cal_list <- list()
+  # Checking starting index of increase for all compounds
+  start_ind <- list()
+  for(comp in seq_len(nrow(cal_curve_df))){
+    
+    start_ind <- find_increasing_start(cal_curve_df[comp,])
 
-  #   for (l in seq_len(length(cc_lst))) { # Loop over each conc (separated into list items)
-  #     for (len in seq_len(ncol(cc_lst[[l]]))) { # Loop over each col of each conc
-  #       if (l == 1) {
-  #         cal_list[[len]] <- c(NA)
-  #       }
-  #       temp_vec <- cc_lst[[l]][i, len]
-  #       names(temp_vec) <- rep(names(cc_lst)[l], length(temp_vec))
-  #       cal_list[[len]] <- c(
-  #         cal_list[[len]],
-  #         temp_vec
-  #       )
-  #     }
-  #   }
-
-  #   start_ind <- list()
-  #   for (len in seq_len(length(cal_list))) {
-  #     cal_list[[len]] <- cal_list[[len]][-1]
-  #     start_ind <- find_increasing_start(cal_list[[len]])
-
-  #     if (start_ind > 1) { # Change to 2 here if 0 always kept
-
-  #       for (lst_ind in seq_len((start_ind - 1))) { # Remove first if 0 always kept seq_len((start_ind-1))[-1]
-  #         cc_lst[[lst_ind]][i, len] <- 0
-  #       }
-  #     }
-  #   }
-  # }
-
+    if(start_ind > 1){ #Change to 2 here if 0 always kept
+      
+      for(lst_ind in seq_len((start_ind-1))){ #Remove first if 0 always kept seq_len((start_ind-1))[-1]
+        cc_lst[[lst_ind]][comp,] <- rep(0, ncol(cc_lst[[lst_ind]]))
+      }
+    }
+  }
+  
   sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }
 
@@ -634,7 +629,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
                                                          mat_id,
                                                          compute_llox_signal_fun,
                                                          use_rsd20,
-                                                         keep_cal_points) {
+                                                         optimize_cal_points) {
   neg_ctrl_or_not <- local({
     c_pt <- util$spiked_conc_pts(sumexp)
     is_neg_ctrl <- !is.na(c_pt) & c_pt == 0
@@ -697,8 +692,8 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   mat_q <- util$exclude_ctrl_smpl_cat(se_lst$quant, excl_cat = "QC")[[mat_id]]
   conc_pts <- as.numeric(colnames(mat_m))
   # Anton: If user decided to keep all cal points then no filtering performed
-  # Reusing old, copied code from "max_conc_for_curve" to ascertain functionality
-  if (keep_cal_points) {
+  # Reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
+  if(!optimize_cal_points){
     out <- rep(max(as.numeric(colnames(mat_m))), nrow(mat_m))
     names(out) <- rownames(mat_m)
     max_c_conc <- labelled::set_label_attribute(out, "Maximum Concentration")
@@ -1013,7 +1008,7 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
 find_increasing_start <- function(signal) {
   n <- length(signal)
   for (i in seq_len(n)) {
-    if (all(diff(signal[i:n]) > 0)) {
+    if (all(diff(as.double(signal[i:n])) > 0)) {
       return(i)
     }
   }

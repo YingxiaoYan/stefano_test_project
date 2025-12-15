@@ -13,9 +13,9 @@ runProcessUI <- function(uiId) {
   shiny::tagList(
     # Option for keeping all calibration points (even though outside range)
     shiny::checkboxInput(
-      inputId = ns("keep_cal_points"),
-      label = "Keep all cal points, despite being outside sample range?",
-      value = FALSE,
+        inputId = ns("optimize_cal_points"),
+        label = "Optimize cal curves to exclude points outside sample range",
+        value = FALSE,
     ),
     # JS handler to enable/disable weight options
     shiny::tags$script(HTML("
@@ -31,12 +31,12 @@ runProcessUI <- function(uiId) {
     # Quality control: outlier removal
     shiny::checkboxInput(
       inputId = ns("rm_outlier"),
-      label = "Quality control: remove outlier samples?",
+      label = "Quality control: remove outlier samples",
       value = TRUE,
     ),
     shiny::checkboxInput(
       inputId = ns("log_calibration"),
-      label = "Log scale for calibration curve fitting?",
+      label = "Log scale for calibration curve fitting",
       value = FALSE,
     ),
     shiny::radioButtons(
@@ -65,7 +65,7 @@ runProcessUI <- function(uiId) {
     # RSD% 20% threshold for LLOQ
     shiny::checkboxInput(
       inputId = ns("use_rsd20"),
-      label = "Use RSD% 20% threshold for LLOQ?",
+      label = "Use RSD% 20% threshold for LLOQ",
       value = TRUE,
     ),
     shiny::actionButton(ns("run_button"), label = "Process data"),
@@ -99,7 +99,7 @@ runProcessServer <- function(serverId, data_info) {
     script_path = "scripts/process.R", 
     what = "Processing data", 
     param_ids = c(
-      "keep_cal_points",
+      "optimize_cal_points",
       "rm_outlier", 
       "log_calibration",
       "weight", 
