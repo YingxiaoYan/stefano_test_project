@@ -11,12 +11,6 @@
 runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
-    # `per batch processing` options
-    shiny::checkboxInput(
-      inputId = ns("per_batch"),
-      label = "Process data per batch?",
-      value = TRUE,
-    ),
     # Option for keeping all calibration points (even though outside range)
     shiny::checkboxInput(
         inputId = ns("optimize_cal_points"),
@@ -105,7 +99,6 @@ runProcessServer <- function(serverId, data_info) {
     script_path = "scripts/process.R", 
     what = "Processing data", 
     param_ids = c(
-      "per_batch",
       "optimize_cal_points",
       "rm_outlier", 
       "log_calibration",

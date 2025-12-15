@@ -81,7 +81,7 @@ count_zeros_per_feature <- function(mat) {
 }
 
 #' Impute zeros with the mean of the same sample type
-#' 
+#'
 #' @param se A [`SumExp::SumExp`] object
 #' @param mat_id The name of a matrix in `se` to be imputed
 #' @returns A [`SumExp::SumExp`] object with the imputed matrix
@@ -143,11 +143,13 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
 #' @param istd_se A [`SumExp::SumExp`] object of internal standard features
 #' @param mat_id The name of a matrix in `se`
 #' @param verbose A logical value indicating whether to show messages
-#' @returns A numeric matrix of the values of the closest internal standard features
+#' @returns A list of two elements:
+#' * `mat`: a numeric matrix of the values of the closest internal standard features
+#' * `idx`: an integer vector of the indices of the closest internal standard features
 #' @md
 #' @export
-get_value_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
-  out <- get_value_of_closest_istd_in_class(se, istd_se, mat_id)
+get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
+  out <- get_value_idx_of_closest_istd_in_class(se, istd_se, mat_id)
   # When any compound target classes are specified
   istd_std_type <- util$std_type(istd_se)
   is_sub_istd <- grepl("^IS\\\\", istd_std_type)
@@ -166,28 +168,28 @@ get_value_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
         warning(paste0("No quantification features for the compound class: ", g))
         next
       }
-      g_out <- get_value_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
+      g_out <- get_value_idx_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
       # Replace the values of the closest internal standard features in the original matrix
       # with the values of the closest internal standard features in the compound class
-      out[is_sub_quant, ] <- g_out
+      out$mat[is_sub_quant, ] <- g_out$mat
+      out$idx[is_sub_quant] <- g_out$idx
     }
   }
   return(out)
 }
-#' @rdname get_value_of_closest_istd
-#' [get_value_of_closest_istd_in_class()] is a helper function to get the values of the
+#' @rdname get_value_idx_of_closest_istd
+#' [get_value_idx_of_closest_istd_in_class()] is a helper function to get the values of the
 #' closest internal standard features within each subgroup.
 #' @md
-#' @export
-get_value_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
+get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   rt_x <- util$retention_time(se)
   rt_istd <- util$retention_time(istd_se)
   # Find the closest internal standard feature
   i_closest <- sapply(rt_x, \(.x) which.min(abs(rt_istd - .x)))
-  # dim(out) == dim(se) Not dim(istd_se)
-  out <- istd_se[[mat_id]][i_closest, , drop = FALSE]
-  rownames(out) <- rownames(se)
-  out
+  # dim(mat) == dim(se) Not dim(istd_se)
+  mat <- istd_se[[mat_id]][i_closest, , drop = FALSE]
+  rownames(mat) <- rownames(se)
+  list(mat = mat, idx = i_closest)
 }
 
 
@@ -207,7 +209,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   # Log-transform the data
   istd_log <- log(istd_se[[mat_id]])
   rt_istd <- util$retention_time(istd_se)
-  
+
   # Normalize the data using the internal standards
   # Mean of each internal standard feature for overall measurement samples
   # , excluding the calibration curve and blank samples
@@ -216,7 +218,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   istd_m <- rowMeans(mat)
   # Subtract the mean from the data
   fr_m_log <- istd_log - istd_m
-  
+
   # Expand to smallest RT
   istd_smallest_rt <- fr_m_log[which.min(rt_istd), ]
   # Expand to largest RT
@@ -331,7 +333,7 @@ split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
   conc <- util$spiked_conc_pts(cc_se)
   stopifnot("Spiked concentration values are not numeric" = is.numeric(conc))
   sorted <- stats::setNames(nm = sort(unique(conc)))
-  
+
   lapply(sorted, \(.x) cc_se[[mat_id]][, conc == .x, drop = FALSE])
 }
 
@@ -605,10 +607,10 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 #'
 #' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
 #' @param mat_id The name of a matrix in `sumexp`
-#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals. 
+#' @param compute_llox_signal_fun A function to compute the LOD and LLOQ signals.
 #'   It is expected to take three arguments: `m_neg`, `sd_neg`, and `times`.
 #'   The function should return a numeric vector of the LOD or LLOQ signals for each chemical.
-#' @param use_rsd20 A logical value indicating whether to use the RSD <= 20% condition for the 
+#' @param use_rsd20 A logical value indicating whether to use the RSD <= 20% condition for the
 #'  LLOQ. If `FALSE`, only the signal > LLOQ signal condition is used.
 #'
 #' @returns A [`SumExp::SumExp`] object with the calibration curve limits and the LOD/LLOQ. The
@@ -623,8 +625,8 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 #' @md
 #' @seealso [max_conc_for_curve()]
 #' @export
-find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp, 
-                                                         mat_id, 
+find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
+                                                         mat_id,
                                                          compute_llox_signal_fun,
                                                          use_rsd20,
                                                          optimize_cal_points) {
@@ -643,7 +645,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
     identical(names(m_neg), names(sd_neg))
     identical(names(m_neg), rownames(sumexp))
   })
-  
+
   # Split the samples into calibration curve and other samples
   se_lst <- util$split_into_calcurve_and_other(not_neg_ctrl_se, out_names = c("cc", "quant"))
   if (any(table(util$spiked_conc_pts(se_lst$cc)) < 2)) {
@@ -651,32 +653,32 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   }
   # Get mean/standard deviation of signal per spiked concentration point
   # Columns: spiked concentration points (sorted), Rows: chemicals
-  mat_m  <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, mean, na.rm = TRUE)
+  mat_m <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, mean, na.rm = TRUE)
   mat_sd <- apply_per_spiked_conc(se_lst$cc, mat_id, 1, stats::sd, na.rm = TRUE)
   stopifnot(is.matrix(mat_m), is.matrix(mat_sd))
-  
+
   # Limit of detection
   lod_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 3)
   stopifnot(identical(rownames(sumexp), names(lod_signal)))
   lod <- apply(mat_m > lod_signal, 1, \(.x) min(satisfying_values(.x)))
-  
+
   # Lower limit of quantification
   lloq_signal <- compute_llox_signal_fun(m_neg, sd_neg, times = 10)
   stopifnot(identical(rownames(sumexp), names(lloq_signal)))
   mat_cond <- mat_m > lloq_signal
-  
-  #Throwing error telling user that no cal points > lloq
-  if(!any(mat_cond)){
+
+  # Throwing error telling user that no cal points > lloq
+  if (!any(mat_cond)) {
     stop("No cal points above lloq_signal")
   }
-  
+
   if (use_rsd20) {
     mat_rsd <- mat_sd / mat_m
     mat_rsd[mat_m == 0] <- Inf  # Avoid division by zero
     mat_cond <- mat_cond & (mat_rsd <= 0.2)
-    
-    #Throwing error telling user that no cal points survived cut-offs
-    if(!any(mat_cond)){
+
+    # Throwing error telling user that no cal points survived cut-offs
+    if (!any(mat_cond)) {
       stop("No cal point RSD < 20% and above lloq_signal")
     }
   }
@@ -807,18 +809,18 @@ fit_and_test_calcurve_model <- function(conc,
                                         signal,
                                         weight_method = "largestR2",
                                         penalty_quadratic = 0) {
-  #If no signal return NA
+  # If no signal return NA
   if (all(is.na(signal) | signal == 0)) {
     return(NA)
   }
-  
+
   # Weight alternatives
   weights_alt <- rlang::list2(
     "1" = rep(1, length(conc)),
     "1_div_x" = 1 / conc,
-    "1_div_x2" = 1 / (conc ^ 2),
+    "1_div_x2" = 1 / (conc^2),
   )
-  
+
   # Limit the weight alternatives when one has been chosen
   if (weight_method != "largestR2") {
     weights_alt <- weights_alt[weight_method]
@@ -826,10 +828,10 @@ fit_and_test_calcurve_model <- function(conc,
   # Linear and quadratic models
   lmodels <- lapply(weights_alt, \(w) linear_calcurve_model(conc, signal, weights = w))
   names(lmodels) <- paste("linear", names(lmodels), sep = "-")
-  
+
   qmodels <- lapply(weights_alt, \(w) quadratic_calcurve_model(conc, signal, weights = w))
   names(qmodels) <- paste("quadratic", names(qmodels), sep = "-")
-  
+
   models <- c(lmodels, qmodels)
   r2s <- sapply(models, \(x) suppressWarnings(summary(x$inv_mod)$r.squared))
   # Panelty to quadratic models
@@ -855,8 +857,8 @@ quadratic_calcurve_model <- function(conc, signal, weights) {
   b <- beta[["conc"]]
   cc <- beta[["(Intercept)"]]
   model <- function(x) {
-    det <- b ^ 2 - 4 * a * (cc - x)
-    det <- ifelse(det < 0, 0, det)       # det < 0
+    det <- b^2 - 4 * a * (cc - x)
+    det <- ifelse(det < 0, 0, det) # det < 0
     conc <- (-b + sqrt(det)) / (2 * a)
     conc
   }
@@ -923,7 +925,7 @@ replace_below_lod_lloq <- function(sumexp, conc_mat_id) {
   c_mat <- sumexp[[conc_mat_id]]
   lod <- SumExp::row_df(sumexp)[, "lod"]
   lloq <- SumExp::row_df(sumexp)[, "lloq"]
-  
+
   out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
   out <- ifelse(c_mat < lloq, lloq / 2, out)
@@ -956,7 +958,7 @@ replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
   lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
-  
+
   out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
   out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, lloq / 2, out)
@@ -966,7 +968,7 @@ replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat
 }
 
 #' Replace concentration values whose signal is above the average signal of the LLOQ
-#' 
+#'
 #' Replace concentration values of which the signal is above the average signal of the LLOQ with
 #' the LLOQ concentration value.
 #'
@@ -986,7 +988,7 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
   lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
-  
+
   out <- c_mat
   # Replace the values above LLOQ with LLOQ
   out <- ifelse(signal_mat > lloq_avg_signal & out <= lloq, lloq, out)

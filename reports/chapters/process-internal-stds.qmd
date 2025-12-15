@@ -27,8 +27,8 @@ Those features are listed below, in the order of average retention time.
 #| purl: true
 SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
   dplyr::mutate(
-    num_zeros = count_zeros_per_feature(internal_std_se[["before_norm"]]),
-    rsd = show$compute_rsd_per_feature(internal_std_se[["before_norm"]]),
+    num_zeros = count_zeros_per_feature(internal_std_se[["raw"]]),
+    rsd = show$compute_rsd_per_feature(internal_std_se[["raw"]]),
   )
 # Table of internal standard features
 kable_internal_std <- function(se) {
@@ -161,8 +161,8 @@ if (! is.null(is_outlier)) {
 if (any(is_failed_istd) || any(is_outlier)) {      # any(NULL) == FALSE
   SumExp::row_df(internal_std_se) <- SumExp::row_df(internal_std_se) |> 
     dplyr::mutate(
-      num_zeros = count_zeros_per_feature(internal_std_se[["before_norm"]]),
-      rsd = show$compute_rsd_per_feature(internal_std_se[["before_norm"]]),
+      num_zeros = count_zeros_per_feature(internal_std_se[["raw"]]),
+      rsd = show$compute_rsd_per_feature(internal_std_se[["raw"]]),
     )
   # Update the table of internal standard features
   cat("\n\nAfter excluding failed internal standards", 
@@ -200,7 +200,7 @@ As these `QC` samples are technical replicates, the RSD% values of the samples a
 # Calculate RSD% per internal standard feature and per quality control sample
 m_rsd <- show$extract_qc_samples_to_list(internal_std_se) |> 
   lapply(function(se) {
-    apply(se[["before_norm"]], 1, \(.x) round(show$rsd_perc(.x), 2))
+    apply(se[["raw"]], 1, \(.x) round(show$rsd_perc(.x), 2))
   }) |>
   do.call(cbind, args = _)     # Make sure the result is a matrix even if there is only one value
 # The `rownames` are syntactically valid names, not the original feature names
@@ -217,7 +217,7 @@ se <- util$exclude_ctrl_smpl_cat(internal_std_se, "QC")
 m_rsd <- setNames(nm = unique(SumExp::col_df(se)$Class)) |>
   lapply(function(cls) {
     se <- se[, SumExp::col_df(se)$Class == cls]
-    apply(se[["before_norm"]], 1, \(.x) round(show$rsd_perc(.x), 2))
+    apply(se[["raw"]], 1, \(.x) round(show$rsd_perc(.x), 2))
   }) |>
   do.call(cbind, args = _)     # Make sure the result is a matrix even if there is only a vector
 stopifnot(identical(rownames(m_rsd), rownames(se)))

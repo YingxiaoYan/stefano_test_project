@@ -288,7 +288,7 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
 }
 
 #' One summary feature table across batches
-.summary_feature_table <- function(sumexp_lst) {
+.summary_feature_table <- function(sumexp_lst, is_closest_norm = FALSE) {
   stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
   # Summary table for each batch
   chem_col_lst <- lapply(sumexp_lst, \(se) {
@@ -298,12 +298,13 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
       )
   })
   # Summary table for all batches
-  dplyr::bind_rows(chem_col_lst, .id = "Batch") |>
+  tbl <- dplyr::bind_rows(chem_col_lst, .id = "Batch") |>
     dplyr::summarise(
       alignment_id = alignment_id[1L],
       chem_name = chem_name[1L],
       mz = mz[1L],
       .rt = .rt[1L],
+      closest_istd = closest_istd[1L],
       unit = unit[1L],
       dplyr::across(c(n_det, n_samples), ~ sum(.x, na.rm = TRUE)),
       model_r2 = mean(model_r2, na.rm = TRUE),
@@ -313,7 +314,9 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
       perc_detf = round(100 * n_det / n_samples, 1),
       n_d_s = paste0("(", n_det, "/", n_samples, ")"),
       model_r2 = round(model_r2, 3),
-    ) |>  # Summary table
+    ) 
+  # Tidy up the table
+  out <- tbl |>
     dplyr::select(
       "Alignment ID" = alignment_id,
       "Chemical" = chem_name,
@@ -324,6 +327,13 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
       "Concentration" = unit,
       "Average R2" = model_r2,
     )
+  if (is_closest_norm) {
+    out <- dplyr::bind_cols(
+      out,
+      dplyr::select(tbl, "Target IS" = closest_istd) 
+    )
+  }
+  out
 }
 
 #' merge SumExp objects with identical features (rows)
@@ -351,9 +361,11 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
 #' @param sumexp_lst A list of [`SumExp::SumExp`] objects to be exported. The name of each element
 #'   should be the batch ID.
 #' @param file Path to the output file
+#' @param is_closest_norm A logical value indicating whether to include the closest internal
+#'   standard information in the exported table.
 #' @md
 #' @export
-export_concentration_xlsx <- function(sumexp_lst, file) {
+export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE) {
   stopifnot(is.list(sumexp_lst))
   for (ii in seq_along(sumexp_lst)) {
     se <- sumexp_lst[[ii]]
@@ -369,7 +381,7 @@ export_concentration_xlsx <- function(sumexp_lst, file) {
   
   # Talbe of all batches
   # Overall summary table
-  sum_all_batches <- .summary_feature_table(sumexp_lst)
+  sum_all_batches <- .summary_feature_table(sumexp_lst, is_closest_norm)
   # SumExp object with all batches
   merged_se <- .merge_sumexp_objs_with_identical_features(sumexp_lst)
   # table to export including all batches

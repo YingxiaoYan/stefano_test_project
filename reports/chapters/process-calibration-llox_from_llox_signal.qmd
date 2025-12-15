@@ -8,13 +8,13 @@ params:
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
 #| eval: !expr '!knitr::opts_knit$get("child")'
-params <- list(norm_method = "loess_norm", project_title = "Test") 
-source("code/reports/chapters/_internal-shared_setup_chunk.R")  # For "Run Cell" functionality
+params <- list(norm_method = "loess_norm", project_title = "Test")
+source("code/reports/chapters/_internal-shared_setup_chunk.R") # For "Run Cell" functionality
 ```
 
 ```{r}
 #| purl: true
-calcurve_lst <- lst_proc |> 
+calcurve_lst <- lst_proc |>
   lapply(\(x) x$calcurve)
 ```
 
@@ -29,15 +29,15 @@ The number of samples in the calibration curve after outlier removal is presente
 for (ii in names(calcurve_lst)) {
   se <- calcurve_lst[[ii]]
   v <- util$spiked_conc_pts(se)
-  v <- v[!is.na(v)] |> 
+  v <- v[!is.na(v)] |>
     labelled::copy_labels_from(v)
-  table(v) |> 
+  table(v) |>
     knitr::kable(
       align = c("r", "r"),
       col.names = c(labelled::get_label_attribute(v), "Number of Samples"),
       caption = paste("Batch", ii),
       # col.names = c("Concentration (ng/ml)", "Number of Samples")
-    ) |> 
+    ) |>
     kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 }
 ```
@@ -47,17 +47,17 @@ for (ii in names(calcurve_lst)) {
 ```{r}
 #| purl: true
 limit_df <- lapply(calcurve_lst, \(se) {
-  SumExp::row_df(se)[, c("min_c_conc", "max_c_conc", "lod", "lloq", "has_proper_range")] |>
+  SumExp::row_df(se) |>
+    dplyr::select(min_c_conc, max_c_conc, lod, lloq, has_proper_range, src_calcurve) |>
     tibble::as_tibble(rownames = "feature_id")
-}) |> 
+}) |>
   purrr::list_rbind(names_to = "batch")
 ```
 
 * LOD and LLOQ
 
 ```{r}
-cat(switch(
-  to_report$params$llox_method,
+cat(switch(to_report$params$llox_method,
   "pt_signal_mean" = paste(
     "LOD and LLOQ were defined as the lowest concentrations at which the mean signal exceeded 3×",
     "or 10× the mean signal of the blank (zero concentration point) respectively."
@@ -71,7 +71,6 @@ cat(switch(
 if (to_report$params$use_rsd20) {
   cat(" Additionally, LLOQ required a signal RSD ≤ 20%.")
 }
-
 ```
 
 * Calibration working range
@@ -91,39 +90,49 @@ The concentration range for each chemical is detailed below.
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
-show_df <- limit_df |> 
+show_df <- limit_df |>
   dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
   dplyr::mutate(
-    Note = dplyr::case_when(
-      !has_proper_range ~ "Excluded", 
-      TRUE ~ ""
-    ),
     lod = ifelse(is.na(lod), "N.A.", as.character(lod)),
     min_c = ifelse(is.na(min_c), "No valid pts.", as.character(min_c)),
-    max_c = dplyr::case_when(
+    Note = dplyr::case_when(
       max_c == 0 ~ "All zero",
+      src_calcurve == "Global" ~ "Global calibration",
+      is.na(max_c) ~ "<3 valid pts.",
+      !has_proper_range ~ "Excluded",
+      .default = ""
+    ),
+    max_c = dplyr::case_when(
       max_c == -9 ~ "No valid max",
-      is.na(max_c) ~ "Not enough range",
-      TRUE ~ as.character(max_c)
-    )
+      max_c == 0 | is.na(max_c) ~ "",
+      .default = as.character(max_c)
+    ),
   ) |>
-  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |> 
+  dplyr::left_join(feature_id_name_tbl, by = "feature_id") |>
   dplyr::select(
     "Batch" = batch,
-    "Chemical Name" = feature_name, 
-    "LOD" = lod, 
-    "Minimum conc. (LLOQ)" = min_c, 
-    "Maximum conc." = max_c, 
+    "Chemical Name" = feature_name,
+    "LOD" = lod,
+    "Minimum conc. (LLOQ)" = min_c,
+    "Maximum conc." = max_c,
     Note,
   )
 
+stopifnot(nrow(show_df) == nrow(limit_df))
 knitr::kable(
   show_df,
   caption = "Concentration range of the calibration curve samples",
   align = "lrrrrl",
-) |> 
-  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |> 
-  kableExtra::scroll_box(height = "350px") |> 
+) |>
+  kableExtra::kable_classic(lightable_options = "striped", full_width = FALSE) |>
+  kableExtra::scroll_box(height = "350px") |>
   # Color the rows that are marked in Note
-  kableExtra::row_spec(which(show_df$Note == "Excluded"), background = "lightcoral")
+  kableExtra::row_spec(
+    which(limit_df$has_proper_range == FALSE),
+    background = "lightcoral"
+  ) |>
+  kableExtra::row_spec(
+    which(limit_df$src_calcurve == "Global"),
+    background = "lightblue"
+  )
 ```

@@ -246,7 +246,7 @@ for (batch_id in names(concn_lst)) {
       "#| fig-width: 10",
       "#| fig-height: 1",
       "p <- show$ggplot_calcurve_samples(", 
-      "  concn_se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, log_scale", 
+      "  concn_se, calib_se, MAT_ID_IN_CALIB, COLORS_OF_CLASSES, log_scale", 
       ")",
       "leg <- ggpubr::get_legend(p, position = 'top')",
       "ggpubr::as_ggplot(leg)",
@@ -264,7 +264,7 @@ for (batch_id in names(concn_lst)) {
   })
 
   p_by_feature <- lapply(lst_concn_se, \(se) {
-    p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
+    p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_IN_CALIB, COLORS_OF_CLASSES, 
                                             ncol = 1, log_scale = log_scale)
     p <- p + theme(legend.position = "none")
     if (params$interactive_plot) {
@@ -328,7 +328,7 @@ for (batch_id in names(to_show_excl_qc_lst)) {
       "#| fig-width: 10",
       "#| fig-height: 1",
       "p <- show$ggplot_calcurve_samples(",
-      "  to_show_excl_qc, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, log_scale", 
+      "  to_show_excl_qc, calib_se, MAT_ID_IN_CALIB, COLORS_OF_CLASSES, log_scale", 
       ")",
       "leg <- ggpubr::get_legend(p, position = 'top')",
       "ggpubr::as_ggplot(leg)",
@@ -359,7 +359,7 @@ for (batch_id in names(to_show_excl_qc_lst)) {
     lst_show_se <- SumExp::split_rows(to_show_excl_qc, i_grp)
 
     p_by_row <- lapply(lst_show_se, \(se) {
-      p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_FOR_CALIB, COLORS_OF_CLASSES, 
+      p <- show$ggplot_calcurve_samples_facet(se, calib_se, MAT_ID_IN_CALIB, COLORS_OF_CLASSES, 
                                               ncol = n_cols, log_scale = log_scale)
       p <- p + show$geom_best_model_text(se)
       p + theme(legend.position = "none")
