@@ -284,7 +284,7 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   }
   # Matrix ID for calibration
   mat_id <- util$mat_id_in_calibration(mat_id_to_calib)
-  qt_se[[mat_id]] <- util$extract_with_na(qt_se[[mat_id_to_calib]], i = has_proper_range, j = TRUE)
+  qt_se[[mat_id]] <- qt_se[[mat_id_to_calib]]
   if (in_log) qt_se[[mat_id_to_calib]] <- expm1(qt_se[[mat_id_to_calib]]) # Back transform
 
   # Data is split into two parts.
@@ -296,24 +296,30 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
 
   # Replace the values outside the concentration range with NA
   calcurve_se <- proc$replace_outside_concentration_range_with_na(calcurve_se, mat_id)
+  calcurve_se[[mat_id]] <- util$extract_with_na(calcurve_se[[mat_id]], i = has_proper_range)
 
   # Fit the calibration curve
-  cc_mat_norm <- calcurve_se[[mat_id]]
-  c_concs <- util$spiked_conc_pts(calcurve_se)
-  if (in_log) {
-    c_concs <- log(c_concs) # The signal in `[[mat_id]]` is assumed to be log-transformed already.
-    if (params$weight != "1") {
-      warning("Weighting methods other than `1` are not available under log scale. Using `1`.")
-      params$weight <- "1"
+  e <- list(cc_se = calcurve_se, mat_id = mat_id, in_log = in_log, w_method = params$weight) |>
+    list2env(parent = .GlobalEnv)   # Include base & make sure all arguments are given
+  calcurve_models <- local(envir = e, {
+    c_concs <- util$spiked_conc_pts(cc_se)
+    if (in_log) {
+      c_concs <- log(c_concs) # The signal in `[[mat_id]]` is assumed to be log-transformed already.
+      if (w_method != "1") {
+        warning("Weighting methods other than `1` are not available under log scale. Using `1`.")
+        w_method <- "1"
+      }
     }
-  }
-  calcurve_models <- lapply(setNames(nm = rownames(calcurve_se)), function(ii) {
-    proc$fit_and_test_calcurve_model(
-      c_concs,
-      signal = cc_mat_norm[ii, ],
-      weight_method = params$weight,
-      penalty_quadratic = 0.01
-    )
+    out <- lapply(seq_len(nrow(cc_se)), function(ii) {
+      proc$fit_and_test_calcurve_model(
+        c_concs,
+        signal = cc_se[[mat_id]][ii, ],
+        weight_method = w_method,
+        penalty_quadratic = 0.01
+      )
+    })
+    names(out) <- rownames(cc_se)
+    out
   })
   SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |>
     dplyr::mutate(calcurve_model = calcurve_models)

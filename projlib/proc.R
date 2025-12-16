@@ -3,6 +3,10 @@
 # ------------------------------------------------------------------------------------------- #
 box::use(util = ./msdial_utils)
 
+#  -----  QC STEPS  ------------------------------------------------------------
+
+##  QC STEPS  ----------------------------------------------
+
 #' Add intermediate data at each step of quality control
 #'
 #' @param name A character string for the name of the intermediate data
@@ -39,9 +43,11 @@ stop_quietly <- function() {
   stop()
 }
 
-# Normalization using internal standards -------------------------------------------------
 
-## Volumetric normalization -------------------
+#  -----  NORMALIZATION WITH I.S.  ---------------------------------------------
+# Normalize the data using internal standards
+
+##  VOLUMETRIC NORMALIZATION  ------------------------------
 
 # #' Normalize the data by the volumetric internal standard
 # #'
@@ -68,7 +74,7 @@ stop_quietly <- function() {
 #   se
 # }
 
-## Data cleaning ------------------
+##  DATA CLEANING  -----------------------------------------
 
 #' Count zeros per feature
 #'
@@ -135,7 +141,7 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
   return(rowSums(outlying))     # Transposed by `apply` above
 }
 
-## Normalization methods ------------------
+##  NORMALIZATION METHODS  ---------------------------------
 
 #' Get the values of the closest internal standard features
 #'
@@ -192,7 +198,6 @@ get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   list(mat = mat, idx = i_closest)
 }
 
-
 #' Get the LOESS fit model
 #'
 #' @param istd_se A [`SumExp::SumExp`] object of internal standard features
@@ -243,7 +248,7 @@ get_loess_fit <- function(istd_se, excl_cat, overall_rt_range, span, mat_id) {
   loess_fit
 }
 
-## Blank subtraction ------------------
+##  BLANK SUBTRACTION  -------------------------------------
 
 #' Subtract the average values of the blank samples from the samples
 #'
@@ -289,13 +294,10 @@ add_blank_subtracted_sumexp <- function(sumexp,
   sumexp
 }
 
-# Calibration ----------------------------------------------------------------------------
 
-## Calibration working range ----------
+#  -----  CALIBRATION  ---------------------------------------------------------
 
-### Utils ----------
-
-#### For matrices of spiked concentration points ----------
+##  CALIBRATION WORKING RANGE - UTILS  ---------------------
 
 #' Get the values satisfying the condition
 #'
@@ -380,8 +382,6 @@ apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TR
   sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }
 
-
-
 #' Get the values of the given concentration points
 #'
 #' @param mat A matrix of values, in which the rows are chemicals and the columns are
@@ -408,8 +408,7 @@ values_of_given_conc_in_mat <- function(mat, given_conc) {
   }
 }
 
-
-### LOD/LLOQ ----------
+##  LOD/LLOQ  ----------------------------------------------
 
 #' Compute the LOD/LLOQ
 #'
@@ -423,8 +422,6 @@ values_of_given_conc_in_mat <- function(mat, given_conc) {
 #'
 #' @returns A numeric vector of the LOD/LLOQ signal values for each chemical
 NULL
-
-#### LOD/LLOQ from signal perspective ----------
 
 #' Compute the LOD/LLOQ signal using mean + SD * times
 #'
@@ -465,8 +462,6 @@ compute_llox_signal_using_mean_times <- function(m_neg, sd_neg, times) {
   llox_signal
 }
 
-#### LOD/LLOQ at spiked concentration points ----------
-
 #' Get the minimum concentration points that satisfy the condition
 #'
 #' @param mat_cond A logical matrix, where each row is a chemical and each column is a concentration
@@ -478,8 +473,6 @@ compute_llox_signal_using_mean_times <- function(m_neg, sd_neg, times) {
 identify_min_pt_satisfying <- function(mat_cond) {
   apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
 }
-
-#### LOD/LLOQ concentration values ----------
 
 #' Compute the LLO(Q/D) using the slope and standard deviation
 #'
@@ -516,7 +509,7 @@ compute_llox_using_slope_and_sd <- function(v, conc, min_conc, calcurve_model, t
   (s * times) / slope
 }
 
-### With derived min/max concentration ----------
+##  WITH DERIVED MIN/MAX CONCENTRATION  --------------------
 
 #' Identify the minimum concentration point for calibration curve
 #'
@@ -599,9 +592,6 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
   stopifnot(identical(names(out), names(max_conc)))
   out
 }
-
-#### Find calibration working range ----------
-
 
 #' Find the calibration curve limits and the LOD/LLOQ
 #'
@@ -710,8 +700,6 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   sumexp
 }
 
-#### Post processing calibration working range setting ----------
-
 #' Check if the calibration curve has a proper calibration range
 #'
 #' @param sumexp A [`SumExp::SumExp`] object of the calibration curve samples.
@@ -780,7 +768,7 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
   x
 }
 
-## Calibration curve fitting ----------
+##  CALIBRATION CURVE FITTING  -----------------------------
 
 #' Fit and test calibration curve models
 #'
@@ -907,7 +895,7 @@ compute_concentration <- function(sumexp, mat_id, log_scale = FALSE) {
   conc
 }
 
-### Post calibration ----------
+##  POST CALIBRATION  --------------------------------------
 
 #' Replace the values below the LLOQ and LOD
 #'
@@ -996,7 +984,6 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
   sumexp[[conc_mat_id]] <- out
   sumexp
 }
-
 
 #' Find out in which calibration point there is continuous increase in following points
 #'
