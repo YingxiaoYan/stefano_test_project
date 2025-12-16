@@ -343,7 +343,11 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   concn_se[["conc"]] <- util$extract_with_na(concn_se[["conc0"]], i = has_ex, j = TRUE) |>
     labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
 
-  return(list(done = TRUE, calcurve = calcurve_se, concn = concn_se))
+  return(list(
+    done = TRUE, 
+    calcurve = calcurve_se, # Calibration points. No model, but includes info about ranges
+    concn = concn_se # Concentrations after calibration. Includes models and flags
+  ))
 }
 
 ##  CALIBRATION  -------------------------------------------
@@ -395,8 +399,8 @@ for (mat_id_to_calib in mat_ids_after_blk_subt) {
         identical(colnames(cal_batch$calcurve), colnames(batch_in_global$calcurve))
       })
     }
-
-    if (cal_batch$done) {
+    
+    if (cal_batch$done) { # At least one chemical has proper calibration range
       has_proper_range <- SumExp::row_df(cal_batch$calcurve)[, "has_proper_range"]
       # Source of calibration curve
       src_calcurve <- dplyr::if_else(has_proper_range, "Batch", NA_character_)
@@ -407,17 +411,25 @@ for (mat_id_to_calib in mat_ids_after_blk_subt) {
         # Only global calibration has proper range, replace with global calibration
         in_only_global <- !has_proper_range & global_has_proper_range
         if (sum(in_only_global) > 0) {
+          batch_in_only_global <- lapply(batch_in_global, \(x) x[in_only_global, ])
           cat(glue::glue(
             "    Replacing concentrations with global calibration for {sum(in_only_global)} ",
             "chemicals in batch `{batch_id}`.",
           ), "\n")
-          # Extract calibrated concentrations from global calibration
-          global_conc <- batch_in_global$concn[["conc"]][in_only_global, ]
           # Replace the values in the batch calibration with the global calibration
-          cal_batch$concn[["conc"]][in_only_global, ] <- global_conc
+          cal_batch$concn[["conc"]][in_only_global, ] <- batch_in_only_global$concn[["conc"]]
+          cal_batch$concn[["conc0"]][in_only_global, ] <- batch_in_only_global$concn[["conc0"]]
+          # colnames(SumExp::row_df(cal_batch$concn))
+          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"       
+          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"            
+          # [11] "lloq_avg_signal"  "has_proper_range" "calcurve_model"   "to_export"       
+          SumExp::row_df(cal_batch$concn)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$concn)
           # Replace information of the calibration curve with the one from global calibration
-          SumExp::row_df(cal_batch$calcurve)[in_only_global, ] <- 
-            SumExp::row_df(batch_in_global$calcurve)[in_only_global, ]
+          # colnames(SumExp::row_df(cal_batch$calcurve))
+          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"       
+          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"            
+          # [11] "lloq_avg_signal"  "has_proper_range" "src_calcurve"     
+          SumExp::row_df(cal_batch$calcurve)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$calcurve)
         }
       }
       lst_proc[[mat_id_to_calib]][[batch_id]] <- cal_batch

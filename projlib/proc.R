@@ -800,10 +800,10 @@ replace_outside_concentration_range_with_na.SumExp <- function(x, mat_id) {
 #' conc <- rep(c(0.1, 0.2, 0.5, 1, 2), 3)
 #' signal <- conc * 5 + rnorm(length(conc))
 #' fit_and_test_calcurve_model(conc, signal)
-#' @name calcurve_model
+#' @name fit_calcurve_model
 #' @md
 NULL
-#' @rdname calcurve_model
+#' @rdname fit_calcurve_model
 #' @export
 fit_and_test_calcurve_model <- function(conc,
                                         signal,
@@ -849,9 +849,9 @@ fit_and_test_calcurve_model <- function(conc,
   )
 }
 #' @param weights weights for linear model fit
-#' @rdname calcurve_model
+#' @rdname fit_calcurve_model
 quadratic_calcurve_model <- function(conc, signal, weights) {
-  lmfit <- stats::lm(signal ~ conc + I(conc^2), weights = weights)
+  lmfit <- stats::lm(signal ~ conc + I(conc^2), weights = weights, model = FALSE)
   beta <- stats::coef(lmfit)
   a <- beta[["I(conc^2)"]]
   b <- beta[["conc"]]
@@ -864,9 +864,9 @@ quadratic_calcurve_model <- function(conc, signal, weights) {
   }
   list(model = model, inv_mod = lmfit)
 }
-#' @rdname calcurve_model
+#' @rdname fit_calcurve_model
 linear_calcurve_model <- function(conc, signal, weights) {
-  lmfit <- stats::lm(signal ~ conc, weights = weights)
+  lmfit <- stats::lm(signal ~ conc, weights = weights, model = FALSE)
   beta <- stats::coef(lmfit)
   b1 <- beta[["conc"]]
   b0 <- beta[["(Intercept)"]]

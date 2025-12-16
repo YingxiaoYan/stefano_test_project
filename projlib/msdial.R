@@ -2,11 +2,9 @@
 # Functions to read and write MS-DIAL raw/processed data
 # ------------------------------------------------------------------------------------------- #
 
-box::use(io = ./check_io_exist)
-
-#' @export
 box::use(
-  ./show[tbl_chemical_summary],              # Export chemical summary table
+  io = ./check_io_exist,
+  util = ./msdial_utils
 )
 
 # Project Parameters ---------------------------------------------------------------------
@@ -16,7 +14,6 @@ box::use(
 #' @param userin A list of user input 
 #' @param ... The required parameters in a character vector
 #'
-#' @md
 #' @returns TRUE if all required inputs are provided
 .stop_unless_has_required_inputs <- function(userin, ...) {
   for (p in c(...)) {
@@ -47,7 +44,6 @@ get_user_input <- function(...) {
 #'   stages, such as raw and processed data.
 #'
 #' @returns A text string of the file name
-#' @md
 #' @export
 get_raw_data_file_name <- function(user_inputs, suffix = "") {
   .stop_unless_has_required_inputs(user_inputs, "input_file", "intermediate_dir")
@@ -64,7 +60,6 @@ get_raw_data_file_name <- function(user_inputs, suffix = "") {
 #' @param user_inputs A list of user inputs including `input_file` and `intermediate_dir`.
 #'
 #' @returns A [`SumExp::SumExp`] object
-#' @md
 #' @export
 read_parsed_msdial_data <- function(user_inputs) {
   sumexp_file <- get_raw_data_file_name(user_inputs, suffix = "")
@@ -115,7 +110,6 @@ get_three_section_indices <- function(msdial_file) {
 #'   provided, the 2nd section identified by `get_three_section_indices` will be used.
 #' 
 #' @returns A data frame with sample information
-#' @md
 #' @export
 fetch_sample_info <- function(msdial_file, indices) {
   if (missing(indices)) indices <- get_three_section_indices(msdial_file)[["2nd"]]
@@ -252,11 +246,14 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   sinfo <- .get_sample_info_rows(sumexp, n_empty_cols = ncol(feat_tbl))
   # Prepare the data table
   df_x <- .append_export_table_with_feature_table(sumexp, mat_id, feat_tbl)
-  # Combine sample info rows and feature data
+  # Combine sample info rows and feature data - Actual header row is in between
   col_nms <- colnames(sinfo) <- colnames(df_x)   # Avoid mismatch error
-  col_nms_df <- as.data.frame(as.list(col_nms))  # Header row inbetween
+  col_nms_df <- as.data.frame(as.list(col_nms))  # Header row in between
   colnames(col_nms_df) <- col_nms
   out <- rbind(sinfo, col_nms_df, df_x)
+  # Add the area of the table of numerical values as attributes
+  attr(out, "cols_of_values") <- seq.int(ncol(feat_tbl) + 1, ncol(out))
+  attr(out, "rows_of_values") <- seq.int(nrow(sinfo) + 2, nrow(out))
   out
 }
 
@@ -268,7 +265,6 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
 #' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
 #'   Unsaved feature information will be copied from this file.
 #' @param out_file Path to the output file
-#' @md
 #' @export
 export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out_file) {
   stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
@@ -285,6 +281,83 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
     names(lst_df) <- paste("Batch", names(lst_df))
     writexl::write_xlsx(lst_df, path = out_file, format_headers = FALSE, col_names = FALSE)
   }
+}
+
+#' Create a summary table for the chemicals
+#'
+#' @param sumexp A [`SumExp::SumExp`] object. 
+#'  `SumExp::row_df(sumexp)` should have the columns `feature_name`, `lod`, `lloq`, and
+#'  `calcurve_model`.
+#'
+#' @returns A tibble with the summary of the chemical for non-control samples only. The columns
+#'   include: `chem_id`, `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`, `median`, `mean`, `min`,
+#'   `max`, `best_model`, `model_r2`, `n_conc`
+#'
+#'
+#' @export
+tbl_chemical_summary <- function(sumexp) {
+  # Non-control samples only
+  sumexp <- util$extract_ctrl_smpl_cat(sumexp, "")
+  # Information about the chemicals
+  chemicals <- SumExp::row_df(sumexp) |>
+    tibble::as_tibble(rownames = "chem_id") |>
+    dplyr::rename(chem_name = "feature_name")
+  # Concentration
+  mat <- sumexp[["conc"]]
+  mat_original <- sumexp[["conc0"]]
+  
+  # Summary about the concentration ranges
+  conc_summary <- chemicals |>
+    dplyr::mutate(
+      n_det = sapply(seq_len(nrow(mat)), \(i) sum(mat[i, ] >= lod[i], na.rm = TRUE)),
+      n_samples = sapply(seq_len(nrow(mat)), \(i) sum(!is.na(mat[i, ]))),
+      perc_detf = n_det / n_samples * 100,
+      median = apply(mat, 1, stats::median),
+      mean = rowMeans(mat),
+      min = apply(mat_original, 1, min),
+      max = apply(mat, 1, max),
+    )
+ 
+  # Write an equation for the calibration curve model
+  get_equation <- function(cc_model) {
+    num_f <- function(x) {
+      format(x, scientific = TRUE, digits = 3)
+    }
+    e <- environment(cc_model$best_model)
+    assign("num_f", num_f, envir = e)   # `e` is not a child of this environment
+    if (grepl("^linear", cc_model$best_model_name)) {
+      with(e, paste("y =", num_f(b1), "* x +", num_f(b0)))
+    } else {
+      with(e, paste("y =", num_f(a), "* x^2 +", num_f(b), "* x +", num_f(cc)))
+    }
+  }
+  # Add summary about the calibration curve models
+  m_sum <- lapply(conc_summary$calcurve_model, \(m) {
+    out <- if (is.na(m)[1L]) {    # "best_model" if exists
+      tibble::tibble(
+        best_model = NA_character_,
+        model_r2 = NA_real_,
+        n_conc = NA_integer_,
+        eqn = NA_character_,
+      )
+    } else {
+      tibble::tibble(
+        best_model = m$best_model_name,
+        model_r2 = m$R2s[[m$best_model_name]],
+        n_conc = m$n_conc,
+        eqn = get_equation(m),
+      )
+    }
+    stopifnot(nrow(out) == 1)
+    out
+  }) |>
+    dplyr::bind_rows()
+
+  cbind(conc_summary, m_sum) |>
+    dplyr::select(-calcurve_model) |>
+    dplyr::mutate(
+      best_model = stringr::str_replace(best_model, "_div_", "/")
+    )
 }
 
 #' One summary feature table across batches
@@ -336,6 +409,48 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
   out
 }
 
+#' Per-batch summary feature table
+.per_batch_summary_feature_table <- function(sumexp, is_closest_norm = FALSE) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  tbl <- tbl_chemical_summary(sumexp) |> 
+    dplyr::mutate(
+      unit = SumExp::metadata(sumexp)$concentration_unit,  # Add the unit
+    ) |>
+    dplyr::mutate(      # Tidy up the table
+      perc_detf = round(perc_detf, 1),
+      n_d_s = paste0("(", n_det, "/", n_samples, ")"),
+      model_r2 = round(model_r2, 3),
+      dplyr::across(c(min, max, mean), ~ round(.x, 4)),
+      dplyr::across(c(lod, lloq, min, max, mean), ~ as.character(.x)),
+    )
+  out <- tbl |> 
+    dplyr::select(
+      "Alignment ID" = alignment_id,
+      "Chemical" = chem_name,
+      "Average Mz" = mz,
+      "Average Rt(min)" = .rt,
+      "DF%" = perc_detf,
+      "Samples (d/n)" = n_d_s,
+      "Concentration" = unit,
+      "LOD" = lod,
+      "LLOQ" = lloq,
+      "Min Conc." = min,
+      "Max Conc." = max,
+      "Avg. Conc." = mean,
+      "R2" = model_r2,
+      "Model" = best_model,
+      "Equation" = eqn,
+      "N of points" = n_conc,
+    )
+  if (is_closest_norm) {
+    out <- dplyr::bind_cols(
+      out,
+      dplyr::select(tbl, "Target IS" = closest_istd) 
+    )
+  }
+  out
+}
+
 #' merge SumExp objects with identical features (rows)
 .merge_sumexp_objs_with_identical_features <- function(sumexp_lst) {
   stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
@@ -363,7 +478,6 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out
 #' @param file Path to the output file
 #' @param is_closest_norm A logical value indicating whether to include the closest internal
 #'   standard information in the exported table.
-#' @md
 #' @export
 export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE) {
   stopifnot(is.list(sumexp_lst))
@@ -379,7 +493,7 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
   in_any <- rowSums(in_any) > 0L
   sumexp_lst <- lapply(sumexp_lst, \(se) se[in_any, ])
   
-  # Talbe of all batches
+  # Tablb of all batches
   # Overall summary table
   sum_all_batches <- .summary_feature_table(sumexp_lst, is_closest_norm)
   # SumExp object with all batches
@@ -393,54 +507,25 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
   
   # Per-batch tables to export
   per_batch_to_export_table <- lapply(sumexp_lst, \(se) {
+    
     # Drop all features that are not to be exported per batch
     se <- se[SumExp::row_df(se)$to_export, ]
     
     # Prepare the chemical summary table per batch
-    chem_col <- tbl_chemical_summary(se) |> 
-      dplyr::mutate(
-        unit = SumExp::metadata(se)$concentration_unit,  # Add the unit
-      ) |>
-      dplyr::mutate(      # Tidy up the table
-        perc_detf = round(perc_detf, 1),
-        n_d_s = paste0("(", n_det, "/", n_samples, ")"),
-        model_r2 = round(model_r2, 3),
-        dplyr::across(c(min, max, mean), ~ round(.x, 4)),
-        dplyr::across(c(lod, lloq, min, max, mean), ~ as.character(.x)),
-      ) |> 
-      dplyr::select(
-        "Alignment ID" = alignment_id,
-        "Chemical" = chem_name,
-        "Average Mz" = mz,
-        "Average Rt(min)" = .rt,
-        "DF%" = perc_detf,
-        "Samples (d/n)" = n_d_s,
-        "Concentration" = unit,
-        "LOD" = lod,
-        "LLOQ" = lloq,
-        "Min Conc." = min,
-        "Max Conc." = max,
-        "Avg. Conc." = mean,
-        "R2" = model_r2,
-        "Model" = best_model,
-        "Equation" = eqn,
-        "N of points" = n_conc,
-      )
+    chem_col <- .per_batch_summary_feature_table(se, is_closest_norm)
     
     # Making a new column with the slope from the equation more easily accessible
     slope_vec <- c()
-    for(i in seq_len(nrow(chem_col))){
+    for (i in seq_len(nrow(chem_col))) {
       split_eqn <- strsplit(chem_col$Equation[i], " ")[[1]]
       
-      
-      if(grepl("quadratic", chem_col$Model[i])){ #"y = -1.72e+05 * x^2 + 1.87e+07 * x + 3.35e+06"
+      if (grepl("quadratic", chem_col$Model[i])) { #"y = -1.72e+05 * x^2 + 1.87e+07 * x + 3.35e+06"
         b <- -(as.double(split_eqn[7]))
-        a <- 2*(as.double(split_eqn[3]))
-        slope <- b/a
+        a <- 2 * (as.double(split_eqn[3]))
+        slope <- b / a
       } else { #"y = 4.93e+06 * x + -4.07e+05"
         slope <- split_eqn[3]
       }
-      
       slope_vec <- c(slope_vec, slope)
     }
     
@@ -461,8 +546,10 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
   quarter_style <- openxlsx::createStyle(fgFill = "red")
   
   # Making a range from which to pick out actual data of final format
-  row_range <- c(7:nrow(per_batch_to_export_table[[1L]]))
-  col_range <- c(17:ncol(per_batch_to_export_table[[1L]]))
+  row_range <- attr(per_batch_to_export_table[[1L]], "rows_of_values")
+  col_range <- attr(per_batch_to_export_table[[1L]], "cols_of_values")
+  offset_row <- min(row_range) - 1
+  offset_col <- min(col_range) - 1
 
   # If only 1 batch / all batches evaluated together
   if (length(sumexp_lst) == 1L) {
@@ -489,15 +576,15 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     diff_mat[is.na(diff_mat)] <- 0
     
     # Finding values that differ = have been imputed
-    for(curr_row in seq_len(nrow(vals))){
+    for (curr_row in seq_len(nrow(vals))) {
       which_half = which(vals[curr_row,] ==  (LLOQs[curr_row]/2))
       which_quarter = which(vals[curr_row,] ==  (LLOQs[curr_row]/4))
       
       # Checking which are half or quarter
-      if(length(which_half) > 0){
+      if (length(which_half) > 0) {
         diff_mat[curr_row, which_half] <- 0.5
       }
-      if(length(which_quarter) > 0){
+      if (length(which_quarter) > 0) {
         diff_mat[curr_row, which_quarter] <- 0.25
       }
     }
@@ -505,22 +592,21 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     
     # Go through every cell and change color depending on whether value in 
     # diff_mat is 1 or something else
-    for(curr_row in seq_len(nrow(vals))){
-      for(curr_col in seq_len(ncol(vals))){
+    for (curr_row in seq_len(nrow(vals))) {
+      for (curr_col in seq_len(ncol(vals))) {
         
-        if(diff_mat[curr_row, curr_col] == 0.5){
+        if (diff_mat[curr_row, curr_col] == 0.5) {
           openxlsx::addStyle(wb,
-                             sheet=1,
+                             sheet = 1,
                              half_style,
-                             curr_row+6,
-                             curr_col+16)
-        } else if(diff_mat[curr_row, curr_col] == 0.25){
+                             curr_row + offset_row,
+                             curr_col + offset_col)
+        } else if (diff_mat[curr_row, curr_col] == 0.25) {
           openxlsx::addStyle(wb,
-                             sheet=1,
+                             sheet = 1,
                              quarter_style,
-                             curr_row+6,
-                             curr_col+16)
-          
+                             curr_row + offset_row,
+                             curr_col + offset_col)
         }
       }
     }
@@ -575,14 +661,14 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
             openxlsx::addStyle(wb,
                                sheet=(i+1),
                                half_style,
-                               curr_row+6,
-                               curr_col+16)
+                               curr_row + offset_row,
+                               curr_col + offset_col)
           } else if(diff_mat[curr_row, curr_col] == 0.25){
             openxlsx::addStyle(wb,
                                sheet=(i+1),
                                quarter_style,
-                               curr_row+6,
-                               curr_col+16)
+                               curr_row + offset_row,
+                               curr_col + offset_col)
             
           }
         }

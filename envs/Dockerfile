@@ -39,6 +39,7 @@ RUN install2.r --error --skipinstalled --ncpus -1 \
     quarto \
     optparse \
     writexl \
+    openxlsx \
     && rm -rf /tmp/downloaded_packages
 
 # Install a local package

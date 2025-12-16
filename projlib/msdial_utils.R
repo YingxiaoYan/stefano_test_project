@@ -3,9 +3,9 @@
 # * Utility functions
 # ------------------------------------------------------------------------------------------- #
 
-# Variables used in `read-msdial.R` ------------------------------------------------------
+#  -----  VARIABLES USED IN `read-msdial.R`  -----------------------------------
 
-## Features ----------
+##  FEATURES  ----------------------------------------------
 
 #' Feature variables
 #' @export
@@ -23,7 +23,6 @@ conv_tbl <- tibble::tribble(
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
 #' @returns A numeric vector of the retention times
-#' @md
 #' @export
 retention_time <- function(sumexp) {
   stopifnot(inherits(sumexp, "SumExp"))
@@ -83,22 +82,7 @@ is_internal_std.SumExp <- function(x) {
     is_internal_std.character()
 }
 
-## Samples -----------
-
-#' The name of the column containing the spiked concentration points
-#' @export
-spiked_conc_pts_name <- "c_conc"
-
-#' Get the spiked concentration points
-#'
-#' @param cc_se A [`SumExp::SumExp`] object including the calibration curve samples
-#' @returns A numeric vector of the concentrations of the calibration curve samples
-#' @md
-#' @export
-spiked_conc_pts <- function(cc_se) {
-  stopifnot(inherits(cc_se, "SumExp"))
-  SumExp::col_df(cc_se)[[spiked_conc_pts_name]]
-}
+##  SAMPLES  -----------------------------------------------
 
 #' Special control sample categories
 #'
@@ -107,7 +91,6 @@ spiked_conc_pts <- function(cc_se) {
 #' @returns
 #' [ctrl_smpl_cat()]: A character vector of the control sample categories.
 #'
-#' @md
 #' @export
 ctrl_smpl_cat <- function(sumexp) {
   stopifnot(inherits(sumexp, "SumExp"))
@@ -121,7 +104,6 @@ ctrl_smpl_cat <- function(sumexp) {
 #' @returns
 #' [exclude_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
 #' categories excluded
-#' @md
 #' @export
 exclude_ctrl_smpl_cat <- function(sumexp, excl_cat) {
   stopifnot(is.character(excl_cat))
@@ -138,7 +120,6 @@ exclude_ctrl_smpl_cat <- function(sumexp, excl_cat) {
 #' @returns
 #' [extract_ctrl_smpl_cat()]: A [`SumExp::SumExp`] object with the specified control sample
 #' categories extracted
-#' @md
 #' @export
 extract_ctrl_smpl_cat <- function(sumexp, cat) {
   stopifnot(is.character(cat))
@@ -156,7 +137,6 @@ extract_ctrl_smpl_cat <- function(sumexp, cat) {
 #' @param out_names A character vector of length 2. The names of the output list.
 #'   The first element is the name of the calibration curve samples.
 #' @returns A list of two [`SumExp::SumExp`] objects with the names `CalCurve` and `Other`
-#' @md
 #' @export
 split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Other")) {
   stopifnot(length(out_names) == 2)
@@ -164,7 +144,34 @@ split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Oth
   SumExp::split_columns(sumexp, g)
 }
 
-# Variables created during processing ----------------------------------------------------
+#' Get calibration curve samples
+#'
+#' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
+#' @returns A [`SumExp::SumExp`] object with the calibration curve samples
+#' @export
+calcurve_samples <- function(sumexp) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  sumexp[, ctrl_smpl_cat(sumexp) == "CalCurve"]
+}
+
+#' The name of the column containing the spiked concentration points
+#' @export
+spiked_conc_pts_name <- "c_conc"
+
+#' Get the spiked concentration points
+#'
+#' @param cc_se A [`SumExp::SumExp`] object including the calibration curve samples
+#' @returns A numeric vector of the concentrations of the calibration curve samples
+#' @export
+spiked_conc_pts <- function(cc_se) {
+  stopifnot(inherits(cc_se, "SumExp"))
+  SumExp::col_df(cc_se)[[spiked_conc_pts_name]]
+}
+
+
+#  -----  VARIABLES CREATED DURING PROCESSING  ---------------------------------
+
+##  CALIBRATION CURVE MODEL  -------------------------------
 
 #' Get or set the calibration curve model for a given matrix
 #'
@@ -174,7 +181,6 @@ split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Oth
 #' @returns
 #' [calcurve_model()]: The calibration curve model for the given matrix
 #' [calcurve_model<-()]: The updated [`SumExp::SumExp`] object
-#' @md
 #' @export
 calcurve_model <- function(sumexp, mat_id) {
   stopifnot(inherits(sumexp, "SumExp"))
@@ -196,6 +202,8 @@ calcurve_model <- function(sumexp, mat_id) {
   SumExp::row_df(sumexp)[[nm]][i_match] <- value
   sumexp
 }
+
+##  MATRIX ID  ---------------------------------------------
 
 #' Get the matrix ID of the blank-subtracted matrix
 #'
@@ -228,13 +236,17 @@ mat_id_before_calibration <- function(mat_id) {
   sub("_calib$", "", mat_id)
 }
 
+
+#  -----  UTILS  ---------------------------------------------------------------
+
+##  REPLACE INSTEAD OF DELETE  -----------------------------
+
 #' Extract a subset and replace others with NA
 #'
 #' @param mat A matrix
 #' @param i A numeric vector of row indices to be retained or a logical vector or `TRUE`
 #' @param j A numeric vector of column indices to be retained or a logical vector or `TRUE`
 #' @returns The matrix with the specified rows and columns retained and others replaced with NA
-#' @md
 #' @export
 extract_with_na <- function(mat, i = TRUE, j = TRUE) {
   stopifnot(is.matrix(mat))
@@ -261,8 +273,7 @@ extract_with_na <- function(mat, i = TRUE, j = TRUE) {
   mat_out
 }
 
-
-# Utils ----------------------------------------------------------------------------------
+##  COMPUTE  -----------------------------------------------
 
 #' Compute the average plus the standard deviation multiplied by `times`
 #'
@@ -271,7 +282,6 @@ extract_with_na <- function(mat, i = TRUE, j = TRUE) {
 #' @param na.rm A logical value indicating whether to remove NA values
 #'
 #' @returns A numeric vector of the average plus the standard deviation multiplied by `times`
-#' @md
 #' @export
 avg_plus_std_times <- function(v, times, na.rm = TRUE) { # nolint
   s <- stats::sd(v, na.rm = na.rm)

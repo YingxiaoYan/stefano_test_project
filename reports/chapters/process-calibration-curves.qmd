@@ -28,7 +28,7 @@ The calibration curve of each of the chemicals is presented below.
 # Whether the calibration curve is fitted to the log-transformed data
 log_scale <- to_report[["params"]][["log_calibration"]]
 
-calcurve_lst <- lapply(lst_proc, \(ea) {ea$calcurve})
+calcurve_lst <- lapply(lst_proc, \(ea) ea$calcurve)
 # To keep the order
 seq_feat_id <- rownames(calcurve_lst[[1]])  # All batches have the same features
 
@@ -237,6 +237,7 @@ for (batch_id in names(concn_lst)) {
   concn_se <- concn_lst[[batch_id]]
   calib_se <- calib_lst[[batch_id]]
 
+  # Show legend only at the top
   qmd_out <- c(
     qmd_out,
     rlang::chr(
@@ -256,6 +257,7 @@ for (batch_id in names(concn_lst)) {
       knitr::knit_child(text = _, quiet = TRUE)
   )
 
+  # Show calibration curves for each feature
   lst_concn_se <- SumExp::split_rows(concn_se, rownames(SumExp::row_df(concn_se)))
   # Keep the order of features as in the data
   lst_concn_se <- local({

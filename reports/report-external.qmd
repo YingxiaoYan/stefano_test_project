@@ -31,10 +31,10 @@ if (!exists("params")) params <- list(norm_method = "closest_norm", log_calibrat
 options(box.path = "code/") # Path to project local libraries
 box::use(
   SumExp, # Light SummarizedExperiment, `[`
-  projlib / msdial, # Handle MS-Dial files
-  util = projlib / msdial_utils, # Utility functions for MS-Dial data
-  projlib / show, # Functions to present data
-  io = projlib / check_io_exist, # Check input/output files
+  projlib/msdial, # Handle MS-Dial files
+  util = projlib/msdial_utils, # Utility functions for MS-Dial data
+  projlib/show, # Functions to present data
+  io = projlib/check_io_exist, # Check input/output files
   patchwork, # Combine ggplot objects. `+`
   ggplot2[...], # Too long to write and usually specific enough
   ggfortify, # PCA plot (autoplot)
@@ -90,7 +90,7 @@ calib_lst <- lapply(lst_proc, \(x) x$calcurve)
 
 # Consistancy throughout this report ----------
 # To keep the same format
-summary_tbl <- lapply(concn_lst, show$tbl_chemical_summary) |>
+summary_tbl <- lapply(concn_lst, msdial$tbl_chemical_summary) |>
   purrr::list_rbind(names_to = "Batch") |>
   dplyr::mutate( # Tidy up the table
     chem_name = stringr::str_trunc(chem_name, 40),

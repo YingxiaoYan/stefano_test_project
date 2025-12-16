@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------------------- #
 box::use(util = ./msdial_utils)
 
-# Utils ----------------------------------------------------------------------------------
+#  -----  UTILS  ---------------------------------------------------------------
 
 #' Check if
 .chq_if_a_single_char <- function(x) {
@@ -102,7 +102,7 @@ get_colors_of_classes <- function(sumexp, color_cat) {
   c(color_given, ggcolor)
 }
 
-# QC samples -----------------------------------------------------------------------------
+#  -----  QC SAMPLES  ----------------------------------------------------------
 
 #' Extract QC samples into list
 #'
@@ -185,8 +185,7 @@ ggplot_rsdp_metab <- function(rsd_df, mat_ids) {
     ggplot2::geom_line(ggplot2::aes(group = feature_id), alpha = 0.5)
 }
 
-
-# Calibration curve ----------------------------------------------------------------------
+#  -----  CALIBRATION CURVE  ---------------------------------------------------
 
 #' Calibration curve line
 #'
@@ -252,7 +251,13 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   cc_df <- SumExp::as_tibble(cc_se) |>
     # Drop concentrations outside the range
     tidyr::drop_na(tidyselect::all_of(unname(mat_id))) |>
-    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", c_conc, "\nname: ", sample_name, "\nint: ", round(.data[[mat_id]],0)))   # Label for the points
+    dplyr::mutate(
+      txt = paste(
+        "inj: ", injection_order, ", conc: ", c_conc, "\n",
+        "name: ", sample_name, "\n",
+        "int: ", round(.data[[mat_id]], 0)
+      )
+    )   # Label for the points
   # LLOQ, LOD, max_c_conc of each `feature_id`
   lim_df <- SumExp::row_df(x_se) |>
     # `feature_name` is added for further usage, e.g. `ggplot2::facet_wrap(~ feature_name)`
@@ -261,7 +266,13 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
   # The samples to show with the calibration curve
   x_df <- SumExp::as_tibble(x_se) |>
     tidyr::drop_na(conc) |>
-    dplyr::mutate(txt = paste("inj: ", injection_order, ", conc: ", conc, "\nname: ", sample_name, "\nint: ", round(.data[[mat_id]],0)))    # Label for the points
+    dplyr::mutate(
+      txt = paste(
+        "inj: ", injection_order, ", conc: ", conc, "\n",
+        "name: ", sample_name, "\n",
+        "int: ", round(.data[[mat_id]], 0)
+      )
+    )    # Label for the points
   
   out <- ggplot2::ggplot(x_df, ggplot2::aes(x = conc, y = .data[[mat_id]])) +
     geom_calibration_curve_line(lim_df, log_scale = log_scale) +
@@ -320,7 +331,6 @@ ggplot_calcurve_samples_facet <- function(x_se,
   ggplot_calcurve_samples(x_se, cc_se, mat_id, colors_of_classes, log_scale) +
     ggplot2::facet_wrap(~ feature_name, scales = scales, ncol = ncol, ...)
 }
-
 
 #' ggproto for zooming in by the calibration curve
 CoordZoomInByCC <- ggplot2::ggproto(
@@ -401,7 +411,6 @@ coord_zoom_in_by_cc <- function(n_cc = 4,
   )
 }
 
-
 #' [ggplot2::geom_text()] for the best model of the calibration curve
 #'
 #' @param x_se A [`SumExp::SumExp`] object
@@ -434,85 +443,7 @@ geom_best_model_text <- function(x_se, hjust = 1, vjust = 0, size = 4, color = "
   )
 }
 
-#' Create a summary table for the chemicals
-#'
-#' @param sumexp A [`SumExp::SumExp`] object. 
-#'  `SumExp::row_df(sumexp)` should have the columns `feature_name`, `lod`, `lloq`, and
-#'  `calcurve_model`.
-#'
-#' @returns A tibble with the summary of the chemical for non-control samples only. The columns
-#'   include: `chem_id`, `chem_name`, `lod`, `lloq`, `n_det`, `perc_detf`, `median`, `mean`, `min`,
-#'   `max`, `best_model`, `model_r2`, `n_conc`
-#'
-#' @md
-#'
-#' @export
-tbl_chemical_summary <- function(sumexp) {
-  # Non-control samples only
-  sumexp <- util$extract_ctrl_smpl_cat(sumexp, "")
-  # Information about the chemicals
-  chemicals <- SumExp::row_df(sumexp) |>
-    tibble::as_tibble(rownames = "chem_id") |>
-    dplyr::rename(chem_name = "feature_name")
-  # Concentration
-  mat <- sumexp[["conc"]]
-  mat_original <- sumexp[["conc0"]]
-  
-  # Summary about the concentration ranges
-  conc_summary <- chemicals |>
-    dplyr::mutate(
-      n_det = sapply(seq_len(nrow(mat)), \(i) sum(mat[i, ] >= lod[i], na.rm = TRUE)),
-      n_samples = sapply(seq_len(nrow(mat)), \(i) sum(!is.na(mat[i, ]))),
-      perc_detf = n_det / n_samples * 100,
-      median = apply(mat, 1, stats::median),
-      mean = rowMeans(mat),
-      min = apply(mat_original, 1, min),
-      max = apply(mat, 1, max),
-    )
- 
-  # Write an equation for the calibration curve model
-  get_equation <- function(cc_model) {
-    num_f <- function(x) {
-      format(x, scientific = TRUE, digits = 3)
-    }
-    e <- environment(cc_model$best_model)
-    assign("num_f", num_f, envir = e)   # `e` is not a child of this environment
-    if (grepl("^linear", cc_model$best_model_name)) {
-      with(e, paste("y =", num_f(b1), "* x +", num_f(b0)))
-    } else {
-      with(e, paste("y =", num_f(a), "* x^2 +", num_f(b), "* x +", num_f(cc)))
-    }
-  }
-  # Add summary about the calibration curve models
-  m_sum <- lapply(conc_summary$calcurve_model, \(m) {
-    out <- if (is.na(m)[1L]) {    # "best_model" if exists
-      tibble::tibble(
-        best_model = NA_character_,
-        model_r2 = NA_real_,
-        n_conc = NA_integer_,
-        eqn = NA_character_,
-      )
-    } else {
-      tibble::tibble(
-        best_model = m$best_model_name,
-        model_r2 = m$R2s[[m$best_model_name]],
-        n_conc = m$n_conc,
-        eqn = get_equation(m),
-      )
-    }
-    stopifnot(nrow(out) == 1)
-    out
-  }) |>
-    dplyr::bind_rows()
-
-  cbind(conc_summary, m_sum) |>
-    dplyr::select(-calcurve_model) |>
-    dplyr::mutate(
-      best_model = stringr::str_replace(best_model, "_div_", "/")
-    )
-}
-
-# Injection order ------------------------------------------------------------------------
+#  -----  INJECTION ORDER  -----------------------------------------------------
 
 #' Create a data frame for the injection order plot
 #'
@@ -564,7 +495,7 @@ ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
     ggplot2::facet_wrap(~ Data, scales = "free_y")
 }
 
-# PCA ------------------------------------------------------------------------------------
+#  -----  PCA  -----------------------------------------------------------------
 
 #' Create a PCA plot
 #'

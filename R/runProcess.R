@@ -13,9 +13,9 @@ runProcessUI <- function(uiId) {
   shiny::tagList(
     # Option for keeping all calibration points (even though outside range)
     shiny::checkboxInput(
-        inputId = ns("optimize_cal_points"),
-        label = "Optimize cal curves to exclude points outside sample range",
-        value = FALSE,
+      inputId = ns("optimize_cal_points"),
+      label = "Optimize cal curves to exclude points outside sample range",
+      value = FALSE,
     ),
     # JS handler to enable/disable weight options
     shiny::tags$script(HTML("
