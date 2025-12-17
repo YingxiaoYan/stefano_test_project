@@ -313,7 +313,7 @@ for (batch_id in names(concn_lst)) {
 
     txt_legend <- paste0(
       "The gray areas in the calibration curve represent the regions below LOD and LLOQ.  \n",
-      "DF: Detection frequency (percentage of samples no less than LOD)  \n",
+      "DF: Detection frequency (percentage of samples greater than LOD)  \n",
       "LOD: Limit of detection.  \n", # "  \n" is for line break
       "LLOQ: Lower limit of quantification  \n",
       "The details of LOD and LLOQ are described in the text of the chemical summary table.  \n",
