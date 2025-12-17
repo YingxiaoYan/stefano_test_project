@@ -156,7 +156,7 @@ plot_pca <- function(se, mat_id) {
 }
 both_se_lst <- lapply(to_report[["normalized - blank"]], \(se) {
   se <- util$exclude_ctrl_smpl_cat(se, c("QC", "CalCurve", "Blank"))
-  se[!util$is_targeted_feature(se), ] # Exclude internal standards
+  se[!util$is_targeted_feature(se), ] # Only `Quant` targeted chemicals
 })
 for (batch_id in names(both_se_lst)) {
   cat("\n\n### Batch ", batch_id, "\n")

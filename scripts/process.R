@@ -180,7 +180,7 @@ cat("LOESS normalization is done.\n")
 
 ##  END OF INTERNAL STANDARD PROCESSING  -------------------
 to_report[["normalized"]] <- proc_sumexp # Final internal standard normalized data
-
+proc_sumexp <- proc_sumexp[! util$is_internal_std(proc_sumexp), ]   # Remove internal standards
 
 #  -----  BLANK SUBTRACTION  ---------------------------------------------------
 

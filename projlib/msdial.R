@@ -265,19 +265,45 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
 #' @param in_file Path to the MS-DIAL output file that has been used to create `sumexp`.
 #'   Unsaved feature information will be copied from this file.
 #' @param out_file Path to the output file
+#' @param is_closest_norm A logical value indicating whether the data is closest internal standard normalized
 #' @export
-export_data_with_feature_table_xlsx <- function(sumexp_lst, mat_id, in_file, out_file) {
+export_data_with_feature_table_xlsx <- function(sumexp_lst, 
+                                                mat_id, 
+                                                in_file, 
+                                                out_file, 
+                                                is_closest_norm = FALSE) {
   stopifnot(inherits(sumexp_lst, "SumExp") || is.list(sumexp_lst))
   # Prepare the feature table
   i_sec <- get_three_section_indices(in_file)
   intact_feature_cols <- fetch_data_of_columns(in_file, i_sec[[1]])
   
+  #' Merge sample info and feature data and add target IS
+  #' 
+  #' @param sumexp A [`SumExp::SumExp`] object
+  #' @param mat_id The name of the data in `sumexp` (or assay) to be exported
+  #' @param intact_feature_cols The intact feature table
+  #' @param is_closest_norm A logical value indicating whether the data is closest internal standard normalized
+  merge_s_f_add_target_is <- function(sumexp) {
+    # Exclude removed features such as internal standards
+    se_df <- SumExp::row_df(sumexp) |>
+      dplyr::rename(`Alignment ID` = alignment_id, `Metabolite name` = feature_name)
+    se_df <- if (is_closest_norm) {
+      dplyr::select(se_df, `Alignment ID`, `Metabolite name`, "Target IS" = closest_istd)
+    } else {
+      dplyr::select(se_df, `Alignment ID`, `Metabolite name`)
+    }
+    feat_tbl <- dplyr::inner_join(intact_feature_cols, se_df, by = c("Alignment ID", "Metabolite name"))
+    stopifnot(identical(feat_tbl$`Alignment ID`, as.vector(se_df$`Alignment ID`))) # as.vector() for rm label
+    # Merge sample info and updated feature data
+    .merge_sample_info_and_feature_data(sumexp, mat_id, feat_tbl)
+  }
+
   # Prepare the data table
   if (inherits(sumexp_lst, "SumExp")) {
-    .merge_sample_info_and_feature_data(sumexp_lst, mat_id, intact_feature_cols) |>
+    merge_s_f_add_target_is(sumexp_lst) |>
       writexl::write_xlsx(path = out_file, format_headers = FALSE, col_names = FALSE)
   } else {  # list of SumExp
-    lst_df <- lapply(sumexp_lst, .merge_sample_info_and_feature_data, mat_id, intact_feature_cols)
+    lst_df <- lapply(sumexp_lst, merge_s_f_add_target_is)
     names(lst_df) <- paste("Batch", names(lst_df))
     writexl::write_xlsx(lst_df, path = out_file, format_headers = FALSE, col_names = FALSE)
   }
