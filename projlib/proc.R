@@ -178,7 +178,7 @@ get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
       # Replace the values of the closest internal standard features in the original matrix
       # with the values of the closest internal standard features in the compound class
       out$mat[is_sub_quant, ] <- g_out$mat
-      out$idx[is_sub_quant] <- g_out$idx
+      out$feat_nm[is_sub_quant] <- g_out$feat_nm
     }
   }
   return(out)
@@ -195,7 +195,7 @@ get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   # dim(mat) == dim(se) Not dim(istd_se)
   mat <- istd_se[[mat_id]][i_closest, , drop = FALSE]
   rownames(mat) <- rownames(se)
-  list(mat = mat, idx = i_closest)
+  list(mat = mat, feat_nm = SumExp::row_df(istd_se)$feature_name[i_closest])
 }
 
 #' Get the LOESS fit model

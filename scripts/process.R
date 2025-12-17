@@ -149,8 +149,7 @@ closest_istd <- proc$get_value_idx_of_closest_istd(
 )
 proc_sumexp[["closest_norm"]] <- (proc_sumexp[["raw"]] / closest_istd$mat) |>
   labelled::set_variable_labels("Closest RT normalized")
-SumExp::row_df(proc_sumexp)[["closest_istd"]] <-
-  SumExp::row_df(internal_std_se)$feature_name[closest_istd$idx]
+SumExp::row_df(proc_sumexp)[["closest_istd"]] <- closest_istd$feat_nm
 cat("Closest internal standard normalization is done.\n")
 
 ##  NORMALIZE - LOESS FIT OVER RT  -------------------------
