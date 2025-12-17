@@ -75,19 +75,23 @@ for (ii in seq_along(mat_ids_to_export)) {
     out_file = FILE$o$norm[[ii]],
     is_closest_norm = mat_id == "closest_norm"
   )
+  cat(glue::glue("{mat_id} data has been saved to {basename(FILE$o$norm[[ii]])}."), "\n")
 
+  blk_mat_id <- util$mat_id_of_blank_subtracted(mat_id)
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized - blank"]],   # Already removed internal standards
-    mat_id = util$mat_id_of_blank_subtracted(mat_id),
+    mat_id = blk_mat_id,
     in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
     out_file = FILE$o$norm_blk[[ii]],
     is_closest_norm = mat_id == "closest_norm"
   )
+  cat(glue::glue("{blk_mat_id} data has been saved to {basename(FILE$o$norm_blk[[ii]])}."), "\n")
 }
 
 # Export concentration values ----------
 if (IS_TARGET_MODE) {
   io$chq_all_files_exist(FILE$i$proc)
+  proc_se_lst <- readRDS(FILE$i$proc)
 
   for (ii in seq_along(mat_ids_to_export)) {
     mat_id <- mat_ids_to_export[ii]
@@ -95,16 +99,13 @@ if (IS_TARGET_MODE) {
     input_mat_id <- mat_id |>
       util$mat_id_of_blank_subtracted()
     # Load the processed data using the specified normalization method
-    lst_proc <- readRDS(FILE$i$proc)[[input_mat_id]]
-    lst_proc <- lapply(lst_proc, \(ea) ea[["concn"]])    # Out of `done`, `calcurve`, `concn`
+    lst_proc <- lapply(proc_se_lst[[input_mat_id]], \(ea) ea[["concn"]])
     msdial$export_concentration_xlsx(
       # Concentration has been computed on the blank subtracted data
       sumexp_lst = lst_proc,
       file = FILE$o$conc[[ii]],
       is_closest_norm = mat_id == "closest_norm"
     )
+    cat(glue::glue("{mat_id} concentration data has been saved to {basename(FILE$o$conc[[ii]])}."), "\n")
   }
 }
-
-cat("Tables have been saved to:\n")      # Avoid a leading space
-cat(paste(unlist(FILE$o), collapse = "\n"), "\n")

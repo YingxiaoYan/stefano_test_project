@@ -288,7 +288,8 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst,
     se_df <- SumExp::row_df(sumexp) |>
       dplyr::rename(`Alignment ID` = alignment_id, `Metabolite name` = feature_name)
     se_df <- if (is_closest_norm) {
-      dplyr::select(se_df, `Alignment ID`, `Metabolite name`, "Target IS" = closest_istd)
+      dplyr::select(se_df, `Alignment ID`, `Metabolite name`, 
+                    "Target IS" = closest_istd, "Target IS (Rt)" = closest_istd_rt)
     } else {
       dplyr::select(se_df, `Alignment ID`, `Metabolite name`)
     }
@@ -404,6 +405,7 @@ tbl_chemical_summary <- function(sumexp) {
       mz = mz[1L],
       .rt = .rt[1L],
       closest_istd = closest_istd[1L],
+      closest_istd_rt = closest_istd_rt[1L],
       unit = unit[1L],
       dplyr::across(c(n_det, n_samples), ~ sum(.x, na.rm = TRUE)),
       model_r2 = mean(model_r2, na.rm = TRUE),
@@ -429,7 +431,7 @@ tbl_chemical_summary <- function(sumexp) {
   if (is_closest_norm) {
     out <- dplyr::bind_cols(
       out,
-      dplyr::select(tbl, "Target IS" = closest_istd) 
+      dplyr::select(tbl, "Target IS" = closest_istd, "Target IS (Rt)" = closest_istd_rt) 
     )
   }
   out
@@ -471,7 +473,7 @@ tbl_chemical_summary <- function(sumexp) {
   if (is_closest_norm) {
     out <- dplyr::bind_cols(
       out,
-      dplyr::select(tbl, "Target IS" = closest_istd) 
+      dplyr::select(tbl, "Target IS" = closest_istd, "Target IS (Rt)" = closest_istd_rt) 
     )
   }
   out

@@ -151,11 +151,11 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
 #' @param verbose A logical value indicating whether to show messages
 #' @returns A list of two elements:
 #' * `mat`: a numeric matrix of the values of the closest internal standard features
-#' * `idx`: the indices of the closest internal standard features in the rows of `istd_se`
-#' @md
+#' * `feat_nm`: the names of the closest internal standards
+#' * `rt`: the retention times of the closest internal standards
 #' @export
-get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
-  out <- get_value_idx_of_closest_istd_in_class(se, istd_se, mat_id)
+get_data_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
+  out <- get_data_of_closest_istd_in_class(se, istd_se, mat_id)
   # When any compound target classes are specified
   istd_std_type <- util$std_type(istd_se)
   is_sub_istd <- grepl("^IS\\\\", istd_std_type)
@@ -174,20 +174,20 @@ get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {
         warning(paste0("No quantification features for the compound class: ", g))
         next
       }
-      g_out <- get_value_idx_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
+      g_out <- get_data_of_closest_istd_in_class(g_se, g_istd_se, mat_id)
       # Replace the values of the closest internal standard features in the original matrix
       # with the values of the closest internal standard features in the compound class
       out$mat[is_sub_quant, ] <- g_out$mat
       out$feat_nm[is_sub_quant] <- g_out$feat_nm
+      out$rt[is_sub_quant] <- g_out$rt
     }
   }
   return(out)
 }
-#' @rdname get_value_idx_of_closest_istd
-#' [get_value_idx_of_closest_istd_in_class()] is a helper function to get the values of the
+#' @rdname get_data_of_closest_istd
+#' [get_data_of_closest_istd_in_class()] is a helper function to get the values of the
 #' closest internal standard features within each subgroup.
-#' @md
-get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
+get_data_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   rt_x <- util$retention_time(se)
   rt_istd <- util$retention_time(istd_se)
   # Find the closest internal standard feature
@@ -195,7 +195,11 @@ get_value_idx_of_closest_istd_in_class <- function(se, istd_se, mat_id) {
   # dim(mat) == dim(se) Not dim(istd_se)
   mat <- istd_se[[mat_id]][i_closest, , drop = FALSE]
   rownames(mat) <- rownames(se)
-  list(mat = mat, feat_nm = SumExp::row_df(istd_se)$feature_name[i_closest])
+  list(
+    mat = mat,
+    feat_nm = SumExp::row_df(istd_se)$feature_name[i_closest],
+    rt = util$retention_time(istd_se)[i_closest]
+  )
 }
 
 #' Get the LOESS fit model
@@ -350,35 +354,34 @@ split_in_columns_and_sort_by_spiked_conc <- function(cc_se, mat_id) {
 #' @md
 apply_per_spiked_conc <- function(cc_se, mat_id, MARGIN, FUN, ..., simplify = TRUE) { # nolint
   cc_lst <- split_in_columns_and_sort_by_spiked_conc(cc_se, mat_id)
-  
+
   # Checking that calibration standards are increasing with higher conc and if
   # not replacing lower signals with 0
-  
+
   # Creating df with ncol = number of concentration points and nrow = number of compounds
-  cal_curve_df <- data.frame(matrix(ncol=length(cc_lst), nrow=nrow(cc_se)))
+  cal_curve_df <- data.frame(matrix(ncol = length(cc_lst), nrow = nrow(cc_se)))
   rownames(cal_curve_df) <- rownames(cc_se)
   colnames(cal_curve_df) <- names(cc_lst)
-  
+
   # Looping through all concentrations and averaging all injections of same conc
   # for all compounds simultaneously
-  for(i in seq_len(length(cc_lst))){
-    cal_curve_df[,i] <- rowMeans(cc_lst[[i]])
+  for (i in seq_len(length(cc_lst))) {
+    cal_curve_df[, i] <- rowMeans(cc_lst[[i]])
   }
 
   # Checking starting index of increase for all compounds
   start_ind <- list()
-  for(comp in seq_len(nrow(cal_curve_df))){
-    
-    start_ind <- find_increasing_start(cal_curve_df[comp,])
+  for (comp in seq_len(nrow(cal_curve_df))) {
+    start_ind <- find_increasing_start(cal_curve_df[comp, ])
 
-    if(start_ind > 1){ #Change to 2 here if 0 always kept
-      
-      for(lst_ind in seq_len((start_ind-1))){ #Remove first if 0 always kept seq_len((start_ind-1))[-1]
-        cc_lst[[lst_ind]][comp,] <- rep(0, ncol(cc_lst[[lst_ind]]))
+    if (start_ind > 1) { # Change to 2 here if 0 always kept
+
+      for (lst_ind in seq_len((start_ind - 1))) { # Remove first if 0 always kept seq_len((start_ind-1))[-1]
+        cc_lst[[lst_ind]][comp, ] <- rep(0, ncol(cc_lst[[lst_ind]]))
       }
     }
   }
-  
+
   sapply(cc_lst, apply, MARGIN, FUN, ..., simplify = TRUE)
 }
 
@@ -577,7 +580,7 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
   n_uniq_conc <- length(uniq_conc)
   # Indices of the minimum/maximum concentration points
   i_min <- match(min_conc, uniq_conc)
-  i_max <- match(max_conc, c(0, uniq_conc)) - 1   # If `max_conc` == 0, take the largest range
+  i_max <- match(max_conc, c(0, uniq_conc)) - 1 # If `max_conc` == 0, take the largest range
   # Counting from minimum
   i_enough_from_min <- i_min + enough_n - 1
   # Find the indices of the maximums that provide enough number of spiked concentration points
@@ -683,7 +686,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   conc_pts <- as.numeric(colnames(mat_m))
   # Anton: If user decided to keep all cal points then no filtering performed
   # Reusing old, copied code from "max_conc_for_curve" to ascertain functionality 
-  if(!optimize_cal_points){
+  if (!optimize_cal_points) {
     out <- rep(max(as.numeric(colnames(mat_m))), nrow(mat_m))
     names(out) <- rownames(mat_m)
     max_c_conc <- labelled::set_label_attribute(out, "Maximum Concentration")

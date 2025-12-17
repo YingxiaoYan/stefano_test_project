@@ -37,7 +37,7 @@ Handles **reading and writing** MS-DIAL raw and processed data:
 
 - **Zero imputation**: `impute_zeros_with_mean_of_same_type()` handles missing values
 - **Quality control**: `count_outliers_per_sample()` identifies outlying internal standard features
-- **Internal standard normalization**: `get_value_idx_of_closest_istd()` finds closest internal standards by retention time
+- **Internal standard normalization**: `get_data_of_closest_istd()` finds closest internal standards by retention time
 - **LOESS normalization**: `get_loess_fit()` performs retention time-based normalization
 - **Blank subtraction**: `add_blank_subtracted_sumexp()` subtracts blank sample averages
 - **Calibration curve fitting**: Functions for working range determination, model fitting (linear, quadratic, weighted), and concentration calculation

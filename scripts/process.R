@@ -7,15 +7,18 @@
 # The options are used to control the processing steps
 option_list <- rlang::list2(
   optparse::make_option(
-    c("--optimize_cal_points"), type = "logical", default = TRUE,
+    c("--optimize_cal_points"),
+    type = "logical", default = TRUE,
     help = "Optimize cal curves to exclude points outside sample range [default: %default]"
   ),
   optparse::make_option(
-    c("--rm_outlier"), type = "logical", default = TRUE,
+    c("--rm_outlier"),
+    type = "logical", default = TRUE,
     help = "Quality control: remove outlier samples [default: %default]"
   ),
   optparse::make_option(
-    c("--log_calibration"), type = "logical", default = FALSE,
+    c("--log_calibration"),
+    type = "logical", default = FALSE,
     help = "Log scale for calibration curve fitting [default: %default]"
   ),
   optparse::make_option(
@@ -33,7 +36,8 @@ option_list <- rlang::list2(
     help = "Method to compute LOD/LLOQ"
   ),
   optparse::make_option(
-    c("--use_rsd20"), type = "logical", default = TRUE,
+    c("--use_rsd20"),
+    type = "logical", default = TRUE,
     help = "Use RSD% 20% threshold for LLOQ [default: %default]"
   )
 )
@@ -58,9 +62,9 @@ cat(
 options(box.path = "code/") # Path to project local libraries
 box::use(
   SumExp, # Light SummarizedExperiment, `[`
-  projlib / msdial, # Handle MS-Dial files
-  util = projlib / msdial_utils, # Utility functions for MS-Dial data
-  projlib / proc, # Processing functions
+  projlib/msdial, # Handle MS-Dial files
+  util = projlib/msdial_utils, # Utility functions for MS-Dial data
+  projlib/proc, # Processing functions
 )
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
@@ -141,15 +145,21 @@ if (params$rm_outlier) { # Controlled by the command line option
 }
 
 ##  NORMALIZE - CLOSEST INTERNAL STANDARD FEATURES  --------
-
-closest_istd <- proc$get_value_idx_of_closest_istd(
-  se = proc_sumexp,
-  istd_se = internal_std_se,
-  mat_id = "raw"
-)
-proc_sumexp[["closest_norm"]] <- (proc_sumexp[["raw"]] / closest_istd$mat) |>
-  labelled::set_variable_labels("Closest RT normalized")
-SumExp::row_df(proc_sumexp)[["closest_istd"]] <- closest_istd$feat_nm
+proc_sumexp <- list(se = proc_sumexp, mat_id = "raw", istd_se = internal_std_se, proc = proc) |>
+  list2env(parent = baseenv()) |>  # To make sure all required objects are listed here
+  local(envir = _, {   # Control scope, like a function
+    closest_istd <- proc$get_data_of_closest_istd( # @returns mat, feat_nm, rt
+      se = se,
+      istd_se = istd_se,
+      mat_id = mat_id,
+      verbose = TRUE
+    )
+    se[["closest_norm"]] <- (se[[mat_id]] / closest_istd$mat) |>
+      labelled::set_variable_labels("Closest RT normalized")
+    SumExp::row_df(se)[["closest_istd"]] <- closest_istd$feat_nm
+    SumExp::row_df(se)[["closest_istd_rt"]] <- closest_istd$rt
+    return(se)
+  })
 cat("Closest internal standard normalization is done.\n")
 
 ##  NORMALIZE - LOESS FIT OVER RT  -------------------------
@@ -179,7 +189,7 @@ cat("LOESS normalization is done.\n")
 
 ##  END OF INTERNAL STANDARD PROCESSING  -------------------
 to_report[["normalized"]] <- proc_sumexp # Final internal standard normalized data
-proc_sumexp <- proc_sumexp[! util$is_internal_std(proc_sumexp), ]   # Remove internal standards
+proc_sumexp <- proc_sumexp[!util$is_internal_std(proc_sumexp), ] # Remove internal standards
 
 #  -----  BLANK SUBTRACTION  ---------------------------------------------------
 
@@ -299,9 +309,12 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   calcurve_se[[mat_id]] <- util$extract_with_na(calcurve_se[[mat_id]], i = has_proper_range)
 
   # Fit the calibration curve
-  e <- list(cc_se = calcurve_se, mat_id = mat_id, in_log = in_log, w_method = params$weight) |>
-    list2env(parent = .GlobalEnv)   # Include base & make sure all arguments are given
-  calcurve_models <- local(envir = e, {
+  e <- list(
+    cc_se = calcurve_se, mat_id = mat_id, in_log = in_log, w_method = params$weight, 
+    util = util, proc = proc
+  ) |>
+    list2env(parent = baseenv())  # To make sure all required objects are listed here
+  calcurve_models <- local(envir = e, { # Control scope, like a function
     c_concs <- util$spiked_conc_pts(cc_se)
     if (in_log) {
       c_concs <- log(c_concs) # The signal in `[[mat_id]]` is assumed to be log-transformed already.
@@ -319,7 +332,7 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
       )
     })
     names(out) <- rownames(cc_se)
-    out
+    return(out)
   })
   SumExp::row_df(concn_se) <- SumExp::row_df(concn_se) |>
     dplyr::mutate(calcurve_model = calcurve_models)
@@ -350,7 +363,7 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
     labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
 
   return(list(
-    done = TRUE, 
+    done = TRUE,
     calcurve = calcurve_se, # Calibration points. No model, but includes info about ranges
     concn = concn_se # Concentrations after calibration. Includes models and flags
   ))
@@ -405,7 +418,7 @@ for (mat_id_to_calib in mat_ids_after_blk_subt) {
         identical(colnames(cal_batch$calcurve), colnames(batch_in_global$calcurve))
       })
     }
-    
+
     if (cal_batch$done) { # At least one chemical has proper calibration range
       has_proper_range <- SumExp::row_df(cal_batch$calcurve)[, "has_proper_range"]
       # Source of calibration curve
@@ -426,15 +439,15 @@ for (mat_id_to_calib in mat_ids_after_blk_subt) {
           cal_batch$concn[["conc"]][in_only_global, ] <- batch_in_only_global$concn[["conc"]]
           cal_batch$concn[["conc0"]][in_only_global, ] <- batch_in_only_global$concn[["conc0"]]
           # colnames(SumExp::row_df(cal_batch$concn))
-          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"       
-          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"            
-          # [11] "lloq_avg_signal"  "has_proper_range" "calcurve_model"   "to_export"       
+          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"
+          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"
+          # [11] "lloq_avg_signal"  "has_proper_range" "calcurve_model"   "to_export"
           SumExp::row_df(cal_batch$concn)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$concn)
           # Replace information of the calibration curve with the one from global calibration
           # colnames(SumExp::row_df(cal_batch$calcurve))
-          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"       
-          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"            
-          # [11] "lloq_avg_signal"  "has_proper_range" "src_calcurve"     
+          # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"
+          # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"
+          # [11] "lloq_avg_signal"  "has_proper_range" "src_calcurve"
           SumExp::row_df(cal_batch$calcurve)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$calcurve)
         }
       }
