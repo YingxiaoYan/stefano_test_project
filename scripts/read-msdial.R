@@ -3,6 +3,13 @@
 # NOTE: This script is designed to work with the utility functions in `projlib/msdial_utils.R`.
 #   Please check the functions in the chapter "Variables used in `read-msdial.R`" of the file
 #   whenever this script is modified.
+# This script stops if there is ... in the input file.
+# - no blank
+# - no Cal0
+# - not multiple samples per pt.
+# - problem in calibration sample ID e.g. "Cal3-2-1"
+# - no internal standard
+# - no missing `Batch ID`
 # ------------------------------------------------------------------------------------------- #
 
 # Handle command line options     ---------------
@@ -165,9 +172,9 @@ for (i_batch in batch_ids) {
   if (!any(sinfo_b$.ctrl_cat == "Blank")) {
     stop("`Blank` samples are required in batch ", i_batch)
   }
-  for (cat in c("CalCurve", "QC")) {
-    if (!any(sinfo_b$.ctrl_cat == cat)) {
-      warning("`", cat, "` samples are missing in batch ", i_batch)
+  for (catx in c("CalCurve", "QC")) {
+    if (!any(sinfo_b$.ctrl_cat == catx)) {
+      warning("`", catx, "` samples are missing in batch ", i_batch)
       is_non_target_mode <- TRUE
     }
   }

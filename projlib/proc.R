@@ -151,7 +151,7 @@ count_outliers_per_sample <- function(se, mat_id, times = 3) {
 #' @param verbose A logical value indicating whether to show messages
 #' @returns A list of two elements:
 #' * `mat`: a numeric matrix of the values of the closest internal standard features
-#' * `idx`: an integer vector of the indices of the closest internal standard features
+#' * `idx`: the indices of the closest internal standard features in the rows of `istd_se`
 #' @md
 #' @export
 get_value_idx_of_closest_istd <- function(se, istd_se, mat_id, verbose = TRUE) {

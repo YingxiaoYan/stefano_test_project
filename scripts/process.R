@@ -150,7 +150,7 @@ closest_istd <- proc$get_value_idx_of_closest_istd(
 proc_sumexp[["closest_norm"]] <- (proc_sumexp[["raw"]] / closest_istd$mat) |>
   labelled::set_variable_labels("Closest RT normalized")
 SumExp::row_df(proc_sumexp)[["closest_istd"]] <-
-  SumExp::row_df(proc_sumexp)$feature_name[closest_istd$idx]
+  SumExp::row_df(internal_std_se)$feature_name[closest_istd$idx]
 cat("Closest internal standard normalization is done.\n")
 
 ##  NORMALIZE - LOESS FIT OVER RT  -------------------------
@@ -226,16 +226,17 @@ cat("Blank subtraction is done.\n")
 #  -----  CALIBRATION USING CALCURVE  ------------------------------------------
 
 #' Mark the expected processing has been completed
-mark_completed <- function() {
-  cat("Processing steps are completed.\nSaving intermediate data during the processing...\n")
+mark_completed_and_save_to_report <- function() {
+  cat("Processing steps are completed.\n")
+  cat("Saving intermediate data during the processing...\n")
   to_report[["Completed"]] <- TRUE
-  saveRDS(to_report, FILE$to_rep)
+  saveRDS(to_report, file = FILE$to_rep)
   cat("The intermediate data saved to:", FILE$to_rep, "\n")
 }
 # When the data is produced without any targets (no calibration points), skip calibration
 if (IS_NON_TARGET_MODE) {
   warning("NO CALIBRATION under non-target mode.")
-  mark_completed()
+  mark_completed_and_save_to_report()
   proc$stop_quietly()
 }
 
@@ -461,4 +462,4 @@ saveRDS(lst_proc, file = FILE$proc)
 cat("The `SumExp` object after processing saved to:", FILE$proc, "\n")
 
 # Mark the processing step as completed
-mark_completed()
+mark_completed_and_save_to_report()
