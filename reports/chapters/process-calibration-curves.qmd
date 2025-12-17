@@ -48,6 +48,7 @@ calcurve_to_show_df <- calcurve_to_show_df |>
   dplyr::mutate(
     "c_type" = dplyr::case_when(
       .cc_pt >= min_c_conc & .cc_pt <= max_c_conc ~ "Within limits",
+      .cc_pt == lod ~ "LOD",
       .cc_pt == 0 ~ "Cal0",
       TRUE ~ "Out-of-range"
     )
@@ -95,7 +96,8 @@ calcurve_plot <- function(dfm, y = params$norm_method) {
       values = c(
         "Within limits" = "green4",
         "Out-of-range" = "gray",
-        "Cal0" = "blue"
+        "Cal0" = "red",
+        "LOD" = "blue"
       )
     ) +
     facet_wrap(~ feature_name, scales = "free", ncol = 1) +
