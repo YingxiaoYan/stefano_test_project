@@ -35,7 +35,7 @@ runReadMsdialServer <- function(serverId, data_info) {
   runScriptServer(
     serverId, 
     script_path = "scripts/read-msdial.R", 
-    what = "Read MS-Dial", 
+    what = "User data information saved successfully.\nRead MS-Dial", 
     param_ids = c("per_batch"),
     data_info = data_info
   )
