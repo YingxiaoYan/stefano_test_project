@@ -88,7 +88,7 @@ runScriptServer <- function(serverId, script_path, what, param_ids = NULL, data_
           output_txt(paste(output_txt(), all_lines, "", sep = "\n"))
         }
         if (! p$is_alive()) {    # Process has finished
-          output_txt(paste(output_txt(), "File successfully read!", sep = "\n"))
+          output_txt(paste(output_txt(), "Data successfully processed!", sep = "\n"))
           proc(NULL)  # Clear the process object
         }
       })

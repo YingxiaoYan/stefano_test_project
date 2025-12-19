@@ -7,7 +7,8 @@ box::use(
   util = ./msdial_utils
 )
 
-# Project Parameters ---------------------------------------------------------------------
+
+# -----  PROJECT PARAMETERS  ---------------------------------------------------
 
 #' Find the `userin` has the required inputs
 #'
@@ -77,7 +78,7 @@ read_parsed_msdial_data <- function(user_inputs) {
 }
 
 
-# Read MS-DIAL Files ---------------------------------------------------------------------
+# -----  READ MS-DIAL FILES  ---------------------------------------------------
 
 #' Identify three column sections in a MS-DIAL output file
 #' 
@@ -189,7 +190,7 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
 }
 
 
-# Export Data ----------------------------------------------------------------------------
+# -----  EXPORT DATA  ----------------------------------------------------------
 
 #' Find the number of decimal places for rounding
 #' 

@@ -191,6 +191,7 @@ cat("LOESS normalization is done.\n")
 to_report[["normalized"]] <- proc_sumexp # Final internal standard normalized data
 proc_sumexp <- proc_sumexp[!util$is_internal_std(proc_sumexp), ] # Remove internal standards
 
+
 #  -----  BLANK SUBTRACTION  ---------------------------------------------------
 
 # Matrix IDs to perform blank subtraction. Raw + normalized matrices
@@ -231,6 +232,7 @@ proc_sumexp <- proc$add_blank_subtracted_sumexp(
   out_mat_ids = mat_ids_after_blk_subt
 )
 cat("Blank subtraction is done.\n")
+
 
 #  -----  CALIBRATION USING CALCURVE  ------------------------------------------
 
