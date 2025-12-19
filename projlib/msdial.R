@@ -302,12 +302,11 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst,
   
   # Prepare the data table
   if (inherits(sumexp_lst, "SumExp")) {
-    merge_s_f_add_target_is(sumexp_lst) |>
-      writexl::write_xlsx(path = out_file, format_headers = FALSE, col_names = FALSE)
+    openxlsx::write.xlsx(merge_s_f_add_target_is(sumexp_lst), file=out_file)
   } else {  # list of SumExp
     lst_df <- lapply(sumexp_lst, merge_s_f_add_target_is)
     names(lst_df) <- paste("Batch", names(lst_df))
-    writexl::write_xlsx(lst_df, path = out_file, format_headers = FALSE, col_names = FALSE)
+    openxlsx::write.xlsx(lst_df, file=out_file)
   }
 }
 
@@ -508,6 +507,7 @@ tbl_chemical_summary <- function(sumexp) {
 #'   standard information in the exported table.
 #' @export
 export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE) {
+  
   stopifnot(is.list(sumexp_lst))
   for (ii in seq_along(sumexp_lst)) {
     se <- sumexp_lst[[ii]]
@@ -780,7 +780,5 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     }
     
     openxlsx::saveWorkbook(wb, file, overwrite = T)
-    # c(list("Full" = all_batches_to_export_table), per_batch_to_export_table) |>
-    #   writexl::write_xlsx(path = file, format_headers = FALSE, col_names = FALSE)
   }
 }  

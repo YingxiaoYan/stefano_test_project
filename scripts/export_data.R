@@ -76,7 +76,6 @@ for (ii in seq_along(mat_ids_to_export)) {
     is_closest_norm = mat_id == "closest_norm"
   )
   cat(glue::glue("{mat_id} data has been saved to {basename(FILE$o$norm[[ii]])}."), "\n")
-
   blk_mat_id <- util$mat_id_of_blank_subtracted(mat_id)
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized - blank"]],   # Already removed internal standards
@@ -92,7 +91,7 @@ for (ii in seq_along(mat_ids_to_export)) {
 if (IS_TARGET_MODE) {
   io$chq_all_files_exist(FILE$i$proc)
   proc_se_lst <- readRDS(FILE$i$proc)
-
+  
   for (ii in seq_along(mat_ids_to_export)) {
     mat_id <- mat_ids_to_export[ii]
     # The ID of the matrix to use for calibration
