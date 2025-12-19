@@ -299,7 +299,7 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst,
     # Merge sample info and updated feature data
     .merge_sample_info_and_feature_data(sumexp, mat_id, feat_tbl)
   }
-
+  
   # Prepare the data table
   if (inherits(sumexp_lst, "SumExp")) {
     merge_s_f_add_target_is(sumexp_lst) |>
@@ -345,7 +345,7 @@ tbl_chemical_summary <- function(sumexp) {
       min = apply(mat_original, 1, min),
       max = apply(mat, 1, max),
     )
- 
+  
   # Write an equation for the calibration curve model
   get_equation <- function(cc_model) {
     num_f <- function(x) {
@@ -380,7 +380,7 @@ tbl_chemical_summary <- function(sumexp) {
     out
   }) |>
     dplyr::bind_rows()
-
+  
   cbind(conc_summary, m_sum) |>
     dplyr::select(-calcurve_model) |>
     dplyr::mutate(
@@ -565,20 +565,19 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     .merge_sample_info_and_feature_data(se, "conc", chem_col)
   })
   
-  
   # It had batch ID only, e.g. "1", "all"
   names(per_batch_to_export_table) <- paste("Batch", names(sumexp_lst))
   
   # Setting up stylization for excel documents
-  half_style <- openxlsx::createStyle(fgFill = "yellow")
-  quarter_style <- openxlsx::createStyle(fgFill = "red")
+  half_style <- openxlsx::createStyle(fgFill = "#FCEACF", numFmt = "NUMBER")
+  quarter_style <- openxlsx::createStyle(fgFill = "#FAAFAF", numFmt = "NUMBER")
   
   # Making a range from which to pick out actual data of final format
   row_range <- attr(per_batch_to_export_table[[1L]], "rows_of_values")
   col_range <- attr(per_batch_to_export_table[[1L]], "cols_of_values")
   offset_row <- min(row_range) - 1
   offset_col <- min(col_range) - 1
-
+  
   # If only 1 batch / all batches evaluated together
   if (length(sumexp_lst) == 1L) {
     
@@ -595,6 +594,45 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     vals <- per_batch_to_export_table[[1L]][row_range,
                                             col_range]
     vals <- as.data.frame(sapply(vals, as.numeric))
+    
+    # Saving area values as numeric into excel
+    openxlsx::writeData(wb,
+                        sheet=1,
+                        x=vals,
+                        startCol=col_range[1],
+                        startRow=offset_row)
+    
+    # Converting number columns in excel to numeric format
+    # Checking if value is text by converting to double and if not then overwrite
+    # within document
+    for(i in seq_len(offset_col)){
+      suppressWarnings(col_as_double <- as.double(per_batch_to_export_table[[1L]][c(min(row_range):max(row_range)),i]))
+      if(sum(is.na(col_as_double)) != length(col_as_double)){
+        openxlsx::writeData(wb,
+                            sheet=1,
+                            x=as.data.frame(col_as_double),
+                            startCol=i,
+                            startRow=(offset_row+1),
+                            colNames = F)
+      }
+    }
+    
+    # Converting the two rows of numbers to numeric format
+    row_as_int <- as.integer(per_batch_to_export_table[[1L]][3, col_range])
+    openxlsx::writeData(wb,
+                        sheet=1,
+                        x=as.data.frame(t(row_as_int)),
+                        startCol=min(col_range),
+                        startRow=3,
+                        colNames = F)
+    
+    row_as_int <- as.integer(per_batch_to_export_table[[1L]][5, col_range])
+    openxlsx::writeData(wb,
+                        sheet=1,
+                        x=as.data.frame(t(row_as_int)),
+                        startCol=min(col_range),
+                        startRow=5,
+                        colNames = F)
     
     # Making LLOQ vector
     LLOQs <- as.numeric(per_batch_to_export_table[[1L]]$LLOQ[row_range])
@@ -638,7 +676,7 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
         }
       }
     }
-
+    
     openxlsx::saveWorkbook(wb, file, overwrite = T)
   } else {  # Multiple batches
     wb <- openxlsx::createWorkbook()
@@ -659,8 +697,46 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
       
       # Making number exclusive data frame of conc after imputation
       vals <- per_batch_to_export_table[[i]][row_range,
-                                              col_range]
+                                             col_range]
       vals <- as.data.frame(sapply(vals, as.numeric))
+      
+      # Saving area values as numeric into excel
+      openxlsx::writeData(wb,
+                          sheet=(i+1),
+                          x=vals,
+                          startCol=col_range[1],
+                          startRow=offset_row)
+      
+      # Checking if value is text by converting to double and if not then overwrite
+      # within document
+      for(j in seq_len(offset_col)){
+        suppressWarnings(col_as_double <- as.double(per_batch_to_export_table[[i]][c(min(row_range):max(row_range)),j]))
+        if(sum(is.na(col_as_double)) != length(col_as_double)){
+          openxlsx::writeData(wb,
+                              sheet=(i+1),
+                              x=as.data.frame(col_as_double),
+                              startCol=j,
+                              startRow=(offset_row+1),
+                              colNames = F)
+        }
+      }
+      
+      # Converting the two rows of numbers to numeric format
+      row_as_int <- as.integer(per_batch_to_export_table[[i]][3, col_range])
+      openxlsx::writeData(wb,
+                          sheet=1,
+                          x=as.data.frame(t(row_as_int)),
+                          startCol=min(col_range),
+                          startRow=3,
+                          colNames = F)
+      
+      row_as_int <- as.integer(per_batch_to_export_table[[i]][5, col_range])
+      openxlsx::writeData(wb,
+                          sheet=1,
+                          x=as.data.frame(t(row_as_int)),
+                          startCol=min(col_range),
+                          startRow=5,
+                          colNames = F)
       
       # Making LLOQ vector
       LLOQs <- as.numeric(per_batch_to_export_table[[i]]$LLOQ[row_range])
