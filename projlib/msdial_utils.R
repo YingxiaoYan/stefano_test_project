@@ -39,12 +39,12 @@ std_type <- function(sumexp) {
   SumExp::row_df(sumexp)[[".std_type"]]
 }
 
-#' Get if the features are targeted features
+#' Get which features are targeted features
 #'
 #' @param x A [`SumExp::SumExp`] object or a character vector of standard types
 #' @param ... Not used
 #'
-#' @returns A logical vector indicating whether the feature is a targeted feature
+#' @returns A logical vector indicating which features are targeted features
 #' @export
 is_targeted_feature <- function(x, ...) {
   UseMethod("is_targeted_feature")
@@ -62,11 +62,11 @@ is_targeted_feature.SumExp <- function(x) {
     is_targeted_feature.character()
 }
 
-#' Get if the features are internal standards
+#' Get which features are internal standards
 #'
 #' @param x A [`SumExp::SumExp`] object or a character vector of standard types
 #' @param ... Not used
-#' @returns A logical vector indicating whether the feature is an internal standard
+#' @returns A logical vector indicating which features are internal standards
 #' @export
 is_internal_std <- function(x, ...) {
   UseMethod("is_internal_std")
@@ -131,6 +131,16 @@ extract_ctrl_smpl_cat <- function(sumexp, cat) {
   sumexp[, !is.na(s_cat) & (s_cat %in% cat)]
 }
 
+#' Get which samples are calibration curve samples
+#'
+#' @param sumexp A [`SumExp::SumExp`] object including calibration curve samples
+#' @returns A logical vector indicating which samples are calibration curve samples
+#' @export
+is_calcurve_sample <- function(sumexp) {
+  stopifnot(inherits(sumexp, "SumExp"))
+  ctrl_smpl_cat(sumexp) == "CalCurve"
+}
+
 #' Split the columns of a [`SumExp::SumExp`] object into the calibration curve and the other
 #'
 #' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
@@ -140,18 +150,8 @@ extract_ctrl_smpl_cat <- function(sumexp, cat) {
 #' @export
 split_into_calcurve_and_other <- function(sumexp, out_names = c("CalCurve", "Other")) {
   stopifnot(length(out_names) == 2)
-  g <- ifelse(ctrl_smpl_cat(sumexp) == "CalCurve", out_names[1], out_names[2])
+  g <- ifelse(is_calcurve_sample(sumexp), out_names[1], out_names[2])
   SumExp::split_columns(sumexp, g)
-}
-
-#' Get calibration curve samples
-#'
-#' @param sumexp A [`SumExp::SumExp`] object including the calibration curve samples
-#' @returns A [`SumExp::SumExp`] object with the calibration curve samples
-#' @export
-calcurve_samples <- function(sumexp) {
-  stopifnot(inherits(sumexp, "SumExp"))
-  sumexp[, ctrl_smpl_cat(sumexp) == "CalCurve"]
 }
 
 #' The name of the column containing the spiked concentration points

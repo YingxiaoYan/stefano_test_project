@@ -125,13 +125,13 @@ All the other lines follows the same format as one batch mode tables.
 
 ## Contents
 
-Values of all features except failed internal standards in samples of `QC` and `Sample`.
+Values of all features except internal standards in samples of `QC` and `Sample`.
 The values are normalized or normalized and blank subtracted.
 The data of the `QC` samples are presented ahead of the `Sample` samples.
 The `Blank` and `Standard` samples are not included in this table.
 If any outlier samples are detected, they are not included in this table.
 
-## Table format
+## One batch mode
 
 ### First 5 lines of the 2nd column section for sample information
 
@@ -140,6 +140,17 @@ The first 5 lines are `Class`, `File type`, `Injection order`, `Batch ID` and `G
 `Batch ID` is set to `all`.
 
 ### Starting from the 6th line
+
+The feature information column section (1st section) is a reordered copy of the same section in the input file.
+
+## Multi batch mode
+
+### First 4 lines of the 2nd column section for sample information
+
+The first 4 lines are `Class`, `File type`, `Injection order` and `Batch ID`.
+`Batch ID` is a copy of `Batch ID` from the input file.
+
+### Starting from the 5th line
 
 The feature information column section (1st section) is a reordered copy of the same section in the input file.
 

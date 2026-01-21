@@ -258,6 +258,19 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   out
 }
 
+#' Remove calibration curve samples
+.remove_calcurve_samples <- function(sumexp) {
+  sumexp[, !util$is_calcurve_sample(sumexp)]
+}
+
+#' Reorder the samples as QC first
+.reorder_samples_as_qc_first <- function(sumexp) {
+  batch_ids <- as.character(SumExp::col_df(sumexp)[["batch_id"]])
+  is_not_qc <- util$ctrl_smpl_cat(sumexp) != "QC"   # FALSE is smaller, so QC samples come first
+  ord <- order(batch_ids, is_not_qc)
+  sumexp[, ord]
+}
+
 #' Export data with the feature table to a Excel `xlsx` file
 #'
 #' @param sumexp_lst A [ㅏSumExp::SumExp`] object or a list of such objects.
@@ -299,14 +312,23 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst,
     # Merge sample info and updated feature data
     .merge_sample_info_and_feature_data(sumexp, mat_id, feat_tbl)
   }
-  
+
+  #' Filter and reorder the samples and merge sample info and feature data
+  filter_and_reorder_samples_and_merge_s_f <- function(sumexp) {
+    sumexp[, util$ctrl_smpl_cat(sumexp) != "Blank"] |> 
+      .remove_calcurve_samples() |> 
+      .reorder_samples_as_qc_first() |> 
+      merge_s_f_add_target_is()
+  }
+
   # Prepare the data table
   if (inherits(sumexp_lst, "SumExp")) {
-    openxlsx::write.xlsx(merge_s_f_add_target_is(sumexp_lst), file=out_file)
+    se <- filter_and_reorder_samples_and_merge_s_f(sumexp_lst)
+    openxlsx::write.xlsx(se, file = out_file)
   } else {  # list of SumExp
-    lst_df <- lapply(sumexp_lst, merge_s_f_add_target_is)
+    lst_df <- lapply(sumexp_lst, filter_and_reorder_samples_and_merge_s_f)
     names(lst_df) <- paste("Batch", names(lst_df))
-    openxlsx::write.xlsx(lst_df, file=out_file)
+    openxlsx::write.xlsx(lst_df, file = out_file)
   }
 }
 
@@ -520,6 +542,8 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
   in_any <- sapply(sumexp_lst, \(se) SumExp::row_df(se)$to_export)
   in_any <- rowSums(in_any) > 0L
   sumexp_lst <- lapply(sumexp_lst, \(se) se[in_any, ])
+  # Reorder the samples as QC first
+  sumexp_lst <- lapply(sumexp_lst, \(se) .reorder_samples_as_qc_first(se))
   
   # Tablb of all batches
   # Overall summary table
