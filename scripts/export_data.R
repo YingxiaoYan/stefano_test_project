@@ -64,6 +64,11 @@ FILE$o <- local({
 io$mkdir_if_not_exist(dirname(unlist(FILE$o)))
 
 # Export normalized data ----------
+
+# Prepare the original feature table to copy unsaved feature information
+i_sec <- msdial$get_three_section_indices(FILE$i$raw)
+org_feature_table <- msdial$fetch_data_of_columns(FILE$i$raw, i_sec[[1]])
+
 for (ii in seq_along(mat_ids_to_export)) {
   norm_se <- to_report[["normalized"]]
   se <- norm_se[! util$is_internal_std(norm_se), ]   # Remove internal standards
@@ -71,7 +76,7 @@ for (ii in seq_along(mat_ids_to_export)) {
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = se, 
     mat_id = mat_id,
-    in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
+    org_feature_table = org_feature_table,
     out_file = FILE$o$norm[[ii]],
     is_closest_norm = mat_id == "closest_norm"
   )
@@ -80,7 +85,7 @@ for (ii in seq_along(mat_ids_to_export)) {
   msdial$export_data_with_feature_table_xlsx(
     sumexp_lst = to_report[["normalized - blank"]],   # Already removed internal standards
     mat_id = blk_mat_id,
-    in_file = FILE$i$raw,         # Copy feature information from the original MS-DIAL file
+    org_feature_table = org_feature_table,
     out_file = FILE$o$norm_blk[[ii]],
     is_closest_norm = mat_id == "closest_norm"
   )
