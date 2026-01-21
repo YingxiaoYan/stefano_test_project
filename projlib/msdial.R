@@ -263,11 +263,12 @@ fetch_data_of_columns <- function(msdial_file, indices, skip = 4L) {
   sumexp[, !util$is_calcurve_sample(sumexp)]
 }
 
-#' Reorder the samples as QC first
+#' Reorder the samples as QC first and blank last
 .reorder_samples_as_qc_first <- function(sumexp) {
   batch_ids <- as.character(SumExp::col_df(sumexp)[["batch_id"]])
-  is_not_qc <- util$ctrl_smpl_cat(sumexp) != "QC"   # FALSE is smaller, so QC samples come first
-  ord <- order(batch_ids, is_not_qc)
+  is_qc <- util$ctrl_smpl_cat(sumexp) == "QC"
+  is_blank <- util$ctrl_smpl_cat(sumexp) == "Blank"
+  ord <- order(batch_ids, !is_qc, is_blank)  # TRUE is larger. 
   sumexp[, ord]
 }
 
@@ -315,7 +316,7 @@ export_data_with_feature_table_xlsx <- function(sumexp_lst,
 
   #' Filter and reorder the samples and merge sample info and feature data
   filter_and_reorder_samples_and_merge_s_f <- function(sumexp) {
-    sumexp[, util$ctrl_smpl_cat(sumexp) != "Blank"] |> 
+    sumexp |> 
       .remove_calcurve_samples() |> 
       .reorder_samples_as_qc_first() |> 
       merge_s_f_add_target_is()
