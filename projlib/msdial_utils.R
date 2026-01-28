@@ -171,37 +171,57 @@ spiked_conc_pts <- function(cc_se) {
 
 #  -----  VARIABLES CREATED DURING PROCESSING  ---------------------------------
 
-##  CALIBRATION CURVE MODEL  -------------------------------
+##  CALIBRATION --------------------------------------------
 
-#' Get or set the calibration curve model for a given matrix
+#' Get or save the ID of the source matrix used to get concentrations
 #'
 #' @param sumexp A [`SumExp::SumExp`] object
-#' @param mat_id The name of a matrix
-#' @param value The calibration curve model to be stored
+#' @param value The name of a matrix
 #' @returns
-#' [calcurve_model()]: The calibration curve model for the given matrix
-#' [calcurve_model<-()]: The updated [`SumExp::SumExp`] object
+#' [src_mat_id_for_conc()]: The matrix ID of the source matrix used to get concentrations
+#' [save_src_mat_id_for_conc()]: The updated [`SumExp::SumExp`] object
 #' @export
-calcurve_model <- function(sumexp, mat_id) {
+src_mat_id_for_conc <- function(sumexp) {
   stopifnot(inherits(sumexp, "SumExp"))
-  stopifnot(is.character(mat_id), length(mat_id) == 1)
-  SumExp::row_df(sumexp)[[paste0(".calcurve_model_", mat_id)]]
+  SumExp::metadata(sumexp)$src_mat_id_for_conc
 }
-#' @rdname calcurve_model
+#' @rdname src_mat_id_for_conc
 #' @export
-`calcurve_model<-` <- function(sumexp, mat_id, value) {
-  stopifnot(inherits(sumexp, "SumExp"))
-  stopifnot(is.character(mat_id), length(mat_id) == 1)
-  nm <- paste0(".calcurve_model_", mat_id)
-  stopifnot(is.list(value))
-  i_match <- match(names(value), rownames(sumexp))
-  if (any(is.na(i_match))) {
-    stop("Some feature IDs in 'value' are not found in 'sumexp'.")
-  }
-  SumExp::row_df(sumexp)[[nm]] <- NA # Allow missing row names in 'value'
-  SumExp::row_df(sumexp)[[nm]][i_match] <- value
+save_src_mat_id_for_conc <- function(sumexp, value) {  # `src_mat_id_for_conc<-` doesn't work in `box`
+  stopifnot(inherits(sumexp, "SumExp"), is.character(value), length(value) == 1)
+  SumExp::metadata(sumexp)$src_mat_id_for_conc <- value
   sumexp
 }
+
+# #' Get or set the calibration curve model for a given matrix
+# #'
+# #' @param sumexp A [`SumExp::SumExp`] object
+# #' @param mat_id The name of a matrix
+# #' @param value The calibration curve model to be stored
+# #' @returns
+# #' [calcurve_model()]: The calibration curve model for the given matrix
+# #' [calcurve_model<-()]: The updated [`SumExp::SumExp`] object
+# #' @export
+# calcurve_model <- function(sumexp, mat_id) {
+#   stopifnot(inherits(sumexp, "SumExp"))
+#   stopifnot(is.character(mat_id), length(mat_id) == 1)
+#   SumExp::row_df(sumexp)[[paste0(".calcurve_model_", mat_id)]]
+# }
+# #' @rdname calcurve_model
+# #' @export
+# `calcurve_model<-` <- function(sumexp, mat_id, value) {
+#   stopifnot(inherits(sumexp, "SumExp"))
+#   stopifnot(is.character(mat_id), length(mat_id) == 1)
+#   nm <- paste0(".calcurve_model_", mat_id)
+#   stopifnot(is.list(value))
+#   i_match <- match(names(value), rownames(sumexp))
+#   if (any(is.na(i_match))) {
+#     stop("Some feature IDs in 'value' are not found in 'sumexp'.")
+#   }
+#   SumExp::row_df(sumexp)[[nm]] <- NA # Allow missing row names in 'value'
+#   SumExp::row_df(sumexp)[[nm]][i_match] <- value
+#   sumexp
+# }
 
 ##  MATRIX ID  ---------------------------------------------
 

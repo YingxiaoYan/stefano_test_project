@@ -62,9 +62,9 @@ cat(
 options(box.path = "code/") # Path to project local libraries
 box::use(
   SumExp, # Light SummarizedExperiment, `[`
-  projlib/msdial, # Handle MS-Dial files
-  util = projlib/msdial_utils, # Utility functions for MS-Dial data
-  projlib/proc, # Processing functions
+  projlib / msdial, # Handle MS-Dial files
+  util = projlib / msdial_utils, # Utility functions for MS-Dial data
+  projlib / proc, # Processing functions
 )
 # Get the input file name provided by the user
 user_inputs <- msdial$get_user_input("input_file", "intermediate_dir")
@@ -146,8 +146,8 @@ if (params$rm_outlier) { # Controlled by the command line option
 
 ##  NORMALIZE - CLOSEST INTERNAL STANDARD FEATURES  --------
 proc_sumexp <- list(se = proc_sumexp, mat_id = "raw", istd_se = internal_std_se, proc = proc) |>
-  list2env(parent = baseenv()) |>  # To make sure all required objects are listed here
-  local(envir = _, {   # Control scope, like a function
+  list2env(parent = baseenv()) |> # To make sure all required objects are listed here
+  local(envir = _, { # Control scope, like a function
     closest_istd <- proc$get_data_of_closest_istd( # @returns mat, feat_nm, rt
       se = se,
       istd_se = istd_se,
@@ -312,10 +312,10 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
 
   # Fit the calibration curve
   e <- list(
-    cc_se = calcurve_se, mat_id = mat_id, in_log = in_log, w_method = params$weight, 
+    cc_se = calcurve_se, mat_id = mat_id, in_log = in_log, w_method = params$weight,
     util = util, proc = proc
   ) |>
-    list2env(parent = baseenv())  # To make sure all required objects are listed here
+    list2env(parent = baseenv()) # To make sure all required objects are listed here
   calcurve_models <- local(envir = e, { # Control scope, like a function
     c_concs <- util$spiked_conc_pts(cc_se)
     if (in_log) {
@@ -344,6 +344,8 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   # Compute the concentration of the samples using the calibration curve
   concn_se[["conc0"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = in_log) |>
     labelled::set_label_attribute("Concentration before filtering")
+  # Save the ID of the source matrix used to get concentrations
+  concn_se <- util$save_src_mat_id_for_conc(concn_se, mat_id)
   # Replace the values below LOD/LLOQ with NA
   # Replace instead of removing to have one object with the same data structure
   concn_se <- concn_se |>
@@ -443,13 +445,13 @@ for (mat_id_to_calib in mat_ids_after_blk_subt) {
           # colnames(SumExp::row_df(cal_batch$concn))
           # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"
           # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"
-          # [11] "lloq_avg_signal"  "has_proper_range" "calcurve_model"   "to_export"
+          # [11] "avg_signal_at_lloq"  "has_proper_range" "calcurve_model"   "to_export"
           SumExp::row_df(cal_batch$concn)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$concn)
           # Replace information of the calibration curve with the one from global calibration
           # colnames(SumExp::row_df(cal_batch$calcurve))
           # [1] "alignment_id"     "feature_name"     "mz"               ".rt"              ".std_type"
           # [6] "closest_istd"     "min_c_conc"       "max_c_conc"       "lod"              "lloq"
-          # [11] "lloq_avg_signal"  "has_proper_range" "src_calcurve"
+          # [11] "avg_signal_at_lloq"  "has_proper_range" "src_calcurve"
           SumExp::row_df(cal_batch$calcurve)[in_only_global, ] <- SumExp::row_df(batch_in_only_global$calcurve)
         }
       }

@@ -199,7 +199,10 @@ summary_tbl |>
     repeat_header_continued = TRUE,
   ) |>
   kableExtra::footnote(
-    general = "DF: Detection frequency (percentage of samples above LOD)",
+    general = paste(
+      "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds", 
+      "the mean signal of the blank (zero concentration point) by at least 3 standard deviations."
+    ),
     footnote_as_chunk = TRUE
   )
 ```
@@ -313,7 +316,8 @@ for (batch_id in names(concn_lst)) {
 
     txt_legend <- paste0(
       "The gray areas in the calibration curve represent the regions below LOD and LLOQ.  \n",
-      "DF: Detection frequency (percentage of samples greater than LOD)  \n",
+      "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds   \n", 
+      "the mean signal of the blank (zero concentration point) by at least 3 standard deviations.  \n",
       "LOD: Limit of detection.  \n", # "  \n" is for line break
       "LLOQ: Lower limit of quantification  \n",
       "The details of LOD and LLOQ are described in the text of the chemical summary table.  \n",

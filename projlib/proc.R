@@ -608,8 +608,9 @@ make_sure_to_have_enough_calcurve_pts <- function(max_conc, min_conc, conc_pts, 
 #'
 #' @returns A [`SumExp::SumExp`] object with the calibration curve limits and the LOD/LLOQ. The
 #'   added columns to the [`SumExp::row_df()`] of `sumexp` are: `min_c_conc`, `max_c_conc`, `lod`,
-#'   `lloq` and `lloq_avg_signal`, which are the lower and upper limits of the calibration curve,
-#'   the LOD and LLOQ, and the average signal of the LLOQ point, respectively.
+#'   `lloq`, `avg_signal_at_lloq`, `lod_signal`, `lloq_signal`, which are the lower and upper limits
+#'   of the calibration curve, the LOD and LLOQ, the average signal at the LLOQ point, and the LOD
+#'   and LLOQ in signal perspective, respectively.
 #'   Some values in the columns are set to have the following meanings:
 #'   * `min_c_conc` = NA : No valid concentration even at the top of the calibration curve
 #'   * `max_c_conc` = NA : Not enough calibration curve samples to make a calibration curve
@@ -677,7 +678,7 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   }
   lloq <- apply(mat_cond, 1, \(.x) min(satisfying_values(.x)))
   # Average signal of the LLOQ point
-  lloq_avg_signal <- values_of_given_conc_in_mat(mat_m, lloq)
+  avg_signal_at_lloq <- values_of_given_conc_in_mat(mat_m, lloq)
   # Calibration curve concentration lower limit.
   min_c_conc <- lloq
   min_c_conc <- labelled::set_label_attribute(min_c_conc, "Minimum Concentration")
@@ -697,7 +698,8 @@ find_calib_lim_pts_and_llox_from_llox_signal <- function(sumexp,
   }
   stopifnot(identical(names(min_c_conc), names(max_c_conc)))
   # data.frame for SumExp::row_df, instead of tibble
-  limits_df <- data.frame(min_c_conc, max_c_conc, lod, lloq, lloq_avg_signal)
+  limits_df <- data.frame(min_c_conc, max_c_conc, lod, lloq, avg_signal_at_lloq, 
+                          lod_signal, lloq_signal)
   stopifnot(identical(rownames(limits_df), rownames(sumexp)))
   SumExp::row_df(sumexp) <- cbind(SumExp::row_df(sumexp), limits_df)
   sumexp
@@ -948,11 +950,11 @@ replace_conc_whose_signal_below_lloq <- function(sumexp, signal_mat_id, conc_mat
   signal_mat <- sumexp[[signal_mat_id]]
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
-  lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
+  avg_signal_at_lloq <- SumExp::row_df(sumexp)[["avg_signal_at_lloq"]]
 
   out <- c_mat
   # Replace the values below LLOQ with half of the LLOQ
-  out <- ifelse(signal_mat < lloq_avg_signal & out >= lloq, lloq / 2, out)
+  out <- ifelse(signal_mat < avg_signal_at_lloq & out >= lloq, lloq / 2, out)
   out <- labelled::copy_labels(c_mat, out)
   sumexp[[conc_mat_id]] <- out
   sumexp
@@ -978,11 +980,11 @@ replace_conc_whose_signal_above_lloq <- function(sumexp, signal_mat_id, conc_mat
   signal_mat <- sumexp[[signal_mat_id]]
   c_mat <- sumexp[[conc_mat_id]]
   lloq <- SumExp::row_df(sumexp)[["lloq"]]
-  lloq_avg_signal <- SumExp::row_df(sumexp)[["lloq_avg_signal"]]
+  avg_signal_at_lloq <- SumExp::row_df(sumexp)[["avg_signal_at_lloq"]]
 
   out <- c_mat
   # Replace the values above LLOQ with LLOQ
-  out <- ifelse(signal_mat > lloq_avg_signal & out <= lloq, lloq, out)
+  out <- ifelse(signal_mat > avg_signal_at_lloq & out <= lloq, lloq, out)
   out <- labelled::copy_labels(c_mat, out)
   sumexp[[conc_mat_id]] <- out
   sumexp
