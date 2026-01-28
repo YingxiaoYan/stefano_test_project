@@ -173,6 +173,21 @@ for (batch_id in names(both_se_lst)) {
 ## Chemical summary
 
 ```{r}
+#| purl: true
+df_desc <- switch(
+  to_report$params$llox_method,
+  "pt_signal_mean" = paste(
+    "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds 3×", 
+    "the mean signal of the blank (zero concentration point)."
+  ),
+  "pt_signal_mean_plus_sd" = paste(
+    "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds", 
+    "the mean signal of the blank (zero concentration point) by at least 3 standard deviations."
+  )
+)
+```
+
+```{r}
 #| label: 'chemicals-summary'
 
 # Summary table
@@ -197,13 +212,6 @@ summary_tbl |>
     latex_options = "striped",
     full_width = FALSE,
     repeat_header_continued = TRUE,
-  ) |>
-  kableExtra::footnote(
-    general = paste(
-      "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds", 
-      "the mean signal of the blank (zero concentration point) by at least 3 standard deviations."
-    ),
-    footnote_as_chunk = TRUE
   )
 ```
 
@@ -316,8 +324,7 @@ for (batch_id in names(concn_lst)) {
 
     txt_legend <- paste0(
       "The gray areas in the calibration curve represent the regions below LOD and LLOQ.  \n",
-      "DF: Detection Frequency, defined as the percentage of samples where the signal exceeds   \n", 
-      "the mean signal of the blank (zero concentration point) by at least 3 standard deviations.  \n",
+      paste(df_desc, "  \n"),
       "LOD: Limit of detection.  \n", # "  \n" is for line break
       "LLOQ: Lower limit of quantification  \n",
       "The details of LOD and LLOQ are described in the text of the chemical summary table.  \n",
