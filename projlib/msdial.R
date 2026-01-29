@@ -401,7 +401,7 @@ tbl_chemical_summary <- function(sumexp) {
   # Summary about the concentration ranges
   conc_summary <- chemicals |>
     dplyr::mutate(
-      n_det = sapply(seq_len(nrow(mat_signal)), \(i) sum(mat_signal[i, ] >= lod_signal[i], na.rm = TRUE)),
+      n_det = sapply(seq_len(nrow(mat_signal)), \(i) sum(mat_signal[i, ] > lod_signal[i], na.rm = TRUE)),
       n_samples = sapply(seq_len(nrow(mat_signal)), \(i) sum(!is.na(mat_signal[i, ]))),
       perc_detf = n_det / n_samples * 100,
       median = apply(mat, 1, stats::median),
