@@ -344,26 +344,27 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   # Compute the concentration of the samples using the calibration curve
   concn_se[["conc0"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = in_log) |>
     labelled::set_label_attribute("Concentration before filtering")
+  concn_se[["conc"]] <- concn_se[["conc0"]]  # After filtering, conc will be updated
   # Save the ID of the source matrix used to get concentrations
   concn_se <- util$save_src_mat_id_for_conc(concn_se, mat_id)
   # Replace the values below LOD/LLOQ with NA
   # Replace instead of removing to have one object with the same data structure
   concn_se <- concn_se |>
-    proc$replace_below_lod_lloq(conc_mat_id = "conc0") |>
-    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc0") |>
-    proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc0")
+    proc$replace_below_lod_lloq(conc_mat_id = "conc") |>
+    proc$replace_conc_whose_signal_below_lloq(signal_mat_id = mat_id, conc_mat_id = "conc") |>
+    proc$replace_conc_whose_signal_above_lloq(signal_mat_id = mat_id, conc_mat_id = "conc")
   labelled::label_attribute(concn_se) <- dt_lab
   if (in_log) concn_se[[mat_id]] <- expm1(concn_se[[mat_id]]) # Back transform
 
   # Mark the chemicals with no quantification to be excluded in the exported tables
-  non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc0"]]
+  non_qc_conc <- util$exclude_ctrl_smpl_cat(concn_se, "QC")[["conc"]]
   any_above_lloq <- non_qc_conc > SumExp::row_df(concn_se)[, "lloq"]
   has_ex <- rowSums(any_above_lloq) > 0
   has_ex[is.na(has_ex)] <- FALSE
   SumExp::row_df(concn_se)[["to_export"]] <- has_ex # A flag to be used in the export
   # Replace the values of those chemicals with no quantification with NA
   unit <- SumExp::metadata(concn_se)$concentration_unit
-  concn_se[["conc"]] <- util$extract_with_na(concn_se[["conc0"]], i = has_ex, j = TRUE) |>
+  concn_se[["conc"]] <- util$extract_with_na(concn_se[["conc"]], i = has_ex, j = TRUE) |>
     labelled::set_label_attribute(paste0("Concentration [", unit, "]"))
 
   return(list(

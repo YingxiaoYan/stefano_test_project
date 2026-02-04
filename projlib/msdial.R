@@ -395,19 +395,18 @@ tbl_chemical_summary <- function(sumexp) {
   # Concentration
   mat <- sumexp[["conc"]]
   mat_original <- sumexp[["conc0"]]
-  src_mat_id <- util$src_mat_id_for_conc(sumexp) 
-  mat_signal <- sumexp[[src_mat_id]]
+  mat_ge_lloq <- ifelse(mat >= chemicals$lloq, mat, NA_real_)
 
   # Summary about the concentration ranges
   conc_summary <- chemicals |>
     dplyr::mutate(
-      n_det = sapply(seq_len(nrow(mat_signal)), \(i) sum(mat_signal[i, ] > lod_signal[i], na.rm = TRUE)),
-      n_samples = sapply(seq_len(nrow(mat_signal)), \(i) sum(!is.na(mat_signal[i, ]))),
+      n_det = rowSums(mat_original >= lod, na.rm = TRUE),
+      n_samples = rowSums(!is.na(mat)),      
       perc_detf = n_det / n_samples * 100,
-      median = apply(mat, 1, stats::median),
-      mean = rowMeans(mat),
-      min = apply(mat_original, 1, min),
-      max = apply(mat, 1, max),
+      median = apply(mat_ge_lloq, 1, stats::median, na.rm = TRUE),
+      mean = rowMeans(mat_ge_lloq, na.rm = TRUE),
+      min = apply(mat_ge_lloq, 1, min, na.rm = TRUE),
+      max = apply(mat, 1, max, na.rm = TRUE),
     )
   
   # Write an equation for the calibration curve model
