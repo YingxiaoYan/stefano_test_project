@@ -227,12 +227,11 @@ cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
 
 After the computation of concentration, the following steps are applied to the data:
 
-  * Any negative concentration is adjusted to zero.
-  * Any concentration below the lower limit of quantification (LLOQ) is adjusted to the half of LLOQ.
-  * Any concentration below the limit of detection (LOD) is adjusted to the 1/4 of LLOQ.
-  * Any concentration whose signal is below the average signal of LLOQ is adjusted to the half of LLOQ.
-  * Any concentration whose signal is above the average signal of LLOQ is adjusted to the LLOQ.
-  * Any chemical with values below LLOQ in all samples is removed from the data.
+  * Any calibrated concentration resulting in a value below LLOQ (with peak signal > the average signal of LLOQ) is adjusted to LLOQ.
+  * Any calibrated concentration whose signal is below the average signal of LLOQ is adjusted to the 1/2 of LLOQ.
+  * Any calibrated concentration between the LOD and LLOQ is adjusted to the 1/2 of LLOQ.
+  * Any calibrated concentration below the LOD is adjusted to the 1/4 of LLOQ.
+  * Any chemical with values below LLOQ in all samples is removed from the quantification report.
 
 {{< pagebreak >}}
 
