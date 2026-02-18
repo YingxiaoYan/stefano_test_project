@@ -1,0 +1,17 @@
+open docker desktop
+
+open terminal (shell)
+
+run to create the docker image/container, defining name:
+
+docker run -it -v C:/Users/XingxiaoYan/Desktop/SMS-7579-23-exposome:/proj -p 7579:7579 --name=QuaNTA mghong/exposome bash
+
+In the shell, root@{container ID}:/proj#
+R -e "shiny::runApp('code')"
+
+open a web-browser, type address: localhost:7579
+
+to update the env in Docker ("pull" from the image)
+
+to update the code: go in the code folder, and do : git pull
+PS C:\Users\XingxiaoYan\Desktop\SMS-7579-23-exposome\code> git pull

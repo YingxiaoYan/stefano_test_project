@@ -1,0 +1,9 @@
+project_title: TEST
+input_file: ./code/tests/Dummy_Test.txt
+intermediate_dir: ./code/tests/testoutput
+table_dir: ./code/tests/testoutput
+report_dir: ./code/tests/testoutput
+concentration_unit: ng/mL
+user: TEST
+university: TEST
+free_text: TEST
