@@ -56,7 +56,7 @@ msdialInfoUI <- function(uiId) {
       )
       
     }),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     purrr::pmap(.user_params, function(id, type, label) {
       inputId <- shiny::NS(uiId, id)
       switch(
@@ -82,7 +82,7 @@ msdialInfoUI <- function(uiId) {
         
       )
     }),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
       purrr::pmap(.user_params, function(id, type, label) {
         inputId <- shiny::NS(uiId, id)
       switch(
@@ -112,7 +112,7 @@ msdialInfoUI <- function(uiId) {
       )
       
     }),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::actionButton(inputId = shiny::NS(uiId, "auto_fill"),
                         label = "Auto-fill intermediate dir to rest",
                         disabled = TRUE),

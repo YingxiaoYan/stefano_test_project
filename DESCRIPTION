@@ -28,11 +28,3 @@ Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Collate: 
-    'Step 0.R'
-    'genReport.R'
-    'msdialInfoFuns.R'
-    'msdialInfo.R'
-    'runProcess.R'
-    'runReadMsdial.R'
-    'runScript.R'

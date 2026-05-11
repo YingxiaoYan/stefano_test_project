@@ -85,6 +85,23 @@ IS_NON_TARGET_MODE <- SumExp::metadata(proc_sumexp)$is_non_target_mode
 stopifnot(!is.null(IS_NON_TARGET_MODE))
 
 # For reports, store intermediate data during quality control steps.
+# The list `to_report` contains:
+# - `params`: Command-line options for the processing
+# - `Completed`: A logical flag indicating whether the processing was completed
+# - `is_non_target_mode`: A logical flag indicating if it is non-target mode
+# - `before normalization`: `SumExp` object of all data before internal standard normalization
+# - `internal std. before qc`: `SumExp` object of internal standard features before QC
+# - `is failed internal std.`: A logical vector flagging failed internal standards.
+#       length() == nrow(`internal std. before qc`)
+# - `number of outlier internal std. per sample`: Count of outlying internal standards per sample
+#       length() == ncol(`internal std. before qc`)
+# - `is outlier sample`: A logical vector flagging outlier samples
+#       length() == ncol(`internal std. before qc`)
+# - `excluded categories in normalization`: Sample categories excluded from normalization
+# - `LOESS fit`: A list of LOESS models for each sample. Output of `proc$get_loess_fit()`
+# - `normalized`: `SumExp` object after internal standard normalization
+# - `matrix ids to blk subt`: IDs of matrices that underwent blank subtraction
+# - `normalized - blank`: A list of `SumExp` objects after blank subtraction, split by batch
 to_report <- rlang::list2(
   "params" = params,
   "Completed" = FALSE,
@@ -344,7 +361,7 @@ quantify_using_calcurve <- function(qt_se, mat_id_to_calib, params) {
   # Compute the concentration of the samples using the calibration curve
   concn_se[["conc0"]] <- proc$compute_concentration(concn_se, mat_id, log_scale = in_log) |>
     labelled::set_label_attribute("Concentration before filtering")
-  concn_se[["conc"]] <- concn_se[["conc0"]]  # After filtering, conc will be updated
+  concn_se[["conc"]] <- concn_se[["conc0"]] # After filtering, conc will be updated
   # Save the ID of the source matrix used to get concentrations
   concn_se <- util$save_src_mat_id_for_conc(concn_se, mat_id)
   # Replace the values below LOD/LLOQ with NA

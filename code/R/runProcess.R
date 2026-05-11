@@ -28,20 +28,20 @@ runProcessUI <- function(uiId) {
         }
       });
     ")),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     # Quality control: outlier removal
     shiny::checkboxInput(
       inputId = ns("rm_outlier"),
       label = "Quality control: remove outlier samples",
       value = TRUE,
     ),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::checkboxInput(
       inputId = ns("log_calibration"),
       label = "Log scale for calibration curve fitting",
       value = FALSE,
     ),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::radioButtons(
       inputId = ns("weight"),
       label = "Weighting method",
@@ -54,7 +54,7 @@ runProcessUI <- function(uiId) {
         shiny::HTML(paste0("1/x", shiny::tags$sup("2")))
       ),
     ),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::radioButtons(
       inputId = ns("llox_method"),
       label = "LOD/LLOQ method",
@@ -66,14 +66,14 @@ runProcessUI <- function(uiId) {
                            "StdDev", shiny::tags$sub("Cal0")))
       ),
     ),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     # RSD% 20% threshold for LLOQ
     shiny::checkboxInput(
       inputId = ns("use_rsd20"),
       label = "Use RSD% 20% threshold for LLOQ",
       value = TRUE,
     ),
-    shiny::tags$hr(style = "border-top: 10px solid yellow; margin: 10px 0;"),
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::actionButton(ns("run_button"), label = "Process data"),
     shiny::verbatimTextOutput(ns("script_output")),
     shiny::br(),
