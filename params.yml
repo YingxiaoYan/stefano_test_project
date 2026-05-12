@@ -1,8 +1,8 @@
 project_title: TEST
-input_file: ./code/tests/Dummy_Test.txt
-intermediate_dir: ./code/tests/testoutput
-table_dir: ./code/tests/testoutput
-report_dir: ./code/tests/testoutput
+input_file: ./code/to_stefano/MLOD-Q_human_neg2.txt
+intermediate_dir: ./code/code/tests/testoutput
+table_dir: ./code/code/tests/testoutput
+report_dir: ./code/code/tests/testoutput
 concentration_unit: ng/mL
 user: TEST
 university: TEST

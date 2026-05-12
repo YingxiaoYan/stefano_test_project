@@ -39,43 +39,32 @@ The ***normlization method*** option button is not there. but all three methods 
 
 ### bottom left
 
-+-----------------------------------+--------------------------------+
-| To show in the shiny interface    | what to extract                |
-+===================================+================================+
-| Table in section 2.1.1            | as a dataframe                 |
-+-----------------------------------+--------------------------------+
-| Table in section 2.1.2.2          | as a dataframe                 |
-+-----------------------------------+--------------------------------+
-| Table in section 2.1.3            | as a dataframe                 |
-+-----------------------------------+--------------------------------+
-| Table in section 2.2              | as a dataframe                 |
-+-----------------------------------+--------------------------------+
+| To show in the shiny interface | what to extract |
+|--------------------------------|-----------------|
+| Table in section 2.1.1         | as a dataframe  |
+| Table in section 2.1.2.2       | as a dataframe  |
+| Table in section 2.1.3         | as a dataframe  |
+| Table in section 2.2           | as a dataframe  |
 
 ### top right
 
-+--------------------------------+----------------------------------------------------------------------------+
-| To show in the shiny interface | what to extract                                                            |
-+================================+============================================================================+
-| 2 figures in section 2.2       | as two ggplotly (Note! Stefano want this to be plotly) object respectively |
-+--------------------------------+----------------------------------------------------------------------------+
+| To show in the shiny interface | what to extract |
+|----|----|
+| 2 figures in section 2.2 | as two ggplotly (Note! Stefano want this to be plotly) object respectively |
 
 ### bottom right
 
-+--------------------------------+------------------------------------+
 | To show in the shiny interface | what to extract                    |
-+================================+====================================+
+|--------------------------------|------------------------------------|
 | 2 figures in section 2.3       | as two ggplot objects respectively |
-+--------------------------------+------------------------------------+
 
 ## Page 3 Quality control
 
 ### top left
 
-+-----------------------------------+--------------------------------+
-| To show in the shiny interface    | what to extract                |
-+===================================+================================+
-| table in section 3.1              | as a dataframe                 |
-+-----------------------------------+--------------------------------+
+| To show in the shiny interface | what to extract |
+|--------------------------------|-----------------|
+| table in section 3.1           | as a dataframe  |
 
 **--\>this table 3.1 will be made selective,** where user can click rows to have information related to that row
 
@@ -210,35 +199,27 @@ There is one selection button to be shown what to ***color by*** : by class, or 
 | -   The figure of Raw and LOESS normalized will be shown (fixed, 2 out of the 3 noemalization choices) | -   all figures rainbow (color by internal standard) |
 +--------------------------------------------------------------------------------------------------------+------------------------------------------------------+
 
-+------------------------------------------+-------------------------------+
-| To show in the shiny interface           | what to extract               |
-+==========================================+===============================+
-| one Figure in 3.2.3                      | A ggplot object of the figure |
-+------------------------------------------+-------------------------------+
+| To show in the shiny interface | what to extract               |
+|--------------------------------|-------------------------------|
+| one Figure in 3.2.3            | A ggplot object of the figure |
 
 ![](images/clipboard-3441742453.png)
 
-+-----------------------------------+--------------------------------+
-| To show in the shiny interface    | what to extract                |
-+===================================+================================+
-| table in section 3.2.3            | as a dataframe                 |
-+-----------------------------------+--------------------------------+
+| To show in the shiny interface | what to extract |
+|--------------------------------|-----------------|
+| table in section 3.2.3         | as a dataframe  |
 
 ## Page 4 Quantification
 
 ### left
 
-+--------------------------------+--------------------------------------+
-| To show in the shiny interface | what to extract                      |
-+================================+======================================+
-| table 4.1                      | as a dataframe                       |
-+--------------------------------+--------------------------------------+
+| To show in the shiny interface | what to extract |
+|--------------------------------|-----------------|
+| table 4.1                      | as a dataframe  |
 
-+--------------------------------+--------------------------------------+
-| To show in the shiny interface | what to extract                      |
-+================================+======================================+
-| table 4.2                      | as a dataframe                       |
-+--------------------------------+--------------------------------------+
+| To show in the shiny interface | what to extract |
+|--------------------------------|-----------------|
+| table 4.2                      | as a dataframe  |
 
 **--\>this table 4.2 will be made selective, where user can click rows**
 
@@ -258,11 +239,9 @@ There is one selection button to be shown what to ***color by*** : by class, or 
 
 ### 
 
-+--------------------------------+--------------------------------------+
-| To show in the shiny interface | what to extract                      |
-+================================+======================================+
-| the output of 4.5              | a dataframe object from 4.5          |
-+--------------------------------+--------------------------------------+
+| To show in the shiny interface | what to extract             |
+|--------------------------------|-----------------------------|
+| the output of 4.5              | a dataframe object from 4.5 |
 
 ## Page 5 Report export
 

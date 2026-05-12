@@ -20,9 +20,25 @@ runReadMsdialUI <- function(uiId) {
       label = "Process data per batch?",
       value = TRUE,
     ),
-    shiny::actionButton(ns("run_button"), "Read MS-Dial output files"),
+    shiny::actionButton(ns("run_button"), "Read MS-Dial output files")
+
+
+  )
+}
+
+
+#' A Shiny UI module to read MS-Dial output files and display the output
+#'
+#' @param uiId A string that identifies the UI module.
+#' 
+#' @returns A list of UI elements including an action button and a text output area.
+#' @export
+runReadMsdialUI_2 <- function(uiId) {
+  ns <- shiny::NS(uiId)
+  shiny::tagList(
+
     shiny::verbatimTextOutput(ns("script_output"), placeholder = TRUE),
-    shiny::br(),   # Add a line break for better spacing
+
   )
 }
 

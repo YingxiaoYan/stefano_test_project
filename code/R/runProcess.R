@@ -74,9 +74,26 @@ runProcessUI <- function(uiId) {
       value = TRUE,
     ),
     shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
-    shiny::actionButton(ns("run_button"), label = "Process data"),
-    shiny::verbatimTextOutput(ns("script_output")),
-    shiny::br(),
+    shiny::actionButton(ns("run_button"), label = "Process data")
+
+  )
+}
+
+
+#' A Shiny UI module to run a processing script allowing some selections
+#'
+#' @param uiId A string that identifies the UI module.
+#' 
+#' @returns A list of UI elements
+#' @export
+runProcessUI_2<- function(uiId) {
+  ns <- shiny::NS(uiId)
+  shiny::tagList(
+    # Option for keeping all calibration points (even though outside range)
+
+  
+    shiny::verbatimTextOutput(ns("script_output"))
+    
   )
 }
 

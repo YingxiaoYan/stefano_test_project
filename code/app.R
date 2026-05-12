@@ -131,16 +131,17 @@ pre.shiny-text-output:hover {
 
   /* >>>>> CARD COLORS UPDATED (BLUE) <<<<< */
 
-.card,
-.card * {
+
+.card {
   color: #FFFFFF !important;
 }
 
-/* Card header text also white */
+/* Keep card headers white */
 .card-header,
 .card-header * {
   color: #FFFFFF !important;
 }
+
 
   /* ---------- NAV BAR: white background + black text ---------- */
 .navbar, .navbar-nav, .navbar-brand {
@@ -185,6 +186,67 @@ pre.shiny-text-output:hover {
   border-bottom: 2px solid #FFFFFF !important; /* seamless effect */
   font-weight: bold;
 }
+
+
+/* Base table */
+table.dataTable {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+  border-collapse: collapse !important;
+}
+
+/* Header */
+table.dataTable thead th {
+  background-color: #EAF2FF !important;   /* light blue header */
+  color: #003366 !important;
+  font-weight: 600;
+  border-bottom: 2px solid #D0D7E5 !important;
+}
+
+/* Body rows */
+table.dataTable tbody tr {
+  background-color: #FFFFFF !important;
+}
+
+/* Zebra striping — SOFT, NO ORANGE */
+table.dataTable tbody tr:nth-child(even) {
+  background-color: #F8FAFF !important;
+}
+
+/* Hover effect */
+table.dataTable tbody tr:hover {
+  background-color: #EFF4FF !important;
+}
+
+/* Cells */
+table.dataTable td {
+  color: #000000 !important;
+  vertical-align: middle;
+}
+
+/* Remove Bootstrap primary color bleed */
+table.dataTable.no-footer {
+  border-bottom: 1px solid #D0D7E5 !important;
+}
+
+
+
+/* =========================================================
+   FINAL FIX — FORCE ALL KABLE TABLE TEXT TO BLACK
+   ========================================================= */
+
+
+[data-bs-theme] .card table,
+[data-bs-theme] .card table th,
+[data-bs-theme] .card table td,
+[data-bs-theme] .card table.table,
+[data-bs-theme] .card table.table th,
+[data-bs-theme] .card table.table td {
+  color: #000000 !important;
+}
+
+
+
   "
 )
 
@@ -259,34 +321,125 @@ ui <-
         ),
         
         card(
-          card_header("Report for MSDial info input")
+          card_header("Report for MSDial info input"),
+          runReadMsdialUI_2("read_msdial")
         )
       )
     ),
     
     nav_panel(
-      title = HTML("2. proc <strong> >> </strong>"),
+      title = HTML("2. Processing <strong> >> </strong>"),
       layout_columns(
         col_widths = c(3, 9),
         card(runProcessUI("proc")),
-        card(card_header("Report for proc"))
+        card(card_header("Report for proc"),
+             runProcessUI_2("proc")
+             )
       )
     ),
     
     nav_panel(
-      title = HTML("3. Export data <strong> >> </strong>"),
+      title = HTML("3. Quality control <strong> >> </strong>"),
       layout_columns(
-        col_widths = c(3, 9), 
-        card(runScriptUI("export_data", label = "Export data into tables")), 
-        card(card_header("Report for export data"))
+        col_widths = c(6, 6), 
+        card(card_header("Tables"),
+             
+             div(
+               style = "padding: 0;", 
+               
+             h3(
+               "Table 2.1.1",
+               style = "margin: 0;"
+               #style = "margin-bottom: 10px; font-weight: 600;"
+             ),
+             DT::DTOutput("tb_2_1_1")
+             ),
+             
+             div(
+               style = "padding: 0;", 
+               
+               h3(
+                 "Table 2.1.2.2",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
+               DT::DTOutput("tb_2_1_2_2")
+             ),
+             
+             div(
+               style = "padding: 0;", 
+               
+               h3(
+                 "Table 2.1.3",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
+               
+               htmlOutput("tb_2_1_3")
+               #DT::DTOutput("tb_2_1_3")
+             ),
+             
+             div(
+               style = "padding: 0;", 
+               
+               h3(
+                 "Table 2.2",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
+               #DT::DTOutput("tb_2_2")
+               htmlOutput("tb_2_2")
+               
+             )
+             ), 
+        card(card_header("Figures"),
+             div(
+               style = "padding: 0;", 
+             h3(
+               "Figure 2.2",
+               style = "margin: 0;"
+               #style = "margin-bottom: 10px; font-weight: 600;"
+             ),
+             
+             plotOutput("ggplot1_2_2"#, 
+                        #height = "450px"
+                        )
+             ),
+             div(
+               style = "padding: 0;", 
+               h3(
+                 "Figure 2.2",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
+               
+               plotOutput("ggplot2_2_2"#, 
+                          #height = "450px"
+               )
+             )
+             )
       )
     ),
     
     nav_panel(
-      title = HTML("4. Report <strong> >> </strong>"),
+      title = HTML("4. Quantification <strong> >> </strong>"),
       layout_columns(
         col_widths = c(3, 9), 
-        card(genReportUI("report")), 
+        card(), 
+        card(card_header("Calibration"),
+             
+             )
+      )
+    ),
+    
+    nav_panel(
+      title = HTML("5. Report export <strong> >> </strong>"),
+      layout_columns(
+        col_widths = c(3, 9), 
+        card(genReportUI("report"),
+             runScriptUI("export_data", label = "Export data into tables")
+             
+             ), 
         card(
           card_header("Report for report"),
           
@@ -315,6 +468,310 @@ ui <-
 ################################################################################################
 
 server <- function(input, output, session) {
+  
+  #########################
+  source("R/_internal-shared_setup_chunky_toR.R")
+  
+  
+  ###########################################
+  
+  
+  #cat(class(raw_se))
+  
+  #################################################################################################################################
+  ### This is table 2.1.1
+  
+  
+  catg <- util$ctrl_smpl_cat(raw_se)
+  catg[catg == ""] <- "Sample" 
+  
+  catg_cl <- tibble::tibble(
+    Category = catg,
+    Class = SumExp::col_df(raw_se)$Class,
+  ) |>
+    dplyr::mutate(Class = ifelse(Category %in% c("CalCurve", "QC"), "", Class)) |>
+    tidyr::unite("catg_cl", c(Category, Class), sep = ":", remove = FALSE)
+  tb <- janitor::tabyl(catg_cl, catg_cl) |>
+    janitor::adorn_pct_formatting() |>
+    dplyr::right_join(dplyr::distinct(catg_cl), y = _, by = "catg_cl") |>
+    dplyr::arrange(Category, Class)
+  stopifnot(anyDuplicated(tb$catg_cl) == 0)   # Ensure no duplicated category-class combinations
+  
+  tb <-tb|>
+    dplyr::select(-catg_cl) 
+  # |>
+  #   knitr::kable(
+  #     row.names = FALSE,          # To avoid excluded row numbers
+  #     col.names = c("Category", "Class", "Number of Samples", "Percent"),
+  #     align = "llrr"
+  #   ) #|>
+    #kableExtra::kable_styling(full_width = FALSE) |>
+    #kableExtra::collapse_rows(columns = 1, valign = "top")
+  
+  cat(class(tb))
+  
+  tb<-as.data.frame(tb)
+  colnames(tb)<-c("Category", "Class", "Number of Samples", "Percent")
+  
+  output$tb_2_1_1 <- DT::renderDataTable({
+    
+    DT::datatable(
+      tb,
+      
+      # caption = htmltools::tags$caption(
+      #   style = "caption-side: top; text-align: left; font-weight: bold;",
+      #   "Table 2.1.1"
+      # ),
+      
+      options = list(scrollX = TRUE,
+                     lengthChange = FALSE,
+                     searching = FALSE,
+                     
+                     paging = FALSE,            # remove Previous/Next
+                     info = FALSE,              # remove "Showing X to Y of Z entries"
+                     dom = 't',
+                     headerCallback = JS( "function(thead){",
+                                          "$(thead).find('th').css({'color': 'green',
+                                            'font-weight': 'bold'});", "}" ),
+                     columnDefs = list(
+                       list(className = 'dt-center', targets = "_all")   # <--- centers all text
+                     )
+      )
+    ) %>%
+      DT::formatStyle(
+        columns = names(tb),
+        color = "#000000",
+        backgroundColor = "#FFFFFF",
+        target = "cell"
+      ) %>%
+      DT::formatStyle(
+        names(tb),
+        backgroundColor = "#F8FAFF",
+        target = "row"
+      )
+    
+  })
+  
+  
+  #################################################################################################################################
+  ### This is table 2.1.2.2
+  #### There is problem of is target mode
+  IS_TARGET_MODE <- TRUE
+  
+  # -------------------------------------------------------------------
+  # 1. Calibration sample table (dataframe)
+  # -------------------------------------------------------------------
+  
+  df_show <- if (IS_TARGET_MODE) {
+    SumExp::col_df(raw_se) |>
+      dplyr::filter(util$ctrl_smpl_cat(raw_se) == "CalCurve") |>
+      dplyr::arrange(c_conc) |>
+      dplyr::select(sample_name, c_conc)
+  } else {
+    tibble::tibble(
+      sample_name = character(),
+      c_conc = numeric()
+    )
+  }
+  
+  # Ensure it is a plain data.frame if needed
+  df_show <- as.data.frame(df_show)
+  
+  # -------------------------------------------------------------------
+  # 2. Concentration frequency table (dataframe)
+  # -------------------------------------------------------------------
+  
+  df_conc_summary <- df_show |>
+    dplyr::count(c_conc, name = "Number_of_Samples") |>
+    dplyr::arrange(c_conc)
+  
+  df_conc_summary <- as.data.frame(df_conc_summary)
+  
+  colnames(  df_conc_summary)<- c("Calibrant Concentration","Number of Samples")
+  output$tb_2_1_2_2 <- DT::renderDataTable({
+    DT::datatable(
+      df_conc_summary ,
+      # caption = htmltools::tags$caption(
+      #   style = "caption-side: top; text-align: left; font-weight: bold;",
+      #   "Table 2.1.1"
+      # ),
+      options = list(scrollX = TRUE,
+                     lengthChange = FALSE,
+                     searching = FALSE,
+                     
+                     paging = FALSE,            # remove Previous/Next
+                     info = FALSE,              # remove "Showing X to Y of Z entries"
+                     dom = 't',
+                     headerCallback = JS( "function(thead){",
+                                          "$(thead).find('th').css({'color': 'green',
+                                            'font-weight': 'bold'});", "}" ),
+                     columnDefs = list(
+                       list(className = 'dt-center', targets = "_all")   # <--- centers all text
+                     )
+      )
+    ) %>%
+      DT::formatStyle(
+        columns = names(df_conc_summary ),
+        color = "#000000",
+        backgroundColor = "#FFFFFF",
+        target = "cell"
+      ) %>%
+      DT::formatStyle(
+        names(df_conc_summary ),
+        backgroundColor = "#F8FAFF",
+        target = "row"
+      )
+  
+  })
+  
+  
+  #################################################################################################################################
+  ### This is table 2.1.3
+
+  tb_2_1_3<-show$extract_qc_samples_to_list(raw_se) |> 
+    sapply(ncol) |> 
+    knitr::kable(col.names = c("Class", "Number of Replicates")) |> 
+    kableExtra::kable_styling(full_width = FALSE)
+ # cat( tb_2_1_3)
+  # cat(dim(tb_2_1_3))
+  # tb_2_1_3<-as.data.frame(tb_2_1_3)
+  # cat(class(tb_2_1_3))
+  # cat(dim(tb_2_1_3))
+  #colnames(tb_2_1_3)<-c("Class", "Number of Replicates")
+  
+  
+  
+  output$tb_2_1_3 <- renderUI({
+    
+    tb_2_1_3 %>%
+      HTML()
+    
+  })
+  
+  # output$tb_2_1_3 <- DT::renderDataTable({
+  #   DT::datatable(
+  #     tb_2_1_3 ,
+  #     # caption = htmltools::tags$caption(
+  #     #   style = "caption-side: top; text-align: left; font-weight: bold;",
+  #     #   "Table 2.1.1"
+  #     # ),
+  #     options = list(scrollX = TRUE,
+  #                    lengthChange = FALSE,
+  #                    searching = FALSE,
+  #                    
+  #                    paging = FALSE,            # remove Previous/Next
+  #                    info = FALSE,              # remove "Showing X to Y of Z entries"
+  #                    dom = 't',
+  #                    headerCallback = JS( "function(thead){",
+  #                                         "$(thead).find('th').css({'color': 'green',
+  #                                           'font-weight': 'bold'});", "}" ),
+  #                    columnDefs = list(
+  #                      list(className = 'dt-center', targets = "_all")   # <--- centers all text
+  #                    )
+  #     )
+  #   ) %>%
+  #     DT::formatStyle(
+  #       columns = names(tb_2_1_3),
+  #       color = "#000000",
+  #       backgroundColor = "#FFFFFF",
+  #       target = "cell"
+  #     ) %>%
+  #     DT::formatStyle(
+  #       names(tb_2_1_3 ),
+  #       backgroundColor = "#F8FAFF",
+  #       target = "row"
+  #     )
+  # })
+  #################################################################################################################################
+  ### This is table 2.1.3
+  
+  v <- util$std_type(raw_se)
+  tb_2_2<-replace(v, v == "", "Not targeted") |>
+    show$kable_number_of(what = "Features")
+  output$tb_2_2 <- renderUI({
+    
+    tb_2_2 %>%
+      HTML()
+    
+  })
+  
+  # output$tb_2_2 <- DT::renderDataTable({
+  #   DT::datatable(
+  #     tb_2_2 ,
+  #     # caption = htmltools::tags$caption(
+  #     #   style = "caption-side: top; text-align: left; font-weight: bold;",
+  #     #   "Table 2.1.1"
+  #     # ),
+  #     options = list(scrollX = TRUE,
+  #                    lengthChange = FALSE,
+  #                    searching = FALSE,
+  #                    
+  #                    paging = FALSE,            # remove Previous/Next
+  #                    info = FALSE,              # remove "Showing X to Y of Z entries"
+  #                    dom = 't',
+  #                    headerCallback = JS( "function(thead){",
+  #                                         "$(thead).find('th').css({'color': 'green',
+  #                                           'font-weight': 'bold'});", "}" ),
+  #                    columnDefs = list(
+  #                      list(className = 'dt-center', targets = "_all")   # <--- centers all text
+  #                    )
+  #     )
+  #   ) %>%
+  #     DT::formatStyle(
+  #       columns = names(tb_2_2),
+  #       color = "#000000",
+  #       backgroundColor = "#FFFFFF",
+  #       target = "cell"
+  #     ) %>%
+  #     DT::formatStyle(
+  #       names(tb_2_2 ),
+  #       backgroundColor = "#F8FAFF",
+  #       target = "row"
+  #     )
+  # })
+  
+  #################################################################################################################################
+  ### This is figure 2.2
+  colors <- local({
+    x <- unique(util$std_type(raw_se))
+    n_non_target <- sum(x == "")
+    col <- scales::hue_pal()(length(x) - n_non_target)
+    col <- rlang::set_names(col, x[x != ""])
+    if (n_non_target > 0) {
+      c(col, "grey")     # grey for non-targeted
+    } else {
+      col
+    }
+  })
+  df1 <- SumExp::row_df(raw_se)
+  ggplot1_2_2<-ggplot(df1) +
+    geom_point(aes(x = .rt, y = mz, color = .std_type), 
+               alpha = ifelse(df1$.std_type == "", 0.1, 1)) +
+    labs(
+      x = show$label_if_has(df1$.rt), 
+      y = show$label_if_has(df1$mz),
+      color = show$label_if_has(df1$.std_type),
+    ) +
+    scale_color_manual(values = colors)
+  output$ggplot1_2_2 <- renderPlot({
+    ggplot1_2_2
+  })
+  
+  
+  
+  #################################################################################################################################
+  ### This is figure 2.2
+  df1 <- SumExp::row_df(raw_se)
+  ggplot2_2_2<-ggplot(df1) +
+    geom_histogram(aes(x = mz), binwidth = 0.5) +
+    labs(
+      x = show$label_if_has(df1$mz), 
+      y = "Number of features"
+    )
+  output$ggplot2_2_2 <- renderPlot({
+    ggplot2_2_2
+  })
+  #####################################################
   
   data_info <- msdialInfoServer("data_info")
   
