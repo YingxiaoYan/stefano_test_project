@@ -472,7 +472,7 @@ server <- function(input, output, session) {
   #########################
   source("R/_internal-shared_setup_chunky_toR.R")
   
-  
+  r <- reactiveValues()
   ###########################################
   
   
@@ -480,40 +480,61 @@ server <- function(input, output, session) {
   
   #################################################################################################################################
   ### This is table 2.1.1
+
+  raw_se_r <- reactiveVal(NULL)
+  # observeEvent(raw_se, {
+  #   req(raw_se)
+  #   
+  #   # however raw_se is created originally
+  #   raw_se_r(raw_se)
+  # })
   
   
-  catg <- util$ctrl_smpl_cat(raw_se)
-  catg[catg == ""] <- "Sample" 
+  raw_se_r <- reactiveVal(NULL)
   
-  catg_cl <- tibble::tibble(
-    Category = catg,
-    Class = SumExp::col_df(raw_se)$Class,
-  ) |>
-    dplyr::mutate(Class = ifelse(Category %in% c("CalCurve", "QC"), "", Class)) |>
-    tidyr::unite("catg_cl", c(Category, Class), sep = ":", remove = FALSE)
-  tb <- janitor::tabyl(catg_cl, catg_cl) |>
-    janitor::adorn_pct_formatting() |>
-    dplyr::right_join(dplyr::distinct(catg_cl), y = _, by = "catg_cl") |>
-    dplyr::arrange(Category, Class)
-  stopifnot(anyDuplicated(tb$catg_cl) == 0)   # Ensure no duplicated category-class combinations
+  observeEvent(data_info$intermediate_dir, {
+    req(data_info$intermediate_dir)
+    
+    # raw_se must already exist here (created by your module)
+    raw_se_r(raw_se)
+  })
   
-  tb <-tb|>
-    dplyr::select(-catg_cl) 
-  # |>
-  #   knitr::kable(
-  #     row.names = FALSE,          # To avoid excluded row numbers
-  #     col.names = c("Category", "Class", "Number of Samples", "Percent"),
-  #     align = "llrr"
-  #   ) #|>
-    #kableExtra::kable_styling(full_width = FALSE) |>
-    #kableExtra::collapse_rows(columns = 1, valign = "top")
-  
-  cat(class(tb))
-  
-  tb<-as.data.frame(tb)
-  colnames(tb)<-c("Category", "Class", "Number of Samples", "Percent")
   
   output$tb_2_1_1 <- DT::renderDataTable({
+    # req(raw_se)
+    # r$raw_se <- raw_se
+    # 
+    req(raw_se_r())
+    catg <- util$ctrl_smpl_cat( raw_se_r())
+    catg[catg == ""] <- "Sample" 
+    
+    catg_cl <- tibble::tibble(
+      Category = catg,
+      Class = SumExp::col_df( raw_se_r())$Class,
+    ) |>
+      dplyr::mutate(Class = ifelse(Category %in% c("CalCurve", "QC"), "", Class)) |>
+      tidyr::unite("catg_cl", c(Category, Class), sep = ":", remove = FALSE)
+    tb <- janitor::tabyl(catg_cl, catg_cl) |>
+      janitor::adorn_pct_formatting() |>
+      dplyr::right_join(dplyr::distinct(catg_cl), y = _, by = "catg_cl") |>
+      dplyr::arrange(Category, Class)
+    stopifnot(anyDuplicated(tb$catg_cl) == 0)   # Ensure no duplicated category-class combinations
+    
+    tb <-tb|>
+      dplyr::select(-catg_cl) 
+    # |>
+    #   knitr::kable(
+    #     row.names = FALSE,          # To avoid excluded row numbers
+    #     col.names = c("Category", "Class", "Number of Samples", "Percent"),
+    #     align = "llrr"
+    #   ) #|>
+    #kableExtra::kable_styling(full_width = FALSE) |>
+    #kableExtra::collapse_rows(columns = 1, valign = "top")
+    
+    cat(class(tb))
+    
+    tb<-as.data.frame(tb)
+    colnames(tb)<-c("Category", "Class", "Number of Samples", "Percent")
     
     DT::datatable(
       tb,
