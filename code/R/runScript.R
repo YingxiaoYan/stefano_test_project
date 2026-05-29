@@ -37,6 +37,15 @@ runScriptServer <- function(serverId, script_path, what, param_ids = NULL, data_
     # data_info <- shiny::reactive(data_info)
     
     shiny::observeEvent(input[["run_button"]], {
+      
+      # user_inputs <- msdial$get_user_input()
+      # FILE <- list(
+      #   i = rlang::list2(
+      #     # Intermediate status of the data
+      #     to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
+      #   )
+      # )
+      
       # Save .yml file with parameters
       save_user_data_info(.yml_file, .user_params$id, 
                           # data_info)

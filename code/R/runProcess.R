@@ -11,11 +11,22 @@
 runProcessUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
+    
+    
+    shiny::tags$style(HTML("
+  .shiny-options-group label {
+    white-space: nowrap;
+  }
+                           ")),
+
+    
+    
     # Option for keeping all calibration points (even though outside range)
     shiny::checkboxInput(
       inputId = ns("optimize_cal_points"),
       label = "Optimize cal curves to exclude points outside sample range",
       value = FALSE,
+      width="100%"
     ),
     # JS handler to enable/disable weight options
     shiny::tags$script(HTML("
@@ -34,18 +45,22 @@ runProcessUI <- function(uiId) {
       inputId = ns("rm_outlier"),
       label = "Quality control: remove outlier samples",
       value = TRUE,
+      width="100%"
     ),
     shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::checkboxInput(
       inputId = ns("log_calibration"),
-      label = "Log scale for calibration curve fitting",
+      label = HTML("Log scale for calibration curve fitting"),
       value = FALSE,
+      width="100%"
+      
     ),
     shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::radioButtons(
       inputId = ns("weight"),
       label = "Weighting method",
       selected = "largestR2",
+      inline = TRUE,   # ✅ add this
       choiceValues = list("largestR2", "1", "1_div_x", "1_div_x2"),
       choiceNames = list(
         shiny::HTML(paste0("Largest R", shiny::tags$sup("2"), "(iterative)")),
@@ -62,8 +77,7 @@ runProcessUI <- function(uiId) {
       choiceValues = list("pt_signal_mean", "pt_signal_mean_plus_sd"),
       choiceNames = list(
         shiny::HTML(paste0("pt. > 3 (or 10) * mean", shiny::tags$sub("Cal0"))),
-        shiny::HTML(paste0("pt. > mean", shiny::tags$sub("Cal0"), " + 3 (or 10) * ", 
-                           "StdDev", shiny::tags$sub("Cal0")))
+        shiny::HTML(paste0("pt. > mean", shiny::tags$sub("Cal0"), " + 3 (or 10) * StdDev", shiny::tags$sub("Cal0")))
       ),
     ),
     shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
@@ -92,7 +106,7 @@ runProcessUI_2<- function(uiId) {
     # Option for keeping all calibration points (even though outside range)
 
   
-    shiny::verbatimTextOutput(ns("script_output"))
+    shiny::verbatimTextOutput(ns("script_output"),placeholder = TRUE)
     
   )
 }

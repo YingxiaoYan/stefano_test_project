@@ -16,12 +16,30 @@ box::use(
 )
 
 
+
+
+
+
+
+params_yml <- yaml::read_yaml("params.yml")
+
 # Get the input file name provided by the user
+##################################### here is the issue that it is using msdial output to generate raw se
 user_inputs <- msdial$get_user_input()
 # To keep constants consistent across reports
+
+print(params_yml$input_file)
+print(user_inputs)
+#user_inputs<-params_yml
+
+#user_inputs$input_file<-params_yml$input_file
+
 constants_yml <- yaml::read_yaml("code/constants.yml")
 COLORS <- lapply(constants_yml$COLORS, unlist) # Lists to named vectors
 raw_se <- msdial$read_parsed_msdial_data(user_inputs)
+
+print(c(dim(raw_se)[1],"afsfassffasfasfsofjsoas"))
+
 IS_TARGET_MODE <- !SumExp::metadata(raw_se)$is_non_target_mode
 # For consistency throughout the report
 COLORS_OF_CLASSES <- show$get_colors_of_classes(raw_se, COLORS$.ctrl_cat)
@@ -31,6 +49,7 @@ FILE <- list(
   i = rlang::list2(
     # Intermediate status of the data
     to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
+    #to_rep = msdial$get_raw_data_file_name(user_inputs, suffix = "to_report"),
   )
 )
 
@@ -54,20 +73,22 @@ feature_id_name_tbl <- SumExp::row_df(raw_se) |>
 #########################################################################################
 ########################################################################################
 ## This is the data for section 4
-
+params_yml$norm_method<-"loess_norm"
 # The ID of the matrix to use in calibration
-# MAT_ID_BLANK_SUBT <- params$norm_method |>
-#   util$mat_id_of_blank_subtracted()
-# MAT_ID_IN_CALIB <- util$mat_id_in_calibration(MAT_ID_BLANK_SUBT)
+ MAT_ID_BLANK_SUBT <- params_yml$norm_method |>
+   util$mat_id_of_blank_subtracted()
+ MAT_ID_IN_CALIB <- util$mat_id_in_calibration(MAT_ID_BLANK_SUBT)
 
-# if (IS_TARGET_MODE) {
-#   # Processed data
-#   FILE$i$proc <- msdial$get_raw_data_file_name(user_inputs, suffix = "proc")
-#   io$check_io_exist(FILE)
-#   
-#   # Load the processed data using the specified normalization method
-#   lst_proc <- readRDS(FILE$i$proc)[[MAT_ID_BLANK_SUBT]]
-# } else {
-#   io$check_io_exist(FILE)
-# }
+ if (IS_TARGET_MODE) {
+   # Processed data
+   FILE$i$proc <- msdial$get_raw_data_file_name(user_inputs, suffix = "proc")
+   io$check_io_exist(FILE)
+   
+   print(c(FILE$i$proc,"IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"))
+
+   # Load the processed data using the specified normalization method
+   lst_proc <- readRDS(FILE$i$proc)[[MAT_ID_BLANK_SUBT]]
+ } else {
+   io$check_io_exist(FILE)
+ }
 setwd("code/")

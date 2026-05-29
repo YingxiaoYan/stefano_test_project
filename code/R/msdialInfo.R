@@ -75,8 +75,8 @@ msdialInfoUI <- function(uiId) {
             shinyFiles::shinyFilesButton(inputId, "Browse",
                                          title = "Select a file",
                                          icon = shiny::icon("file"),
-                                         multiple = FALSE),
-            shiny::br(),    # Avoids overlap
+                                         multiple = FALSE)
+ 
           )
         })
         
@@ -122,7 +122,7 @@ msdialInfoUI <- function(uiId) {
     shiny::actionButton(inputId = shiny::NS(uiId, "save_param_button"), 
                         label = "Save the parameters above"),
     # Display the "saved" message
-    shiny::verbatimTextOutput(shiny::NS(uiId, "saved")),
+    shiny::verbatimTextOutput(shiny::NS(uiId, "saved"),placeholder = FALSE),
   )
 }
 

@@ -12,20 +12,13 @@ genReportUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
     # Normalization method selection
-    shiny::radioButtons(
-      inputId = ns("norm_method"),
-      label = "Normalization method",
-      choices = c("LOESS" = "loess_norm", 
-                  "Closest RT" = "closest_norm",
-                  "without normalization" = "raw"),
-      selected = "loess_norm",
-    ),
+
     # Interactive plot option
-    shiny::checkboxInput(
-      inputId = ns("interactive_plot"),
-      label = "Interactive plots in the HTML report?",
-      value = TRUE,
-    ),
+    # shiny::checkboxInput(
+    #   inputId = ns("interactive_plot"),
+    #   label = "Interactive plots in the HTML report?",
+    #   value = TRUE,
+    # ),
     shiny::br(),
     
     shiny::actionButton(
