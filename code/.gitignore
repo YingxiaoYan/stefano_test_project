@@ -46,3 +46,14 @@ test_*
 # Accidentally created output files
 *.html
 *.pdf
+
+
+reports/
+
+# Ignore test output files
+code/code/
+
+
+*.xlsx
+*.xls
+*.rds
