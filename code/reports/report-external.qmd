@@ -131,6 +131,21 @@ for (batch_id in names(concn_lst)) {
 
 {{< pagebreak >}}
 
+## Blank filtering
+
+Features were filtered based on blank samples.
+A feature was kept if its maximum peak area in the samples was $> `r to_report$blank_filter_factor` \times$ the average blank peak area, OR if its average peak area in samples was $> `r to_report$blank_filter_factor` \times$ the average blank peak area.
+
+```{r}
+removed_n <- if (is.null(to_report[["before blank filtering"]])) {
+  0
+} else {
+  nrow(to_report[["before blank filtering"]]) - nrow(to_report[["before normalization"]])
+}
+```
+
+A total of `r removed_n` features were removed in this step.
+
 ## PCA
 
 ```{r}

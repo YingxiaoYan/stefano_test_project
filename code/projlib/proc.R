@@ -3,6 +3,40 @@
 # ------------------------------------------------------------------------------------------- #
 box::use(util = ./msdial_utils)
 
+#  -----  BLANK FILTERING  -----------------------------------------------------
+
+#' Filter features based on blank samples
+#'
+#' Criteria: Keep feature if max(sample) > 5 * avg(blank) OR avg(sample) > 5 * avg(blank)
+#'
+#' @param se A [`SumExp::SumExp`] object
+#' @param mat_id The name of a matrix in `se`
+#' @param factor A numeric value for the filtering factor.
+#' @returns A [`SumExp::SumExp`] object with the features filtered
+#' @export
+filter_by_blank <- function(sumexp, mat_id, factor = 5) {
+  g <- ifelse(util$ctrl_smpl_cat(sumexp) == "Blank", "Blank", "Other")
+  se_lst <- SumExp::split_columns(sumexp, g)
+  
+  if (ncol(se_lst[["Blank"]]) == 0) {
+    warning("No blank samples found. Skipping blank filtering.")
+    return(sumexp)
+  }
+  blank_mat <- se_lst[["Blank"]][[mat_id]]
+  sample_mat <- se_lst[["Other"]][[mat_id]]
+  
+  blank_avg <- rowMeans(blank_mat, na.rm = TRUE)
+  sample_max <- apply(sample_mat, 1, max, na.rm = TRUE)
+  sample_avg <- rowMeans(sample_mat, na.rm = TRUE)
+  
+  to_keep <- (sample_max > factor * blank_avg) | (sample_avg > factor * blank_avg)
+  to_keep[is.na(to_keep)] <- FALSE
+  
+  cat("Blank filtering: ", sum(!to_keep), " features removed (", sum(to_keep), " remain).\n", sep = "")
+  
+  sumexp[to_keep, ]
+}
+
 #  -----  QC STEPS  ------------------------------------------------------------
 
 ##  QC STEPS  ----------------------------------------------

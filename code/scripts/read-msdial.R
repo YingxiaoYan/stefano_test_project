@@ -80,6 +80,10 @@ to_valid_id <- function(given_id, tbl = util$conv_tbl) {
   ifelse(is.na(m), given_id, tbl$id[m])
 }
 features <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["1st"]])
+
+# Identify features to be removed (Comment == "R")
+i_to_keep <- which(is.na(features$Comment) | features$Comment != "R")
+features <- features[i_to_keep, ]
 # Duplicated "id"s for different type of data
 conv_tbl <- util$conv_tbl[util$conv_tbl$given_id %in% colnames(features), ]
 stopifnot(anyDuplicated(conv_tbl$id) == 0)
@@ -118,6 +122,7 @@ if (!any(util$is_targeted_feature(features$.std_type))) {
 
 # Measured values of the features into a matrix
 raw_df <- msdial$fetch_data_of_columns(FILE$i, i_three_sections[["2nd"]])
+raw_df <- raw_df[i_to_keep, ]
 stopifnot(identical(colnames(raw_df), labelled::remove_labels(sample_info$sample_name)))
 colnames(raw_df) <- rownames(sample_info)     # Update with syntactically valid names
 raw_mat <- lapply(raw_df, as.numeric) |> 

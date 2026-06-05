@@ -23,7 +23,9 @@ knitr:
 params <- list(norm_method = "loess_norm", 
                log_calibration = FALSE, 
                project_title = "Test") 
-source("code/reports/chapters/_internal-shared_setup_chunk.R")
+source("code/reports/chapters/_internal-shared_setup_chunk.R",
+  local = knitr::knit_global()
+)
 ```
 
 ```{r}
@@ -42,6 +44,32 @@ set.seed(7579)
 # Data input
 
 {{< include chapters/_read-msdial.qmd >}}
+
+## Blank filtering
+
+Features are filtered based on the blank samples before any other processing steps.
+A feature is kept if:
+
+*   The maximum peak area in the samples is greater than `r to_report$blank_filter_factor` times the average peak area in the blanks, OR
+*   The average peak area in the samples is greater than `r to_report$blank_filter_factor` times the average peak area in the blanks.
+
+```{r}
+#| label: 'blank-filtering'
+raw_se_unf <- to_report[["before blank filtering"]]
+if (is.null(raw_se_unf)) {
+  before_n <- nrow(pre_norm_se)
+  removed_n <- 0
+} else {
+  before_n <- nrow(raw_se_unf)
+  removed_n <- before_n - nrow(pre_norm_se)
+}
+after_n <- nrow(pre_norm_se)
+```
+
+*   Number of features before filtering: `r before_n`
+*   Number of features removed: `r removed_n`
+*   Number of features remaining: `r after_n`
+
 
 --------------------------------------------
 
@@ -100,23 +128,35 @@ After data normalization, peak areas are blank corrected by subtracting the corr
 Blank subtraction is applied to all samples in the dataset except for the calibration standards per batch.
 
 ```{r}
+##| child: code/reports/chapters/process-calibration-llox_from_llox_signal.qmd
+## the child is replaced here with the actual code in the qmd above to debug
+```
+
+
+
+```{r}
 #| label: target_mode
-if (IS_TARGET_MODE) {
-  cat("\n\n# Calibration\n\n")
-  cat("\nThe calibration is performed per batch.\n\n")
+ if (IS_TARGET_MODE) {
+   cat("\n\n# Calibration\n\n")
+   cat("\nThe calibration is performed per batch.\n\n")
+   
+# #########################################################################################
   qmd <- "process-calibration-llox_from_llox_signal.qmd"
   cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
-  # Stop here if the calibration is not performed
-  if (all(sapply(lst_proc, is.null))) {
-    cat("\n\n# No calibration\n\n")
-    cat("Because it is not possible to perform calibration with the provided data.\n\n")
+#   
+# #########################################################################################
+   
+   # Stop here if the calibration is not performed
+   if (all(sapply(lst_proc, is.null))) {
+     cat("\n\n# No calibration\n\n")
+     cat("Because it is not possible to perform calibration with the provided data.\n\n")
   } else {
-    qmd <- "process-calibration-curves.qmd"
-    cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
-    cat("\n\n# Concentration\n\n")
-    cat(knitr::knit_child("code/reports/chapters/_process-concentration.qmd", quiet = TRUE))
-  }
-}
+     qmd <- "process-calibration-curves.qmd"
+     cat(knitr::knit_child(file.path("code/reports/chapters", qmd), quiet = TRUE))
+     cat("\n\n# Concentration\n\n")
+     cat(knitr::knit_child("code/reports/chapters/_process-concentration.qmd", quiet = TRUE))
+   }
+ }
 ```
 
 # References

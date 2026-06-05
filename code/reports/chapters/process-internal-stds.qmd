@@ -226,3 +226,25 @@ rownames(m_rsd) <- SumExp::row_df(se)$feature_name
 knitr::kable(m_rsd, caption = "RSD% of internal standard features by sample classes") |> 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
+
+#### By sample types
+
+```{r}
+#| label: 'rsd-internal-standards-by-sample-type'
+# Calculate RSD% per internal standard feature and per sample type
+m_rsd <- setNames(nm = c("Sample", "QC", "Standard", "Blank")) |>
+  lapply(function(st) {
+    se <- internal_std_se[, SumExp::col_df(internal_std_se)$sample_type == st]
+    # If no samples of this type, return NA
+    if (ncol(se) == 0) return(rep(NA_real_, nrow(internal_std_se)))
+    apply(se[["raw"]], 1, \(.x) round(show$rsd_perc(.x), 2))
+  }) |>
+  do.call(cbind, args = _)
+# Rename columns to match the user's request labels (Sample, QCs, Standard, Blanks)
+colnames(m_rsd) <- c("Sample", "QCs", "Standard", "Blanks")
+
+stopifnot(identical(rownames(m_rsd), rownames(internal_std_se)))
+rownames(m_rsd) <- SumExp::row_df(internal_std_se)$feature_name
+knitr::kable(m_rsd, caption = "RSD% of internal standard features by sample types") |> 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```

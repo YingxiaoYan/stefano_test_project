@@ -12,27 +12,34 @@ genReportUI <- function(uiId) {
   ns <- shiny::NS(uiId)
   shiny::tagList(
     # Normalization method selection
-
-    # Interactive plot option
-    # shiny::checkboxInput(
-    #   inputId = ns("interactive_plot"),
-    #   label = "Interactive plots in the HTML report?",
-    #   value = TRUE,
+    # shiny::radioButtons(
+    #   inputId = ns("norm_method_"),
+    #   label = "Normalization method",
+    #   choices = c("LOESS" = "loess_norm", 
+    #               "Closest RT" = "closest_norm",
+    #               "without normalization" = "raw"),
+    #   selected = "loess_norm",
     # ),
-    shiny::br(),
-    
+  # Interactive plot option
+   # shiny::checkboxInput(
+   #   inputId = ns("interactive_plot"),
+   #   label = "Interactive plots in the HTML report?",
+   #   value = TRUE,
+   # ),
+   # shiny::br(),
+
     shiny::actionButton(
       inputId = ns("gen_internal"),
       label = "Generate internal report",
     ),
-    shiny::textOutput(ns("gen_internal_out")),
-    shiny::br(),
-    
-    shiny::actionButton(
-      inputId = ns("gen_external"),
-      label = "Generate external report",
-    ),
-    shiny::textOutput(ns("gen_external_out")),
+    shiny::textOutput(ns("gen_internal_out"))  #,
+    # shiny::br(),
+    # 
+    # shiny::actionButton(
+    #   inputId = ns("gen_external"),
+    #   label = "Generate external report",
+    # ),
+    # shiny::textOutput(ns("gen_external_out")),
   )
 }
 
@@ -45,39 +52,58 @@ genReportUI <- function(uiId) {
 #'
 #' @returns NULL
 #' @export
-genReportServer <- function(serverId, data_info) {
+genReportServer <- function(serverId, data_info,
+                            norm_method,
+                            norm_method_2,
+                            norm_method_3
+                            ) {
   shiny::moduleServer(serverId, function(input, output, session) {
     txt <- shiny::reactiveValues(gen_internal = "", gen_external = "")
+    report_ready <- shiny::reactiveVal(NULL)
     
     # Extract file base name without extension
     fn <- shiny::reactive({
       out <- basename(data_info[["input_file"]]) |>
         tools::file_path_sans_ext(compression = TRUE)
-      paste0(out, "-", input$norm_method)
+      paste0(out, "-", norm_method()#input$norm_method
+             )
     })
+    
     # Output directory
     out_dir <- shiny::reactive(data_info[["report_dir"]])
+   
 
     observeButtonAndRun <- function(type, out_fname) {
       id <- paste0("gen_", type)
       qmd <- paste0("report-", type, ".qmd")
+      
       shiny::observeEvent(input[[id]], {
+        
+        #current_norm <- norm_method()
+        req(norm_method())
         txt[[id]] <- withr::with_dir(
           new = "reports",            # Otherwise, "Could not fetch resource..."
           tryCatch(
             {
               odir <- file.path("../..", out_dir())      # Matched with the with_dir() above
+              #paste0(input[["norm_method_2"]])
               quarto::quarto_render(
                 qmd,
                 output_format = tools::file_ext(out_fname()),  # "html" or "pdf"
                 output_file = out_fname(),
                 execute_params = rlang::list2(
-                  norm_method = input[["norm_method"]],
-                  interactive_plot = input[["interactive_plot"]],
+                  #############################################
+                  #########################################
+                  norm_method= norm_method(),#"loess_norm",#input[["norm_method_"]],
+                  #norm_method = norm_method(),#"loess_norm",#input[["norm_method_2"]],
+                  interactive_plot = FALSE,#input[["interactive_plot"]],
                   project_title = data_info[["project_title"]],
                 ),
+               
                 quarto_args = c("--output-dir", odir)
               )
+              report_ready(Sys.time())
+              
               paste0(stringr::str_to_title(type),
                      " reports `", out_fname(), "` generated on `", out_dir(), "`")
             },
@@ -90,10 +116,20 @@ genReportServer <- function(serverId, data_info) {
     }
     
     # Generate internal report
-    observeButtonAndRun("internal", shiny::reactive(paste0(fn(), "-internal.html")))
+    observeButtonAndRun("internal", shiny::reactive(paste0(fn(), 
+                                                           "-internal.html")))
     # Generate external report
     observeButtonAndRun("external", shiny::reactive(paste0(fn(), ".pdf")))
-    NULL
+    #NULL
+    
+    return(list(
+      report_path = shiny::reactive({
+        file.path(out_dir(), paste0(fn(), 
+          "-internal.html"))
+      }),
+      report_ready = report_ready   # ✅ ADD TH
+    ))
+    
   })
 }
 

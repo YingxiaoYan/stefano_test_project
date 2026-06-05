@@ -637,7 +637,7 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
   # Setting up stylization for excel documents
   half_style <- openxlsx::createStyle(fgFill = "#FCEACF", numFmt = "NUMBER")
   quarter_style <- openxlsx::createStyle(fgFill = "#FAAFAF", numFmt = "NUMBER")
-  
+  lloq_style <- openxlsx::createStyle(fgFill = "#D3EBF2", numFmt = "NUMBER")
   # Making a range from which to pick out actual data of final format
   row_range <- attr(per_batch_to_export_table[[1L]], "rows_of_values")
   col_range <- attr(per_batch_to_export_table[[1L]], "cols_of_values")
@@ -711,13 +711,16 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
     for (curr_row in seq_len(nrow(vals))) {
       which_half = which(vals[curr_row,] ==  (LLOQs[curr_row]/2))
       which_quarter = which(vals[curr_row,] ==  (LLOQs[curr_row]/4))
-      
+      which_lloq = which(vals[curr_row,] ==  LLOQs[curr_row])
       # Checking which are half or quarter
       if (length(which_half) > 0) {
         diff_mat[curr_row, which_half] <- 0.5
       }
       if (length(which_quarter) > 0) {
         diff_mat[curr_row, which_quarter] <- 0.25
+      }
+      if (length(which_lloq) > 0) {
+        diff_mat[curr_row, which_lloq] <- 1
       }
     }
     
@@ -739,9 +742,16 @@ export_concentration_xlsx <- function(sumexp_lst, file, is_closest_norm = FALSE)
                              quarter_style,
                              curr_row + offset_row,
                              curr_col + offset_col)
+        } else if (diff_mat[curr_row, curr_col] == 1) {
+          openxlsx::addStyle(wb,
+                             sheet = 1,
+                             lloq_style,
+                             curr_row + offset_row,
+                             curr_col + offset_col)
         }
       }
     }
+    
     
     openxlsx::saveWorkbook(wb, file, overwrite = T)
   } else {  # Multiple batches

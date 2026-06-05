@@ -463,7 +463,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 2.1.1",
+                 "Samples by category/class (2.1.1)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -474,7 +474,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 2.1.2.2",
+                 "Calibration curve samples - the number of samples per concentration (2.1.2.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -485,7 +485,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 2.1.3",
+                 "Calibration curve samples - quality control samples (2.1.3)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -498,7 +498,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 2.2",
+                 "Features (2.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -520,7 +520,7 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Figure 2.2",
+                 "The distribution of the features across m/z and retention time (2.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -532,13 +532,24 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Figure 2.2",
+                 "The distribution of the features (2.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
                
                plotOutput("ggplot2_2_2")
-             )
+             ),
+        div(
+          style = "padding: 0;", 
+          h3(
+            "Distribution of the values (2.3)",
+            style = "margin: 0;"
+            #style = "margin-bottom: 10px; font-weight: 600;"
+          ),
+          
+          plotOutput("ggplot2_3")
+        )
+        
         )
       )
     ),
@@ -560,7 +571,7 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Table3.1",
+                 "Internal standards (3.1)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -573,7 +584,7 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Text 3.1.1",
+                 "Failed internal standards (3.1.1)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -583,7 +594,7 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Outlier samples",
+                 "Outlier samples (3.1.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -592,6 +603,13 @@ ui <-
                uiOutput("wrap_outlier"),
                # htmlOutput("text_3_1_2"),
                # DT::DTOutput("tb_3_1_2")
+               h3(
+                 "Raw RSD% (3.1.2)",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
+               
+               
                DT::DTOutput("tb_3_4_1")
                
              )
@@ -611,7 +629,7 @@ ui <-
              div(
                style = "padding: 0;", 
                h3(
-                 "Figure 3.1.3",
+                 "Distribution of the values of individual IS features (3.1.3)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -621,34 +639,52 @@ ui <-
              ),
              
              
-             
-             radioButtons(
-               "group_choice",
-               "Samples by injection order:",
-               choices = c(
-                 "Class" = "class",
-                 "Batch ID" = "batch",
-                 "Internal Standard" = "internal_std"
-               ),
-               selected = character(0)   # ✅ no selection
-             ),
-             
+          
+    
              div(
-               style = "padding: 0;", 
-               h3(
-                 "Figure 3.2.1.1/2",
-                 style = "margin: 0;"
-                 #style = "margin-bottom: 10px; font-weight: 600;"
-               ),
+               style = "padding: 0; display: flex; gap: 20px; align-items: flex-start;",
+       
                #DT::DTOutput("tb_test"),
-               uiOutput("vis_or_text_3_2_1_1"),
+               div(
+                 style = "width: 50%;",
+                 h3(
+                   "Samples by internal standards (3.2.1.1/2)",
+                   style = "margin: 0;"
+                   #style = "margin-bottom: 10px; font-weight: 600;"
+                 ),
+                 br(),
+                 br(),
+                 radioButtons(
+                   "group_choice",
+                   "Samples by injection order:",
+                   choices = c(
+                     "Class" = "class",
+                     "Batch ID" = "batch",
+                     "Internal Standard" = "internal_std"
+                   ),
+                   selected = character(0)   # ✅ no selection
+                 )
+               ),
+               
+               div(
+                 style = "width: 60%;",
+                 uiOutput("vis_or_text_3_2_1_1")
+               )
+               ),
+              div( 
+            
                plotlyOutput("ggplot3_2_1_2"),
                h3(
-                 "Figure/table 3.2.3",
+                 "Comparison of normalization methods 3.2.3",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
                plotOutput("ggplot3_2_3"),
+               h3(
+                 "RSD% values (3.2.3)",
+                 style = "margin: 0;"
+                 #style = "margin-bottom: 10px; font-weight: 600;"
+               ),
                DT::DTOutput("tb_3_2_3")
                
              )
@@ -659,7 +695,7 @@ ui <-
     nav_panel(
       title = HTML("4. Calibration and Quantification <strong> >> </strong>"),
       layout_columns(
-        col_widths = c(5, 7), 
+        col_widths = c(6, 6), 
         card(          
           card_header(
           div(
@@ -684,7 +720,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 4.1",
+                 "Calibration curve samples (4.1)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -695,7 +731,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Table 4.2",
+                 "Calibration curve limits (4.2)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -706,7 +742,7 @@ ui <-
                style = "padding: 0;", 
                
                h3(
-                 "Text 4.5",
+                 "Removal of chemicals with no measurement samples (4.5)",
                  style = "margin: 0;"
                  #style = "margin-bottom: 10px; font-weight: 600;"
                ),
@@ -731,7 +767,7 @@ ui <-
                style = "padding: 0; width: 100%;",
                
                h3(
-                 "Figure 4.3",
+                 "Calibration curve per chemical (4.3)",
                  style = "margin: 0;"
                ),
                
@@ -745,7 +781,7 @@ ui <-
                style = "padding: 0; width: 100%;",
                
                h3(
-                 "Figure 4.4.2",
+                 "Calibration curves of all measurement samples (4.4.2)",
                  style = "margin: 0;"
                ),
                
@@ -759,7 +795,7 @@ ui <-
                style = "padding: 0; width: 100%;",
                
                h3(
-                 "Figure 5.1",
+                 "Concentration (5.1)",
                  style = "margin: 0;"
                ),
                
@@ -774,7 +810,71 @@ ui <-
     nav_panel(
       title = HTML("5. Report export&nbsp;📄&nbsp <strong>  </strong>"),
       layout_columns(
-        col_widths = c(3, 9), 
+        col_widths = c(9, 3), 
+         
+        card(
+          card_header(
+            div(
+              "Report",
+              style = "margin-bottom: 10px;"   # small spacing (optional)
+            ),
+            div(
+              style = "height:3px; background:white; width:100%;"
+            )
+          ),
+          
+          genReportUI("report"),
+          
+          #div(
+          #  style = "padding: 0; display: flex; gap: 20px; align-items: flex-start;",
+          #  genReportUI("report") 
+            #DT::DTOutput("tb_test"),
+          #   div(
+          #     style = "width: 50%;",
+          # shiny::radioButtons(
+          #   inputId = "norm_method_3",
+          #   label = "Normalization method",
+          #   choices = c(
+          #     "LOESS vs without normalization" = "loess_norm",
+          #     "Closest RT vs without normalization" = "closest_norm"#,
+          #     #"Without normalization" = "raw"
+          #   ),
+          #   selected = "loess_norm",
+          # ) 
+          # ),
+          # div(
+          #   style = "width: 50%;",
+          # genReportUI("report")
+          #)
+          #),
+          
+          
+          ######################################
+          ### Here there should be a vairable link to here
+          
+          
+          ###################################################################
+          
+          
+          uiOutput("the_report"),
+          ##############################################################
+          
+          ### in the www file
+          # tags$iframe(
+          #   src = "/Dummy_Test-loess_norm-internal.html",
+          #   style = "width:100%; height:90vh; border:none;"
+          # ),
+          div(
+            class = "d-flex justify-content-center my-2",
+            #uiOutput("download_btn")
+            downloadButton(
+              outputId = "download_report",
+              label    = "Download HTML Report",
+              class    = "btn btn-sm btn-primary",
+              style    = "font-size:18px; padding:12px 24px;"
+            )
+          )
+        ),
         card(    
           card_header(
             div(
@@ -802,43 +902,15 @@ ui <-
           ),
           
           
-       
+          
           
           ##  the selected thinsg needs to be injected in to the runScriptUI() in the runScript.R
           ## actually it needs to be injected in to the export_data.R
           
           
-          runScriptUI("export_data", label = "Export data into tables")
+          runScriptUI2("export_data", label = "Export data into tables")
           
-        ), 
-        card(
-          card_header(
-            div(
-              "Report",
-              style = "margin-bottom: 10px;"   # small spacing (optional)
-            ),
-            div(
-              style = "height:3px; background:white; width:100%;"
-            )
-          ),
-          genReportUI("report"),
-          
-          tags$iframe(
-            src = "/Dummy_Test-loess_norm-internal.html",
-            style = "width:100%; height:90vh; border:none;"
-          ),
-          
-          div(
-            class = "d-flex justify-content-center my-2",
-            #uiOutput("download_btn")
-            downloadButton(
-              outputId = "download_report",
-              label    = "Download HTML Report",
-              class    = "btn btn-sm btn-primary",
-              style    = "font-size:18px; padding:12px 24px;"
-            )
-          )
-        )
+        ),
       )
     )
   )
@@ -864,42 +936,185 @@ server <- function(input, output, session) {
   # )
   # })
   
+ # genReportServer("report", data_info = data_info)
+  
+  
+  
+  
+  report_obj <- genReportServer("report", data_info = data_info,
+                                norm_method = reactive(input$norm_method),
+                                norm_method_2 = reactive(input$norm_method_2),
+                                norm_method_3 = reactive(input$norm_method_3)
+  )
+  
+
+
+  
+  observe({
+    
+    s<-getwd()
+    #setwd("..")
+    
+    dir <- normalizePath(file.path("..", data_info[["report_dir"]]), mustWork = TRUE)
+    
+    cat(dir)
+    
+    addResourcePath("reports", dir)
+    
+    #setwd(s)
+    cat("Mapped URL /reports →", dir, "\n")
+    
+    cat("sddssdsdsfsafafasda",data_info[["report_dir"]])
+    cat("KKKKKKKKKKKKKKKKKKKK",normalizePath(data_info[["report_dir"]], mustWork = TRUE))
+    
+  })
+  
+  
+  
+  output$the_report <- renderUI({
+    
+    report_obj$report_ready()  # 👈 THIS makes it reactive
+    #invalidateLater(1000, session)
+    
+    req( report_obj$report_path())
+    # req(
+    #   report_obj$report_path(),
+    #   file.exists(report_obj$report_path())
+    # )
+    # 
+    dir <- normalizePath(file.path("..", data_info[["report_dir"]]), mustWork = TRUE)
+    
+    req(file.exists(file.path(dir, basename(report_obj$report_path()))))
+    
+    
+    
+    report_path <- report_obj$report_path()
+    
+    full_path <- normalizePath(report_path)
+    parent_path <- dirname(full_path)
+    file_name <- basename(report_obj$report_path())
+    
+    
+    
+    cat("Working dir:", getwd(), "\n")
+    cat("Input path:", report_obj$report_path(), "\n")
+    cat("Resolved:", normalizePath(report_obj$report_path(), mustWork = FALSE), "\n")
+    
+    cat("Full path:", full_path, "\n")
+    cat("Parent:", parent_path, "\n")
+    
+    cat("file name",file_name, "\n")
+    
+    ## reports is code code dorectory
+    tags$iframe(
+      src = paste0("/reports/", file_name, "?t=", Sys.time()),
+      style = "width:100%; height:3000px; border:none;"
+    )
+  })
+  
+  
+  # output$the_report <- renderUI({
+  #   
+  #   req(report_obj$report_path())
+  #   
+  #   file_name <- basename(report_obj$report_path())
+  #   cat(report_obj$report_path(),
+  #                 "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  #                
+  #                 "sssssssssssssssssssssssssssssssssssssssssssss",
+  #                file_name)
+  #   # tags$iframe(
+  #   #   src = paste0("/reports/", file_name, "?t=", Sys.time()),
+  #   #   style = "width:100%; height:90vh; border:none;"
+  #   # )
+  #   tags$iframe(
+  #     src = "/Dummy_Test-loess_norm-internal.html",
+  #     style = "width:100%; height:90vh; border:none;"
+  #   )
+  # })
+  
+  
+  # output$the_report <- renderUI({
+  #   
+  #   req(report_obj$report_path())
+  #   
+  #   file_name <- basename(report_obj$report_path())
+  #    
+  #      file<-sub("^[^/]+/","",
+  #                report_obj$report_path()
+  #                )
+  #      cat(report_obj$report_path(),
+  #          "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  #          file,
+  #          "sssssssssssssssssssssssssssssssssssssssssssss",
+  #          file_name)
+  #      htmltools::includeHTML("./code/tests/testoutput/MLOD-Q_human_neg2--internal.html")
+  # 
+  # })
+  # 
+  
+  # 
+  # 
+  # output$the_report <- renderUI({
+  #   
+  #   req(report_obj$report_path())
+  #   
+  #   html <- paste(readLines("./code/tests/testoutput/MLOD-Q_human_neg2--internal.html"), collapse = "\n")
+  #   
+  #   HTML(html)
+  #   
+  # })
+  
+ 
+  
+  
   output$download_report <- downloadHandler(
     
     # ✅ dynamic filename (what user sees)
     filename = function() {
       paste0(
-        "Report_",
-        input$norm_method_2,
-        if (input$blk_substraction) "_blankSub" else "",
+        "Internal Report ",
+        input$norm_method,
+        #if (input$blk_substraction) "_blankSub" else "",
         ".html"
       )
     },
     
     # ✅ content (file to send)
+    
+    
     content = function(file) {
       
-      # build actual file name
-      report_name <- paste0(
-        "Dummy_Test-",
-        input$norm_method_2,
-        "-internal",
-        if (input$blk_substraction) "-blanksub" else "",
-        ".html"
+      # ✅ get file name (same as iframe)
+      file_name <- basename(report_obj$report_path())
+      
+      # ✅ get real directory
+      dir <- normalizePath(
+        file.path("..", data_info[["report_dir"]]),
+        mustWork = TRUE
       )
       
-      # ✅ file location
-      report_path <- file.path("www", report_name)
+      # ✅ build FULL PATH (correct way)
+      current_path <- file.path(dir, file_name)
       
-      # ✅ check file exists
+      # ✅ debug
+      cat("DOWNLOAD file_name:", file_name, "\n")
+      cat("DOWNLOAD dir:", dir, "\n")
+      cat("DOWNLOAD full path:", current_path, "\n")
+      
+      # ✅ validate
       validate(
-        need(file.exists(report_path),
-             paste("File not found:", report_name))
+        need(file.exists(current_path),
+             paste("File not found:", current_path))
       )
       
-      # ✅ send file
-      file.copy(report_path, file)
+      # ✅ copy to temp file
+      file.copy(current_path, file, overwrite = TRUE)
     }
+    
+  
+  
+    
   )
 
 
@@ -922,11 +1137,17 @@ server <- function(input, output, session) {
   
   runReadMsdialServer("read_msdial", data_info = data_info)
   runProcessServer("proc", data_info = data_info)
-  runScriptServer("export_data",
+  
+  
+  runScriptServer2("export_data",
                   script_path = "scripts/export_data.R",
                   what = "Export data into tables",
-                  data_info = data_info)
-  genReportServer("report", data_info = data_info)
+                  data_info = data_info,
+                  input1=reactive(input$norm_method_2),
+                  input2=reactive(input$blk_substraction)
+                  )
+  
+
   
   
   
@@ -965,6 +1186,14 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    # 
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    # 
+    # 
+    
+    
     
     source("R/_internal-shared_setup_chunky_toR.R",
            local = local_env)
@@ -984,6 +1213,14 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    # 
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    # 
+    
+    
+    
     
     source("R/_internal-shared_setup_chunky_toR.R",
            local = local_env)
@@ -1002,6 +1239,14 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    # 
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    # 
+    # 
+    
+    
     
     source("R/_internal-shared_setup_chunky_toR.R",
            local = local_env)
@@ -1022,6 +1267,14 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    # 
+    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    # 
+    
+    
+    
     
     source("R/_internal-shared_setup_chunky_toR.R",
            local = local_env)
@@ -1047,20 +1300,32 @@ server <- function(input, output, session) {
     # print(user_inputs$input_file)
     # req(data_info$input_file==user_inputs$input_file)
     
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    
+    
+    
+    
+    
+    ### add a condition when there is no file of rds
+    #req()
+    
     source("R/_internal-shared_setup_chunky_toR.R")
     
     
     #user_inputs$input_file<-yaml_data()$input_file
     
-    cat("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-    print(user_inputs$input_file)
-    cat("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+    # cat("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    print(raw_se)
+    # cat("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
     
     print(FILE$i$to_rep)
-    cat("ssssssssssssssssssssssssssssssssssssssssssssssssssssssssss")
+    #cat("ssssssssssssssssssssssssssssssssssssssssssssssssssssssssss")
     print(user_inputs)
     
-    cat("ggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg")
+    # cat("ggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg")
     print(yaml_data())
 
   })
@@ -1099,6 +1364,7 @@ server <- function(input, output, session) {
   
     
      req(raw_se_r())
+ 
     catg <- util$ctrl_smpl_cat( raw_se_r())
     
     catg[catg == ""] <- "Sample" 
@@ -1403,6 +1669,23 @@ server <- function(input, output, session) {
   })
   
   
+  
+  
+  #################################################################################################################################
+  ### This is figure 2.3
+  
+  output$ggplot2_3 <- renderPlot({
+    
+    p <- SumExp::ggplot(raw_se_r()) +
+      geom_histogram(aes(x = raw), bins = 50)
+    ggplot2_3 <-gridExtra::grid.arrange(   # Two ggplots next to each other
+      p + labs(title = "Linear scale", x = "Values"),
+      p + scale_x_log10() + labs(title = "Logarithmic scale", x = "Values"),
+      ncol = 2
+    )
+    ggplot2_3 
+  })
+  
   #################################################################################################################################
   ### This is table 3.1
  
@@ -1414,14 +1697,23 @@ server <- function(input, output, session) {
     
     output$tb_3_1 <-DT::renderDataTable({
       
-      
-      
+      # req(pre_norm_se_r())
+      # 
+      # req(internal_std_se_r())
+      # 
+      message("sssssaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       
       all_rts <- util$retention_time(pre_norm_se_r())
+      # 
+      message("sssssaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       overall_rt_range <- range(all_rts)
+      # 
+      message("sssssaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       targetted_rt_range <- range(all_rts[util$is_targeted_feature(pre_norm_se_r())])
+      # 
+      message("sssssaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       rt <- range(all_rts[util$is_internal_std(pre_norm_se_r())])
-      
+      message("sssssssssssssssssssssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       
       
       
@@ -1733,7 +2025,7 @@ rowCallback = JS("
     is_outlier <- to_report_r()[["is outlier sample"]]
     # The following is added only when the outlier removal step has been set to perform
     
-    cat(is_outlier)
+   # cat(is_outlier)
     if (! is.null(is_outlier)) {
       cat(
         "### Outlier samples\n\n",
@@ -1942,9 +2234,9 @@ rowCallback = JS("
     
     norm_se <- to_report_r()[["normalized"]]
     is_vIS <- util$std_type(norm_se) == "vIS"
-    mat_ids_to_compare <- c("raw", "loess_norm")
+    mat_ids_to_compare <- c("raw")
     
-    cat("SSSSSSSSSSSSSSSSSSSSSSSSSSSSs",any(is_vIS),"dssssssssssssssssssssssss")
+   # cat("SSSSSSSSSSSSSSSSSSSSSSSSSSSSs",any(is_vIS),"dssssssssssssssssssssssss")
     if (any(is_vIS)) {
       cat("\n\nThe bars represent the peak areas of volumetric internal standards (vIS).\n\n")
       df_show <- norm_se[is_vIS, ] |> 
@@ -1952,7 +2244,8 @@ rowCallback = JS("
       df_show<-as.data.frame(df_show,
                              check.names = FALSE)
       ggplot3_2_1_1<-plotly::ggplotly(
-        show$ggplot_col_injection_order(df_show, fill = feature_name) +
+        show$ggplot_col_injection_order(df_show, 
+                                        fill = feature_name) +
           labs(title = "Volumetric internal standards") +
           # Skip the legend. Too long feature names make the plots too narrow.
           theme(legend.position = "none")
@@ -2192,6 +2485,15 @@ rowCallback = JS("
       ## (2) One is reactivity to the data
       setwd("..")
 
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+      
+      
+      
+      
       params_yml$norm_method<-input$norm_method
       
       MAT_ID_BLANK_SUBT <- params_yml$norm_method |>
@@ -2298,6 +2600,13 @@ rowCallback = JS("
       
       # ⚠️ recommended: remove setwd in future
       setwd("..")
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+      
+      
+      
       
       params_yml$norm_method <- input$norm_method
       
@@ -2435,6 +2744,13 @@ rowCallback = JS("
     output$ggplot4_3 <- renderPlotly({
       
       setwd("..")
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+      
+      
+      
       
       params_yml$norm_method <- input$norm_method
       
@@ -2608,6 +2924,13 @@ rowCallback = JS("
     output$ggplot4_4_2 <- renderPlotly({
       
       setwd("..")
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+      
+      
+      
       
       params_yml$norm_method <- input$norm_method
       
@@ -2758,7 +3081,7 @@ rowCallback = JS("
         
         
         
-        cat(c("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",nrow(se_selected)))
+        #cat(c("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",nrow(se_selected)))
         plotly::plot_ly() |>
           plotly::layout(
             xaxis = list(visible = FALSE),
@@ -2884,6 +3207,14 @@ rowCallback = JS("
     output$tb_4_5<- DT::renderDataTable({
       
       setwd("..")
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+      
+      req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+      
+      
+      
       
       params_yml$norm_method <- input$norm_method
       

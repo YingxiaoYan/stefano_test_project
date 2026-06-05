@@ -303,6 +303,7 @@ ggplot_calcurve_samples <- function(x_se, cc_se, mat_id, colors_of_classes, log_
       ggplot2::geom_point(ggplot2::aes(color = Class, text = txt)) +
       ggplot2::guides(text = "none")
   )
+  # Rug plot at the left and bottom edges of the plot to show the density of points
   out <- out +
     # Density of points at the edges of the plot
     ggplot2::geom_rug(color = grDevices::rgb(0.5, 0, 0, alpha = 0.2)) +

@@ -228,7 +228,6 @@ save_src_mat_id_for_conc <- function(sumexp, value) {  # `src_mat_id_for_conc<-`
 #' Get the matrix ID of the blank-subtracted matrix
 #'
 #' @param mat_id The name of a matrix
-#'
 #' @returns The name of the blank-subtracted matrix
 #' @export
 mat_id_of_blank_subtracted <- function(mat_id) {

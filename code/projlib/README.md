@@ -14,11 +14,12 @@ Provides functions to **validate file** and directory existence before processin
 
 Helper functions to access and **manipulate MS-DIAL data elements**:
 
-- Feature accessors: `std_type()`, `is_targeted_feature()`, `retention_time()`
-- Sample accessors: `ctrl_smpl_cat()`, `spiked_conc_pts()`
-- Calibration curve utilities: `get_cc_model()`, `set_cc_model()`
-- Matrix manipulation: `mat_id_of_blank_subtracted()`, `extract_with_na()`
-- Statistical utilities: `.rsd_perc()` for calculating relative standard deviation
+- **Feature accessors**: `std_type()`, `is_targeted_feature()`, `is_internal_std()`, `retention_time()`
+- **Sample accessors**: `ctrl_smpl_cat()`, `is_calcurve_sample()`, `spiked_conc_pts()`
+- **Sample filtering**: `exclude_ctrl_smpl_cat()`, `extract_ctrl_smpl_cat()`, `split_into_calcurve_and_other()`
+- **Matrix ID management**: `mat_id_of_blank_subtracted()`, `mat_id_in_calibration()`, `src_mat_id_for_conc()`
+- **Matrix manipulation**: `extract_with_na()`
+- **Statistical utilities**: `.rsd_perc()`, `avg_plus_std_times()`
 
 ### `msdial.R`
 
@@ -35,21 +36,23 @@ Handles **reading and writing** MS-DIAL raw and processed data:
 
 **Core data processing** and normalization functions:
 
-- **Zero imputation**: `impute_zeros_with_mean_of_same_type()` handles missing values
-- **Quality control**: `count_outliers_per_sample()` identifies outlying internal standard features
+- **Zero imputation**: `impute_zeros_with_mean_of_same_type()` and `count_zeros_per_feature()`
+- **Quality control**: `identify_outliers()` and `count_outliers_per_sample()`- **Internal standard normalization**: `get_data_of_closest_istd()` finds closest internal standards by retention time
 - **Internal standard normalization**: `get_data_of_closest_istd()` finds closest internal standards by retention time
-- **LOESS normalization**: `get_loess_fit()` performs retention time-based normalization
-- **Blank subtraction**: `add_blank_subtracted_sumexp()` subtracts blank sample averages
-- **Calibration curve fitting**: Functions for working range determination, model fitting (linear, quadratic, weighted), and concentration calculation
-- **LOD/LLOQ calculation**: Determines limits of detection and quantification
+- **LOESS normalization**: `get_loess_fit()` performs retention time-based normalization- **Blank subtraction**: `add_blank_subtracted_sumexp()` subtracts blank sample averages
+- **Blank subtraction**: `add_blank_subtracted_sumexp()` subtracts batch-specific blank sample averages
+- **Calibration limits**: `find_calib_lim_pts_and_llox_from_llox_signal()` determines working ranges, LOD, and LLOQ
+- **Model fitting**: `fit_and_test_calcurve_model()` fits linear/quadratic models with various weighting methods
+- **Concentration calculation**: `compute_concentration()` transforms signals to concentrations using fitted models
+- **Post-calibration**: `replace_below_lod_lloq()` and `replace_conc_whose_signal_below_lloq()` handle values outside quantification limits
+
 
 ### `show.R`
 
 Functions for generating **plots and tables** for reports:
-
-- **Quality metrics**: `compute_rsd_per_feature()` calculates RSD% across samples
-- **Color schemes**: `get_colors_of_classes()` manages consistent color palettes
-- **QC visualization**: `extract_quant_qc()` extracts quantitative standards from QC samples
-- **Calibration curve plots**: `ggplot_calcurve_samples()` and `ggplot_calcurve_samples_facet()` create calibration curve visualizations with sample points
-- **RSD plots**: `ggplot_rsdp_metab()` visualizes RSD% distributions
-- Custom ggplot2 coordinate system `CoordZoomInByCC` for zooming into calibration curve ranges
+- **Quality metrics**: `compute_rsd_per_feature()` and `rsd_perc()`
+- **Color schemes**: `get_colors_of_classes()` manages consistent color palettes for control categories and classes
+- **QC visualization**: `extract_quant_qc()` extracts quantitative standards from QC samples for performance monitoring
+- **Calibration curve plots**: `ggplot_calcurve_samples()` and `ggplot_calcurve_samples_facet()` create visualizations with sample points and fitted lines
+- **RSD plots**: `ggplot_rsdp_metab()` visualizes RSD% distributions across different processing stages
+- **Custom aesthetics**: `geom_calibration_curve_line()` and custom coordinate system `CoordZoomInByCC` for specialized calibration curve rendering

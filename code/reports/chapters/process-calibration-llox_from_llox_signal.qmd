@@ -5,18 +5,37 @@ params:
 ---
 
 ```{r}
+#| label: read_file
 #| purl: true
 #| file: "code/reports/chapters/_internal-shared_setup_chunk.R"
-#| eval: !expr '!knitr::opts_knit$get("child")'
+##| eval: true
 params <- list(norm_method = "loess_norm", project_title = "Test")
 source("code/reports/chapters/_internal-shared_setup_chunk.R") # For "Run Cell" functionality
+
+
 ```
 
 ```{r}
+#| label: first_stuff
 #| purl: true
+
+# IS_TARGET_MODE=T
+
+#source("code/reports/chapters/_internal-shared_setup_chunk.R") # For "Run Cell" functionality
+stopifnot(!is.null(MAT_ID_BLANK_SUBT))
+warnings(MAT_ID_BLANK_SUBT)
+#stopifnot(MAT_ID_BLANK_SUBT =="loess_norm_blk")
+#stopifnot(params$norm_method=="loess_norm")
+stopifnot(IS_TARGET_MODE)
+stopifnot(exists("lst_proc"), length(lst_proc) > 0)
+stopifnot(!is.null(lst_proc), length(lst_proc) > 0)
+
 calcurve_lst <- lst_proc |>
   lapply(\(x) x$calcurve)
 ```
+
+`r print(paste(names(lst_proc[[1]]), collapse = ", "))`
+`r paste(names(calcurve_lst), collapse = ", ")`
 
 ## Calibration curve samples
 
@@ -43,17 +62,58 @@ for (ii in names(calcurve_lst)) {
 }
 ```
 
+
+
 ## Calibration curve limits
 
 ```{r}
+#| label: step1
 #| purl: true
-limit_df <- lapply(calcurve_lst, \(se) {
-  SumExp::row_df(se) |>
-    dplyr::select(min_c_conc, max_c_conc, lod, lloq, has_proper_range, src_calcurve) |>
-    tibble::as_tibble(rownames = "feature_id")
-}) |>
-  purrr::list_rbind(names_to = "batch")
+ 
+ #col_name<-c("batch","feature_id","min_c_conc", "max_c_conc", "lod", "lloq", "has_proper_range", "src_calcurve")
+ limit_df <- lapply(calcurve_lst, \(se) {
+   #print(colnames(SumExp::row_df(se)))
+   SumExp::row_df(se) |>
+     dplyr::select(min_c_conc, max_c_conc, lod, lloq, has_proper_range, src_calcurve) |>
+     tibble::as_tibble(rownames = "feature_id")
+
+ }) |>
+   purrr::list_rbind(names_to = "batch")
+
+
+
+
+
+# limit_list <- vector("list", length(calcurve_lst))
+# 
+# # optional: preserve names
+# names(limit_list) <- names(calcurve_lst)
+
+# # loop over elements
+# for (i in seq_along(calcurve_lst)) {
+#   se <- calcurve_lst[[i]]
+# 
+#   df <- SumExp::row_df(se)
+# 
+#   df_selected <- df |>
+#     dplyr::select(
+#       min_c_conc, max_c_conc, lod, lloq,
+#       has_proper_range, src_calcurve
+#     )
+# 
+#   limit_list[[i]] <- tibble::as_tibble(
+#     df_selected,
+#     rownames = "feature_id"
+#   )
+# }
+# 
+# # if you later want to bind (same as your original pipeline step):
+# limit_df <- purrr::list_rbind(limit_list, names_to = "batch")
+
+
+# colnames(limit_df)<-col_name
 ```
+
 
 * LOD and LLOQ
 
@@ -72,6 +132,7 @@ cat(switch(to_report$params$llox_method,
 if (to_report$params$use_rsd20) {
   cat(" Additionally, LLOQ required a signal RSD ≤ 20%.")
 }
+
 ```
 
 * Calibration working range
@@ -84,15 +145,20 @@ As quite a few concentration points in the calibration curve samples of a chemic
 When there are sufficient number (≥ 3) of calibration points, that the points that produce signal after normalization exceeding the **highest** signal of the quantification samples are excluded except the lowest one.
 
 If the lower-limit (LLOQ) is set so high that fewer than three concentration points remain, that chemical is excluded from the calibration curve, because the curve cannot be fitted properly.
-As a result, `r sum(!limit_df$has_proper_range)` chemicals have been excluded from the calibration.
+As a result, `r sum(!as.logical(limit_df$has_proper_range))` chemicals have been excluded from the calibration.
 
 The concentration range for each chemical is detailed below.
+
+
+
 
 ```{r}
 #| label: 'calcurve-conc-range-table'
 
+limit_df<-as.data.frame(limit_df)
 show_df <- limit_df |>
-  dplyr::rename(min_c = min_c_conc, max_c = max_c_conc) |>
+  dplyr::rename(min_c = min_c_conc, 
+                max_c = max_c_conc) |>
   dplyr::mutate(
     lod = ifelse(is.na(lod), "N.A.", as.character(lod)),
     min_c = ifelse(is.na(min_c), "No valid pts.", as.character(min_c)),
