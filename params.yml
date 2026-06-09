@@ -1,5 +1,5 @@
 project_title: TEST
-input_file: ./code/to_stefano/AKD-Try6_V4.txt
+input_file: ./code/to_stefano/MLOD-Q_human_neg2.txt
 intermediate_dir: ./code/code/tests/testoutput
 table_dir: ./code/code/tests/testoutput
 report_dir: ./code/code/tests/testoutput

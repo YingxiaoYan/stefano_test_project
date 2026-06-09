@@ -48,10 +48,6 @@ test_*
 *.pdf
 
 
-reports/
-
-# Ignore test output files
-code/code/
 
 
 *.xlsx

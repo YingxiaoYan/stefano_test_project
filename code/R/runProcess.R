@@ -49,6 +49,24 @@ runProcessUI <- function(uiId) {
     ),
     shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
     shiny::checkboxInput(
+      inputId = "blk_filtering",
+      label = "Quality control: blank filtering",
+      value = TRUE,
+      width="100%"
+    ),
+    
+
+    numericInput(
+      inputId = "blank_filtering_factor",
+      label = "Blank filtering factor (> 1):",
+      value = 1,
+      min = 1,
+      width="100%"
+    ),
+    
+    
+    shiny::tags$hr(style = "border-top: 10px solid #FFFFFF; margin: 10px 0;"),
+    shiny::checkboxInput(
       inputId = ns("log_calibration"),
       label = HTML("Log scale for calibration curve fitting"),
       value = FALSE,
@@ -116,6 +134,7 @@ runProcessUI_2<- function(uiId) {
 #' @param serverId A string that identifies the server module.
 #' @export
 runProcessServer <- function(serverId, data_info) {
+  
   shiny::moduleServer(serverId, function(input, output, session) {
     
     # Disable/enable weight options based on log_calibration

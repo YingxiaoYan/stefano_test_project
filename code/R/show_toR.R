@@ -489,11 +489,11 @@ ggplot_col_injection_order <- function(data, fill, inj_ord = injection_order) {
     ggplot2::geom_col(ggplot2::aes(y = Value, fill = {{ fill }})) +
     ggplot2::labs(
       x = label_if_has(dplyr::pull(data, {{ inj_ord }}), "Injection order"),
-      fill = label_if_has(dplyr::pull(data, {{ fill }}), deparse(substitute(fill))),
+      fill = label_if_has(dplyr::pull(data, {{ fill }}), deparse(substitute(fill)))
     ) +
     ggplot2::geom_smooth(ggplot2::aes(y = sum_value),
                          method = "loess", formula = "y ~ x", se = FALSE) +
-    ggplot2::facet_wrap(~ Data, scales = "free_y")
+    ggplot2::facet_wrap(~Data , scales = "free_y")
 }
 
 #  -----  PCA  -----------------------------------------------------------------
