@@ -22,6 +22,15 @@ library(echarts4r)
 library(DT)
 library(plotly)
 library(shinycssloaders)
+
+options(box.path = c(".", "code"))
+box::use(
+  SumExp,
+  util = projlib / msdial_utils,
+  projlib / msdial,
+  projlib / show,
+  io = projlib / check_io_exist,
+)
 # 1) Define theme
 custom_theme <- bs_theme(
   version = 5,
@@ -468,11 +477,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_2_1_1"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              DT::DTOutput("tb_2_1_1"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
             
           ),
@@ -486,11 +495,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_2_1_2_2"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              DT::DTOutput("tb_2_1_2_2"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
           ),
           
@@ -503,11 +512,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            htmlOutput("tb_2_1_3"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              htmlOutput("tb_2_1_3"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
             #DT::DTOutput("tb_2_1_3")
           ),
@@ -522,12 +531,12 @@ ui <-
             ),
             #DT::DTOutput("tb_2_2")
             withSpinner(
-            htmlOutput("tb_2_2"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
-          )
+              htmlOutput("tb_2_2"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
+            )
             
           )
         ), 
@@ -549,13 +558,13 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            plotOutput("ggplot1_2_2"#, 
-                       #height = "450px"
-            ),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab")
+              plotOutput("ggplot1_2_2"#, 
+                         #height = "450px"
+              ),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
           ),
           div(
             style = "padding: 0;", 
@@ -565,11 +574,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            plotOutput("ggplot2_2_2"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab")
+              plotOutput("ggplot2_2_2"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
           ),
           div(
             style = "padding: 0;", 
@@ -579,11 +588,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            plotOutput("ggplot2_3"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab")
+              plotOutput("ggplot2_3"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
           )
           
         )
@@ -612,23 +621,23 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_3_1"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              DT::DTOutput("tb_3_1"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             withSpinner(
-            verbatimTextOutput("df_selected_row"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              verbatimTextOutput("df_selected_row"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             withSpinner(
-            htmlOutput("text_3_1_1"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab")
+              htmlOutput("text_3_1_1"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
           ),
           div(
             style = "padding: 0;", 
@@ -637,7 +646,7 @@ ui <-
               style = "margin: 0;"
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
-          
+            
             htmlOutput("text_3_1_1")
           ),
           div(
@@ -649,11 +658,11 @@ ui <-
             ),
             
             withSpinner(
-            uiOutput("wrap_outlier"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              uiOutput("wrap_outlier"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             # htmlOutput("text_3_1_2"),
             # DT::DTOutput("tb_3_1_2")
             h3(
@@ -662,12 +671,12 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            
-            DT::DTOutput("tb_3_4_1"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab")
+              
+              DT::DTOutput("tb_3_4_1"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
             
           )
           
@@ -691,17 +700,17 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            plotOutput("ggplot3_1_3"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              plotOutput("ggplot3_1_3"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             withSpinner(
-            uiOutput("remove_failedIS_outlier"),
-          type = 4,        # spinner style (1–8)
-          color = "#0072B2",
-          size =1.5,
-          caption = "Loading ... Do not refresh or change tab")
+              uiOutput("remove_failedIS_outlier"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
           ),
           
           
@@ -719,7 +728,7 @@ ui <-
                 #style = "margin-bottom: 10px; font-weight: 600;"
               ),
               br(),
-   
+              
               radioButtons(
                 "group_choice",
                 "Samples by injection order:",
@@ -732,12 +741,12 @@ ui <-
                 inline=TRUE# ✅ no selection
               ),
               withSpinner(
-              uiOutput("vis_or_text_3_2_1_1"),
-              type = 4,        # spinner style (1–8)
-              color = "#0072B2",
-              size =1.5,
-              caption = "Loading ... Do not refresh or change tab")
-             )#,
+                uiOutput("vis_or_text_3_2_1_1"),
+                type = 4,        # spinner style (1–8)
+                color = "#0072B2",
+                size =1.5,
+                caption = "Loading ... Do not refresh or change tab")
+            )#,
             # 
             # div(
             #   style = "width: 100%;",
@@ -747,33 +756,33 @@ ui <-
           
           div( 
             withSpinner(
-            plotlyOutput("ggplot3_2_1_2"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              plotlyOutput("ggplot3_2_1_2"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             h3(
               "Comparison of normalization methods 3.2.3",
               style = "margin: 0;"
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            plotOutput("ggplot3_2_3"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size =1.5,
-            caption = "Loading ... Do not refresh or change tab"),
+              plotOutput("ggplot3_2_3"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab"),
             h3(
               "RSD% values (3.2.3)",
               style = "margin: 0;"
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_3_2_3"),
-          type = 4,        # spinner style (1–8)
-          color = "#0072B2",
-          size =1.5,
-          caption = "Loading ... Do not refresh or change tab")
+              DT::DTOutput("tb_3_2_3"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size =1.5,
+              caption = "Loading ... Do not refresh or change tab")
             
           )
         )
@@ -814,11 +823,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_4_1"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              DT::DTOutput("tb_4_1"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
             
           ),
@@ -832,11 +841,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_4_2"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              DT::DTOutput("tb_4_2"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
           ),
           
@@ -849,11 +858,11 @@ ui <-
               #style = "margin-bottom: 10px; font-weight: 600;"
             ),
             withSpinner(
-            DT::DTOutput("tb_4_5"),
-            type = 4,        # spinner style (1–8)
-            color = "#0072B2",
-            size = 1.5,
-            caption = "Loading ... Do not refresh or change tab"
+              DT::DTOutput("tb_4_5"),
+              type = 4,        # spinner style (1–8)
+              color = "#0072B2",
+              size = 1.5,
+              caption = "Loading ... Do not refresh or change tab"
             )
             #DT::DTOutput("tb_2_1_3")
           )
@@ -871,7 +880,7 @@ ui <-
           
           
           div(
-           # style = "padding: 0; width: 100%;",
+            # style = "padding: 0; width: 100%;",
             
             h3(
               "Calibration curves per chemical  (4.3)",
@@ -881,29 +890,8 @@ ui <-
             div(
               style = "width: 100%;", #aspect-ratio: 4 / 3;",   # ✅ shorter height
               withSpinner(
-                            plotlyOutput("ggplot4_3"),
-                            
-                            type = 4,
-                            color = "#0072B2",
-                            caption = "Loading ... Do not refresh or change tab"
-              )
-            )
-          ),
-          div(
-          #  style = "padding: 0; width: 100%;",
-            
-            h3(
-              "Calibration curves of all measurement samples (4.4.2)",
-              style = "margin: 0;"
-            ),
-            
-         
-             # style = "width: 100%; aspect-ratio: 4 / 3;",
-            div(  style = "width: 100%;",
-               withSpinner(
-   
-                  plotlyOutput("ggplot4_4_2"),
-               
+                plotlyOutput("ggplot4_3"),
+                
                 type = 4,
                 color = "#0072B2",
                 caption = "Loading ... Do not refresh or change tab"
@@ -911,7 +899,28 @@ ui <-
             )
           ),
           div(
-           # style = "padding: 0; width: 100%;",
+            #  style = "padding: 0; width: 100%;",
+            
+            h3(
+              "Calibration curves of all measurement samples (4.4.2)",
+              style = "margin: 0;"
+            ),
+            
+            
+            # style = "width: 100%; aspect-ratio: 4 / 3;",
+            div(  style = "width: 100%;",
+                  withSpinner(
+                    
+                    plotlyOutput("ggplot4_4_2"),
+                    
+                    type = 4,
+                    color = "#0072B2",
+                    caption = "Loading ... Do not refresh or change tab"
+                  )
+            )
+          ),
+          div(
+            # style = "padding: 0; width: 100%;",
             
             h3(
               "Concentration (5.1)",
@@ -921,10 +930,10 @@ ui <-
             div(
               style = "width: 100%;",   # ✅ shorter height
               withSpinner(
-              plotOutput("ggplot5_1") ,
-              type = 4,
-              color = "#0072B2",
-              caption = "Loading ... Do not refresh or change tab"
+                plotOutput("ggplot5_1") ,
+                type = 4,
+                color = "#0072B2",
+                caption = "Loading ... Do not refresh or change tab"
               )
             )
           )
@@ -995,12 +1004,12 @@ ui <-
           ###################################################################
           
           withSpinner(
-          uiOutput("the_report"),
-          type = 4,        # spinner style (1–8)
-          color = "#0072B2",
-          size = 1.5,
-          caption = "Loading ... Do not refresh or change tab"
-        ),
+            uiOutput("the_report"),
+            type = 4,        # spinner style (1–8)
+            color = "#0072B2",
+            size = 1.5,
+            caption = "Loading ... Do not refresh or change tab"
+          ),
           ##############################################################
           
           ### in the www file
@@ -1338,27 +1347,15 @@ server <- function(input, output, session) {
     
     req(yaml_data()$input_file)
     
-    # optionally pass variables into source environment
-    local_env <- new.env()
-    local_env$user_inputs<-yaml_data()
-    # local_env$user_inputs <- list(
-    #   input_file = yaml_data()$input_file
-    # )
-     # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
-     # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
-     # 
-     # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
-
-    # # # 
+    old_wd <- getwd()
+    on.exit(setwd(old_wd), add = TRUE)
+    setwd("..")
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
     
-    # source("scripts/read-msdial.R",
-    #        local = local_env)
-    
-    source("R_manual_run/_internal-shared_setup_chunky_toR.R",
-           local = local_env)
+    raw_se <- msdial$read_parsed_msdial_data(yaml_data())
     
     # ✅ extract result explicitly
-    local_env$raw_se
+    raw_se
   })
   
   
@@ -1372,12 +1369,12 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # # )
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
-    # 
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
-
-
+    setwd("..")
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    setwd("code/")
     # 
     # source("scripts/read-msdial.R",
     #        local = local_env)
@@ -1399,12 +1396,13 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
-    # 
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
-
-
+    setwd("..")
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+    
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    setwd("code/")
+    
     
     # 
     # source("scripts/read-msdial.R",
@@ -1428,16 +1426,13 @@ server <- function(input, output, session) {
     # local_env$user_inputs <- list(
     #   input_file = yaml_data()$input_file
     # )
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
-    # 
-    # req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
-
-
-    # source("scripts/read-msdial.R",
-    #        local = local_env)
+    setwd("..")
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
     
-    
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    setwd("code/")
+   # source("projlib/msdial.R")
     source("R_manual_run/_internal-shared_setup_chunky_toR.R",
            local = local_env)
     
@@ -1451,44 +1446,44 @@ server <- function(input, output, session) {
   ###########################################
   
   # observeEvent(yaml_data()$input_file, {
-  #   
+  # 
   #   req(yaml_data()$input_file)
   #   #user_inputs$input_file <- data_info$input_file
   #   #user_inputs$intermediate_dir <- data_info$intermediate_dir
   #   print(yaml_data()$input_file)  ## this is the params
   #   cat("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-  #   
+  # 
   #   # print(data_info$input_file)
   #   # print(user_inputs$input_file)
   #   # req(data_info$input_file==user_inputs$input_file)
-  #   
+  # 
   #   req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
   #   req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
-  #   
+  # 
   #   req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
-  #   
-  #   
-  #   
-  #   
+  # 
+  # 
+  # 
+  # 
   #   ### add a condition when there is no file of rds
   #   #req()
-  #   
+  # 
   #   source("R_manual_run/_internal-shared_setup_chunky_toR.R")
-  #   
-  #   
+  # 
+  # 
   #   #user_inputs$input_file<-yaml_data()$input_file
-  #   
+  # 
   #   # cat("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
   #   print(raw_se)
   #   # cat("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-  #   
+  # 
   #   print(FILE$i$to_rep)
   #   #cat("ssssssssssssssssssssssssssssssssssssssssssssssssssssssssss")
   #   print(user_inputs)
-  #   
+  # 
   #   # cat("ggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg")
   #   print(yaml_data())
-  #   
+  # 
   # })
   
   
@@ -2620,7 +2615,7 @@ server <- function(input, output, session) {
         columns = which(sapply(df_to_show, is.numeric)),
         digits = 2
       ) %>%
-
+      
       DT::formatStyle(
         columns = names(df_to_show),
         color = "#000000",

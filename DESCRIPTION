@@ -11,7 +11,9 @@ Imports:
     janitor,
     gridtext,
     ggfortify,
-    english
+    english,
+    openxlsx,
+    optparse
 Remotes:
     Rundmus/SumExp-R_package
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
