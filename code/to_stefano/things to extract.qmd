@@ -171,33 +171,33 @@ shinyApp(ui, server)
 
 There is one selection button to be shown what to ***color by*** : by class, or batch id, or by which internal standard it is. this information is from the input data
 
-+-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| To show in the shiny interface                                                    | what to extract                                                                                                                                                 |
-+===================================================================================+=================================================================================================================================================================+
-| the firstone vIS Figure as in 3.2.1.2/3.2.2.2,                                    | the corresponding all ggplot objects of vIS figures (by class, by batch id or by which internal standard), if there is "vIS" in the "Comment" in the input data |
-|                                                                                   |                                                                                                                                                                 |
-| Which one to show is based on:                                                    | or NULL, if there is NOT "vIS" in the "Comment" in the input data                                                                                               |
-|                                                                                   |                                                                                                                                                                 |
-| -   The ***color by*** option                                                     |                                                                                                                                                                 |
-|                                                                                   |                                                                                                                                                                 |
-| <!-- -->                                                                          |                                                                                                                                                                 |
-|                                                                                   |                                                                                                                                                                 |
-| -   The figure of Raw will be shown (fixed, 1 out of the 3 noemalization choices) |                                                                                                                                                                 |
-|                                                                                   |                                                                                                                                                                 |
-| or nothing if there is no VIS                                                     |                                                                                                                                                                 |
-+-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| To show in the shiny interface                                                  | what to extract                                                                                                                                                 |
++=================================================================================+=================================================================================================================================================================+
+| the firstone vIS Figure as in 3.2.1.2/3.2.2.2,                                  | the corresponding all ggplot objects of vIS figures (by class, by batch id or by which internal standard), if there is "vIS" in the "Comment" in the input data |
+|                                                                                 |                                                                                                                                                                 |
+| Which one to show is based on:                                                  | or NULL, if there is NOT "vIS" in the "Comment" in the input data                                                                                               |
+|                                                                                 |                                                                                                                                                                 |
+| - The ***color by*** option                                                     |                                                                                                                                                                 |
+|                                                                                 |                                                                                                                                                                 |
+| <!-- -->                                                                        |                                                                                                                                                                 |
+|                                                                                 |                                                                                                                                                                 |
+| - The figure of Raw will be shown (fixed, 1 out of the 3 noemalization choices) |                                                                                                                                                                 |
+|                                                                                 |                                                                                                                                                                 |
+| or nothing if there is no VIS                                                   |                                                                                                                                                                 |
++---------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-+--------------------------------------------------------------------------------------------------------+------------------------------------------------------+
-| To show in the shiny interface                                                                         | what to extract                                      |
-+========================================================================================================+======================================================+
-| one Figure as in 3.2.1.2/3.2.2.2                                                                       | the corresponding ggplot objects of all figures      |
-|                                                                                                        |                                                      |
-| Which one to show is based on:                                                                         | -   all figures orange-blue (color by class)         |
-|                                                                                                        |                                                      |
-| -   The ***color by*** option                                                                          | -   all figures red (color by batch id)              |
-|                                                                                                        |                                                      |
-| -   The figure of Raw and LOESS normalized will be shown (fixed, 2 out of the 3 noemalization choices) | -   all figures rainbow (color by internal standard) |
-+--------------------------------------------------------------------------------------------------------+------------------------------------------------------+
++------------------------------------------------------------------------------------------------------+----------------------------------------------------+
+| To show in the shiny interface                                                                       | what to extract                                    |
++======================================================================================================+====================================================+
+| one Figure as in 3.2.1.2/3.2.2.2                                                                     | the corresponding ggplot objects of all figures    |
+|                                                                                                      |                                                    |
+| Which one to show is based on:                                                                       | - all figures orange-blue (color by class)         |
+|                                                                                                      |                                                    |
+| - The ***color by*** option                                                                          | - all figures red (color by batch id)              |
+|                                                                                                      |                                                    |
+| - The figure of Raw and LOESS normalized will be shown (fixed, 2 out of the 3 noemalization choices) | - all figures rainbow (color by internal standard) |
++------------------------------------------------------------------------------------------------------+----------------------------------------------------+
 
 | To show in the shiny interface | what to extract               |
 |--------------------------------|-------------------------------|
@@ -234,11 +234,11 @@ one button of which normalization method to use
 +==================================================================+=================================================+
 | one Figure as in 4.3                                             | the corresponding ggplot objects of all figures |
 |                                                                  |                                                 |
-| one Figure as in 4.4.2.1                                         | -   all figures from 4.3                        |
+| one Figure as in 4.4.2.1                                         | - all figures from 4.3                          |
 |                                                                  |                                                 |
-| one Figure as in 5.1                                             | -   all figures from 4.3                        |
+| one Figure as in 5.1                                             | - all figures from 4.3                          |
 |                                                                  |                                                 |
-| Which one to show is based on the selection of rows in table 4.2 | -   all figures from 5.1                        |
+| Which one to show is based on the selection of rows in table 4.2 | - all figures from 5.1                          |
 +------------------------------------------------------------------+-------------------------------------------------+
 
 ### 
@@ -261,9 +261,9 @@ An radio button of whether do blank subtraction or not.
 
 The output will always be two xlsx files.
 
--   One is named only based on ***normalization methods***
+- One is named only based on ***normalization methods***
 
--   One is named based on both ***normalization methods*** and ***blank substraction*** option.
+- One is named based on both ***normalization methods*** and ***blank substraction*** option.
 
 ```{r}
 

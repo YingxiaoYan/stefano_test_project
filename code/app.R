@@ -22,15 +22,6 @@ library(echarts4r)
 library(DT)
 library(plotly)
 library(shinycssloaders)
-
-options(box.path = c(".", "code"))
-box::use(
-  SumExp,
-  util = projlib / msdial_utils,
-  projlib / msdial,
-  projlib / show,
-  io = projlib / check_io_exist,
-)
 # 1) Define theme
 custom_theme <- bs_theme(
   version = 5,
@@ -1347,15 +1338,30 @@ server <- function(input, output, session) {
     
     req(yaml_data()$input_file)
     
-    old_wd <- getwd()
-    on.exit(setwd(old_wd), add = TRUE)
+    # optionally pass variables into source environment
+    local_env <- new.env()
+    local_env$user_inputs<-yaml_data()
+    # local_env$user_inputs <- list(
+    #   input_file = yaml_data()$input_file
+    # )
+    
     setwd("..")
     req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "")))
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "proc")))
+
+    req(file.exists(msdial$get_raw_data_file_name(yaml_data(), suffix = "to_report")))
+    setwd("code/")
+
+    # # # 
     
-    raw_se <- msdial$read_parsed_msdial_data(yaml_data())
+    # source("scripts/read-msdial.R",
+    #        local = local_env)
+    
+    source("R_manual_run/_internal-shared_setup_chunky_toR.R",
+           local = local_env)
     
     # ✅ extract result explicitly
-    raw_se
+    local_env$raw_se
   })
   
   
